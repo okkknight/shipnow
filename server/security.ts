@@ -38,8 +38,6 @@ export const projectNameSchema = z
     }
   });
 
-export const projectTypeSchema = z.enum(['landing', 'tool', 'showcase', 'game']);
-
 export function validateProjectName(name: string): string {
   return projectNameSchema.parse(name);
 }

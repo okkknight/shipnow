@@ -16,6 +16,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The product specification is complete enough to implement the MVP.
 - The workspace now contains a working ShipNow app skeleton, backend API, task runner, and default static template.
 - The app can create a project, apply a Codex-driven change, rebuild it, publish a preview release, and promote that preview to the public release.
+- The create flow now uses one default template instead of a visible project-type picker; game projects are inferred from the prompt and can still switch to Phaser through Codex.
 - The current implementation now enforces reserved project-name checks, explicit delete confirmation, and log-preserving deletion behavior.
 - VPS acceptance is now live on the host-native deployment: the public ShipNow app runs at `/shipnow`, `preview.boringmax.com` now serves preview releases, the VPS Caddy also forwards `/preview*` and `/site*` to ShipNow for release serving, the API is served from `shipnow.boringmax.com/api`, and the acceptance project `vps-accept-20260525` is fully published.
 - Project workspaces are initialized as git repositories before Codex runs, and the default static template builds with Vite's `--configLoader runner` mode to avoid the read-only temp-file issue on the VPS layout.

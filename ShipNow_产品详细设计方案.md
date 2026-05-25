@@ -59,15 +59,9 @@ ShipNow 的核心目标是：
 
 第一版只支持由 ShipNow 生成和管理的纯前端静态项目。
 
-生成项目可以是：
+第一版统一使用 `default-static-site` 模板，不再让创建流程先选项目分类。
 
-- Landing Page
-- 小工具页
-- 小游戏
-- 图片/作品展示页
-- 测试/结果分享页
-- 内容展示页
-- 创意实验页
+如果需求明显是游戏，Codex 会根据用户的 prompt 自行切换为 Phaser 玩法；否则就沿用默认静态站点。
 
 第一版不支持生成项目拥有自己的后端 API、数据库、登录系统、常驻服务进程或 Docker 服务。
 
@@ -2138,7 +2132,6 @@ https://boringmax.com/shipnow
 
 ```text
 Project Name: hello-shipnow
-Project Type: landing
 Project Title: Hello ShipNow
 Prompt: 做一个极简高级的个人独立站首页，包含标题、介绍、亮点和按钮。
 ```
@@ -2158,7 +2151,6 @@ Prompt: 做一个极简高级的个人独立站首页，包含标题、介绍、
 
 ```text
 Project Name: gongde-basketball
-Project Type: game
 Project Title: 功德篮球
 Prompt: 做一个反直觉功德篮球小游戏，玩家通过蓄力投篮获得功德值，结算页要有梗并支持复制分享结果。
 ```

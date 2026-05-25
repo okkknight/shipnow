@@ -34,7 +34,6 @@ export function listProjects(): Promise<ProjectListResponse> {
 
 export function createProject(payload: {
   name: string;
-  type: ProjectView['type'];
   title: string;
   prompt: string;
 }): Promise<ProjectActionResponse> {

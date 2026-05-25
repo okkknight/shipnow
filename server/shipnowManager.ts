@@ -25,7 +25,6 @@ interface EnqueueInput {
 
 interface CreateProjectInput {
   name: string;
-  type: ProjectType;
   title: string;
   prompt: string;
 }
@@ -42,10 +41,17 @@ function statusText(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
+function inferProjectType(title: string, prompt: string): ProjectType {
+  const haystack = `${title} ${prompt}`.toLowerCase();
+  return /(\bgame\b|\bphaser\b|小游戏|游戏|功德篮球|投篮|arcade|puzzle|platformer|runner|shoot|basketball|pong|snake|flappy)/i.test(haystack)
+    ? 'game'
+    : 'landing';
+}
+
 function buildCodexPrompt(project: ProjectRecord, changePrompt: string): string {
   const lines = [
     `Current project name: ${project.name}`,
-    `Current project type: ${project.type}`,
+    `Template mode: ${project.type}`,
     `User request: ${changePrompt}`,
     'This is a ShipNow-managed pure front-end static project.',
     'Use the default-static-site template structure already present in the repository.',
@@ -167,9 +173,10 @@ export class ShipNowManager {
     }
 
     const paths = await prepareProjectWorkspace(this.env, name);
+    const type = inferProjectType(input.title, input.prompt);
     const project = this.store.createProject({
       name,
-      type: input.type,
+      type,
       title: input.title,
       prompt: input.prompt,
       sourceRoot: paths.sourceRoot,
@@ -514,12 +521,15 @@ export class ShipNowManager {
   private async runCodex(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
     const structuredPrompt = [
       `Project name: ${project.name}`,
-      `Project type: ${project.type}`,
+      `Template mode: ${project.type}`,
       'This is a ShipNow-managed static site project.',
       'Use only the files in the current working directory.',
       'Keep the existing template conventions and maintain pnpm build success.',
       'Do not start dev servers, preview servers, browser sessions, or other long-running processes.',
       'Only edit files in the current working directory and finish by running pnpm build.',
+      project.type === 'game'
+        ? 'Treat this as a game project and use Phaser from the template or add Phaser-based gameplay as needed.'
+        : '',
       '',
       prompt,
       '',

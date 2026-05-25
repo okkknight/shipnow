@@ -7,7 +7,7 @@ import { ZodError, z } from 'zod';
 import { findIndexFile, findStaticFile, sendFile } from './utils.js';
 import type { ShipNowEnv } from './env.js';
 import { ShipNowManager } from './shipnowManager.js';
-import { projectNameSchema, projectTypeSchema } from './security.js';
+import { projectNameSchema } from './security.js';
 import type { FastifyReply } from 'fastify';
 
 function normalizePrefix(prefix: string): string {
@@ -126,7 +126,6 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     const body = z
       .object({
         name: projectNameSchema,
-        type: projectTypeSchema,
         title: z.string().min(1).max(120),
         prompt: z.string().min(1).max(10_000),
       })

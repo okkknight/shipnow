@@ -10,16 +10,9 @@ import {
   publishProject,
   rebuildProject,
 } from './api';
-import type { ProjectDetailResponse, ProjectType, ProjectView, TaskView } from './types';
+import type { ProjectDetailResponse, ProjectView, TaskView } from './types';
 
 type DetailTab = 'overview' | 'tasks' | 'releases' | 'logs';
-
-const projectTypeOptions: Array<{ value: ProjectType; label: string; hint: string }> = [
-  { value: 'landing', label: 'Landing', hint: '营销页 / 着陆页' },
-  { value: 'tool', label: 'Tool', hint: '工具页 / 小应用' },
-  { value: 'showcase', label: 'Showcase', hint: '作品集 / 展示页' },
-  { value: 'game', label: 'Game', hint: '小游戏 / Phaser' },
-];
 
 const reservedProjectNames = new Set([
   'shipnow',
@@ -119,7 +112,6 @@ function App() {
     name: '',
     title: '',
     prompt: '',
-    type: 'landing' as ProjectType,
   });
   const [changePrompt, setChangePrompt] = useState('');
 
@@ -207,7 +199,7 @@ function App() {
       });
       setCreateOpen(false);
       setCreateError(null);
-      setCreateForm({ name: '', title: '', prompt: '', type: 'landing' });
+      setCreateForm({ name: '', title: '', prompt: '' });
       await refreshProjects(response.project.name);
       await refreshDetail(response.project.name);
       setDetailTab('overview');
@@ -353,7 +345,6 @@ function App() {
                   <thead className="sticky top-0 bg-[rgba(255,252,248,0.96)] text-xs uppercase tracking-[0.18em] text-[rgb(var(--muted))]">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Name</th>
-                      <th className="px-5 py-3 font-semibold">Type</th>
                       <th className="px-5 py-3 font-semibold">Status</th>
                       <th className="px-5 py-3 font-semibold">Preview</th>
                       <th className="px-5 py-3 font-semibold">Public</th>
@@ -376,7 +367,6 @@ function App() {
                           <div className="font-medium">{project.name}</div>
                           <div className="mt-1 text-xs text-[rgb(var(--muted))]">{project.title}</div>
                         </td>
-                        <td className="px-5 py-4 text-sm text-[rgb(var(--muted))]">{project.type}</td>
                         <td className="px-5 py-4">
                           <span className={`chip ${statusTone(project.status)}`}>{statusLabel(project.status)}</span>
                         </td>
@@ -497,13 +487,13 @@ function App() {
       {createOpen ? (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-[rgba(17,20,26,0.44)] px-4 backdrop-blur-sm">
           <div className="shell-panel w-full max-w-2xl p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="label">Create project</p>
-                <h3 className="mt-1 text-xl font-semibold">New static site</h3>
-              </div>
-              <button className="soft-button" onClick={() => setCreateOpen(false)}>
-                Close
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="label">Create project</p>
+                  <h3 className="mt-1 text-xl font-semibold">New ShipNow project</h3>
+                </div>
+                <button className="soft-button" onClick={() => setCreateOpen(false)}>
+                  Close
               </button>
             </div>
 
@@ -534,22 +524,6 @@ function App() {
                   }}
                 />
               </Field>
-              <Field label="Project type">
-                <select
-                  className="w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
-                  value={createForm.type}
-                  onChange={(event) => {
-                    setCreateError(null);
-                    setCreateForm((prev) => ({ ...prev, type: event.target.value as ProjectType }));
-                  }}
-                >
-                  {projectTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label} · {option.hint}
-                    </option>
-                  ))}
-                </select>
-              </Field>
               <Field label="Prompt" className="md:col-span-2">
                 <textarea
                   className="min-h-36 w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
@@ -560,6 +534,9 @@ function App() {
                     setCreateForm((prev) => ({ ...prev, prompt: event.target.value }));
                   }}
                 />
+                <p className="mt-2 text-xs text-[rgb(var(--muted))]">
+                  ShipNow uses one default template. If your request is a game, describe it naturally in the prompt and Codex will switch to Phaser when needed.
+                </p>
               </Field>
             </div>
 

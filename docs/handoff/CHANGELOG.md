@@ -17,3 +17,4 @@
 - Split the ShipNow runtime boundary so the UI stays on `boringmax.com/shipnow` while the API moves to `shipnow.boringmax.com/api`, and the VPS Caddy route map forwards `/preview*` and `/site*` into ShipNow as well.
 - Added `preview.boringmax.com` as the public preview host and pointed ShipNow's preview base URL to it.
 - Switched generated static sites to a relative Vite base so preview and public releases resolve assets correctly under `/preview/<project>` and `/site/<project>`, then rebuilt and republished `vps-accept-20260525` to verify both routes serve 200s.
+- Simplified project creation to a single default template flow: removed the visible project-type picker, and now infer game projects from the prompt so Codex can switch them to Phaser when needed.
