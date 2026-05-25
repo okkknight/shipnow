@@ -87,6 +87,21 @@ function statusLabel(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
+function actionLabel(action: string | null): string {
+  switch (action) {
+    case 'create':
+      return 'create project';
+    case 'rebuild':
+      return 'rebuild';
+    case 'publish':
+      return 'publish';
+    case 'change':
+      return 'apply change';
+    default:
+      return 'task';
+  }
+}
+
 function taskBadge(task: TaskView): string {
   return statusTone(task.status);
 }
@@ -468,7 +483,16 @@ function App() {
 
                 <div className="flex-1 overflow-auto p-5">
                   {detailTab === 'overview' ? (
-                    <OverviewPanel project={currentProject} detail={detail} changePrompt={changePrompt} setChangePrompt={setChangePrompt} onApplyChange={() => void handleProjectAction('change')} actionBusy={actionBusy} />
+                    <OverviewPanel
+                      project={currentProject}
+                      detail={detail}
+                      currentTask={currentTask}
+                      taskLogs={taskLogs}
+                      changePrompt={changePrompt}
+                      setChangePrompt={setChangePrompt}
+                      onApplyChange={() => void handleProjectAction('change')}
+                      actionBusy={actionBusy}
+                    />
                   ) : null}
                   {detailTab === 'tasks' ? <TasksPanel tasks={detail?.tasks ?? []} currentTask={currentTask} /> : null}
                   {detailTab === 'releases' ? <ReleasesPanel project={currentProject} releases={detail?.releases ?? []} /> : null}
@@ -652,6 +676,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 function OverviewPanel({
   project,
   detail,
+  currentTask,
+  taskLogs,
   changePrompt,
   setChangePrompt,
   onApplyChange,
@@ -659,13 +685,46 @@ function OverviewPanel({
 }: {
   project: ProjectView;
   detail: ProjectDetailResponse | null;
+  currentTask: TaskView | null;
+  taskLogs: string;
   changePrompt: string;
   setChangePrompt: (value: string) => void;
   onApplyChange: () => void;
   actionBusy: string | null;
 }) {
+  const isWorkingTask = currentTask && ['pending', 'running', 'publishing'].includes(currentTask.status);
+  const isActionInFlight = actionBusy !== null && actionBusy !== 'delete';
+  const showTaskBanner = Boolean(isWorkingTask || isActionInFlight);
+  const bannerTaskName = isWorkingTask ? currentTask.type : actionLabel(actionBusy);
+  const bannerStatus = isWorkingTask ? statusLabel(currentTask.status) : isActionInFlight ? 'starting' : '';
+  const liveLogLines = taskLogs
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .slice(-10)
+    .join('\n');
+
   return (
     <div className="space-y-5">
+      {showTaskBanner ? (
+        <div className="rounded-[24px] border border-[rgba(19,132,111,0.22)] bg-[rgba(19,132,111,0.08)] p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--teal))]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[rgb(var(--teal))] animate-pulse" />
+            <span>
+              {bannerTaskName} is {bannerStatus} and Codex is working
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[rgb(var(--ink))]">
+            {isWorkingTask
+              ? 'The latest implementation output is streamed below so you can see what is being edited and built right now.'
+              : 'Codex has been asked to start work, and the latest output will appear here as soon as the task begins.'}
+          </p>
+          <pre className="mt-3 max-h-48 overflow-auto rounded-2xl bg-[rgba(255,255,255,0.78)] p-3 text-xs leading-6 text-[rgb(var(--ink))]">
+            {liveLogLines || 'Waiting for Codex output...'}
+          </pre>
+        </div>
+      ) : null}
+
       <div className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
         <div className="flex items-start justify-between gap-4">
           <div>

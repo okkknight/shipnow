@@ -23,6 +23,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - Generated static sites now use a relative Vite base, so preview and public releases resolve assets correctly when served from `/preview/<project>` and `/project`.
 - The build-failure recovery path has been verified and the reference project is back in `preview_ready`.
 - The default `game` template now builds as a playable Phaser power-charge basketball mini game.
+- The overview panel now shows the current task state and latest log excerpt while a project is generating or publishing, so in-flight Codex work is visible without switching tabs.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables.
 
 ## Key files
