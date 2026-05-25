@@ -1,0 +1,97 @@
+export type ProjectType = 'landing' | 'tool' | 'showcase' | 'game';
+
+export type ProjectStatus =
+  | 'draft'
+  | 'generating'
+  | 'build_failed'
+  | 'preview_ready'
+  | 'published'
+  | 'publishing'
+  | 'publish_failed'
+  | 'deleted';
+
+export type TaskType = 'create_project' | 'apply_change' | 'rebuild' | 'publish' | 'delete_project';
+
+export type TaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+
+export type ReleaseKind = 'preview' | 'public';
+
+export interface ProjectRecord {
+  name: string;
+  type: ProjectType;
+  title: string;
+  prompt: string;
+  status: ProjectStatus;
+  source_root: string;
+  preview_release_path: string | null;
+  public_release_path: string | null;
+  created_at: string;
+  updated_at: string;
+  last_built_at: string | null;
+  last_published_at: string | null;
+  deleted_at: string | null;
+  latest_task_id: string | null;
+}
+
+export interface TaskRecord {
+  id: string;
+  project_name: string;
+  type: TaskType;
+  status: TaskStatus;
+  prompt: string;
+  started_at: string | null;
+  finished_at: string | null;
+  log_path: string;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReleaseRecord {
+  id: string;
+  project_name: string;
+  kind: ReleaseKind;
+  source: string;
+  release_path: string;
+  created_at: string;
+  published_at: string | null;
+  build_task_id: string | null;
+  is_current_preview: number;
+  is_current_public: number;
+}
+
+export interface ProjectView {
+  name: string;
+  type: ProjectType;
+  title: string;
+  prompt: string;
+  status: ProjectStatus;
+  previewUrl: string;
+  publicUrl: string;
+  previewRoute: string;
+  publicRoute: string;
+  createdAt: string;
+  updatedAt: string;
+  lastBuiltAt: string | null;
+  lastPublishedAt: string | null;
+  deletedAt: string | null;
+  latestTaskId: string | null;
+  sourceRoot: string;
+  previewReleasePath: string | null;
+  publicReleasePath: string | null;
+}
+
+export interface TaskView {
+  id: string;
+  projectName: string;
+  type: TaskType;
+  status: TaskStatus;
+  prompt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  logPath: string;
+}
+

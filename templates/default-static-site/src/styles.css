@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: 250 248 244;
+    --ink: 23 26 33;
+    --muted: 93 102 120;
+    --line: 224 217 208;
+    --teal: 19 132 111;
+    --amber: 191 116 25;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(circle at top left, rgba(19, 132, 111, 0.12), transparent 28%),
+      radial-gradient(circle at top right, rgba(191, 116, 25, 0.1), transparent 24%),
+      linear-gradient(180deg, rgb(var(--bg)) 0%, rgb(241 236 229) 100%);
+    color: rgb(var(--ink));
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 md:px-6 md:py-8;
+  }
+
+  .card {
+    @apply rounded-[28px] border border-[rgb(var(--line))] bg-white/85 shadow-[0_24px_60px_rgba(18,23,31,0.08)];
+  }
+
+  .soft-button {
+    @apply inline-flex items-center justify-center rounded-full border border-[rgb(var(--line))] bg-white px-4 py-2 text-sm font-medium transition hover:border-[rgb(var(--teal))] hover:text-[rgb(var(--teal))];
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center rounded-full bg-[rgb(var(--ink))] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90;
+  }
+
+  .pill {
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em];
+  }
+}
+

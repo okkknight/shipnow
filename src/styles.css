@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: 248 247 244;
+    --panel: 255 252 248;
+    --panel-strong: 244 240 233;
+    --ink: 20 23 29;
+    --muted: 91 101 119;
+    --line: 224 216 203;
+    --teal: 21 128 110;
+    --teal-soft: 212 244 238;
+    --amber: 194 121 28;
+    --shadow: 18 23 31;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(circle at top left, rgba(21, 128, 110, 0.08), transparent 28%),
+      radial-gradient(circle at top right, rgba(194, 121, 28, 0.08), transparent 22%),
+      linear-gradient(180deg, rgb(var(--bg)) 0%, rgb(242 239 234) 100%);
+    color: rgb(var(--ink));
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .shell-panel {
+    @apply rounded-[28px] border border-[rgb(var(--line))] bg-[rgba(255,252,248,0.9)] shadow-[0_24px_80px_rgba(18,23,31,0.08)];
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium tracking-wide;
+  }
+
+  .soft-button {
+    @apply inline-flex items-center justify-center rounded-full border border-[rgb(var(--line))] bg-white px-4 py-2 text-sm font-medium text-[rgb(var(--ink))] transition hover:border-[rgb(var(--teal))] hover:text-[rgb(var(--teal))];
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center rounded-full bg-[rgb(var(--ink))] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90;
+  }
+
+  .label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-[rgb(var(--muted))];
+  }
+}
+
