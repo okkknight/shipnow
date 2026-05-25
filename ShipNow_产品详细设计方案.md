@@ -179,7 +179,7 @@ Cloudflare Access 或 Caddy Basic Auth 至少启用一个。
 在当前主机部署里，Caddy 的实际转发边界如下：
 
 - `boringmax.com/shipnow` 进入 ShipNow 管理后台。
-- `boringmax.com/preview*` 和 `boringmax.com/site*` 进入 ShipNow 进程，由 ShipNow 负责预览和正式发布的静态内容响应。
+- `boringmax.com/preview*` 进入 ShipNow 进程，由 ShipNow 负责预览静态内容响应；`boringmax.com/{projectName}` 由主站静态目录提供正式发布内容。
 - `shipnow.boringmax.com/api` 进入 ShipNow API。
 
 这条入口形态是当前 VPS 的事实状态，后续实现和排障都应以此为准。
@@ -199,7 +199,6 @@ https://boringmax.com/shipnow
 填写：
 
 - Project Name
-- Project Type
 - Idea / Prompt
 
 点击创建。
@@ -386,64 +385,24 @@ https://boringmax.com/shipnow
 
 ---
 
-## 7. Project Type 设计
+## 7. 模板模式推断
 
-### 7.1 创建项目时需要选择 Project Type
+### 7.1 创建项目不再显式选择类型
 
-第一版创建项目表单包含：
+第一版创建项目表单只包含：
 
 - Project Name
-- Project Type
 - Idea / Prompt
 
-Project Type 是默认模板的“使用模式”，不是不同技术模板。
+ShipNow 统一使用同一个 `default-static-site` 模板创建项目。
 
-所有类型仍然基于同一个 `default-static-site` 模板创建。
+### 7.2 游戏模式自动推断
 
-### 7.2 支持类型
+ShipNow 会根据用户的 prompt 自动判断是否需要游戏模式。
 
-第一版支持以下固定枚举：
+如果 prompt 明显是小游戏、互动玩法、投篮、Phaser、arcade 这类内容，Codex 应切换到游戏实现方式，并使用模板内置的 Phaser 能力。
 
-```text
-landing
-tool
-game
-gallery
-article
-experiment
-```
-
-含义：
-
-- `landing`：产品页、活动页、项目介绍页
-- `tool`：小工具、计算器、生成器、转换器
-- `game`：小游戏、互动玩法、测试游戏
-- `gallery`：图片/作品/卡片瀑布流展示
-- `article`：单页内容、教程、长文展示
-- `experiment`：创意实验、视觉实验、无法归类的小项目
-
-### 7.3 Project Type 对 Codex 的约束
-
-ShipNow 调用 Codex 时，必须把 Project Type 写入任务提示中。
-
-如果 `projectType = game`：
-
-- 必须优先使用模板内置 Phaser 能力。
-- 必须保留游戏开始、游戏进行、游戏结束的基本状态。
-- 必须提供移动端可操作方案。
-- 必须提供分数、反馈或结算 UI。
-
-如果 `projectType = gallery`：
-
-- 必须优先使用模板内置 GalleryLayout 或瀑布流展示组件。
-- 必须包含空状态和加载状态，即使第一版数据是静态 mock。
-
-如果 `projectType = tool`：
-
-- 必须包含输入区、操作区、结果区。
-- 必须处理空输入、错误输入和复制结果。
-
-如果 `projectType = landing`：
+否则默认沿用普通静态站点模式。
 
 - 必须包含 hero、介绍、亮点、CTA。
 - 页面必须有明确标题、描述和行动按钮。
@@ -730,7 +689,7 @@ globals.css
 - ArticleLayout
 - ExperimentLayout
 
-Codex 根据 Project Type 选择对应 Layout。
+Codex 根据用户 prompt 和内容方向选择对应 Layout。
 
 要求：
 
@@ -1021,7 +980,7 @@ Caddy / Cloudflare
 负责：
 
 - 在受控项目目录中调用 Codex CLI
-- 将 Project Type、用户 Prompt、模板约束传给 Codex
+- 将用户 Prompt、模板约束和内部模式提示传给 Codex
 - 捕获 stdout/stderr
 - 记录日志
 - 不做发布
@@ -1529,7 +1488,8 @@ ShipNow 调用 Codex 时必须组装结构化提示。
 - 根据用户 prompt 实现一个完整可访问的小站。
 - 更新 `src/project.config.ts`。
 - 更新页面标题和描述。
-- 使用对应 Project Type 的 Layout。
+- 使用模板已有 Layout 和 UI 组件。
+- 如果需求明显是游戏，则使用 Phaser 和游戏宿主结构。
 - 使用模板已有 UI 组件。
 - 保证移动端可用。
 - 保证 `pnpm build` 成功。
@@ -1562,7 +1522,7 @@ ShipNow 第一版开发流程必须本地优先：
 
 完整流程：
 
-1. 用户在前端填写 Project Name、Project Type、Title、Prompt。
+1. 用户在前端填写 Project Name、Title、Prompt。
 2. 前端调用 `POST /api/projects`。
 3. 后端校验项目名。
 4. 后端校验项目名未被占用。
@@ -1871,20 +1831,10 @@ Actions：
 字段：
 
 - Project Name
-- Project Type
 - Project Title
 - Idea / Prompt
 
-Project Type 使用固定下拉：
-
-```text
-landing
-tool
-game
-gallery
-article
-experiment
-```
+不再显示 Project Type 下拉，游戏模式由 prompt 自动推断。
 
 按钮：
 

@@ -47,7 +47,7 @@ export function loadEnv(): ShipNowEnv {
   const publicStaticRoot = envPath('SHIPNOW_PUBLIC_STATIC_ROOT', 'workspace/public');
   return {
     port: envInt('SHIPNOW_PORT', 3000),
-    publicBaseUrl: process.env.SHIPNOW_PUBLIC_BASE_URL?.trim() || 'http://localhost:3000/site',
+    publicBaseUrl: process.env.SHIPNOW_PUBLIC_BASE_URL?.trim() || 'http://localhost:3000',
     previewBaseUrl: process.env.SHIPNOW_PREVIEW_BASE_URL?.trim() || 'http://localhost:3000/preview',
     shipnowApiBaseUrl: process.env.SHIPNOW_API_BASE_URL?.trim() || '/api',
     workspaceRoot,
