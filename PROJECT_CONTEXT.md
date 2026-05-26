@@ -24,13 +24,14 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The build-failure recovery path has been verified and the reference project is back in `preview_ready`.
 - The default `game` template now builds as a playable Phaser power-charge basketball mini game.
 - The overview panel now shows the current task state and latest log excerpt while a project is generating or publishing, so in-flight Codex work is visible without switching tabs.
+- The latest browser acceptance of the modify flow passed for `ui-smoke-20260526`: apply-change completed successfully, the preview release updated, and the public release stayed unchanged because Publish was not clicked.
 - The latest independent browser acceptance is not yet passing because the ShipNow entry and API are still reachable without an authentication gate, which violates the design doc's access-protection requirement.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables.
 
 ## Latest task
 
-- Status: `验收不通过`
-- Reason: the core create/preview/publish flow passed in browser testing, but the ShipNow entry is still publicly reachable without Cloudflare Access or Caddy Basic Auth.
+- Status: `修改项验收通过`
+- Reason: the modify flow passed in browser testing for `ui-smoke-20260526`, but the overall product acceptance is still blocked by the missing access-protection gate.
 
 ## Key files
 
