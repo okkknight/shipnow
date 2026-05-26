@@ -28,13 +28,14 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The default `game` template now builds as a playable Phaser power-charge basketball mini game.
 - The overview panel now shows the current task state and latest log excerpt while a project is generating or publishing, so in-flight Codex work is visible without switching tabs.
 - The latest browser acceptance of the modify flow passed for `ui-smoke-20260526`: apply-change completed successfully, the preview release updated, and the public release stayed unchanged because Publish was not clicked.
+- The publish action now sends bodyless requests without a JSON content-type header, and the API preserves Fastify's real 4xx status codes instead of wrapping them into generic 500s.
 - The latest independent browser acceptance is not yet passing because the ShipNow entry and API are still reachable without an authentication gate, which violates the design doc's access-protection requirement.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md` and `docs/SITE_LAYOUT_STANDARD.md`.
 
 ## Latest task
 
-- Status: `VPS artifacts migrated into per-site directories and verified`
-- Reason: source, preview, public, and log paths were moved into each site's own directory, the shared bucket was removed, and `test` plus `vps-accept-20260525` were verified after the migration.
+- Status: `Publish request handling stabilized and docs aligned`
+- Reason: bodyless publish/rebuild/delete requests no longer send a JSON content-type header, Fastify errors now surface with their real status codes, and the current implementation plus deployment docs are aligned to the per-site layout.
 
 ## Key files
 
