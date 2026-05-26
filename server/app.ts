@@ -83,6 +83,15 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   app.setErrorHandler((error, _request, reply) => {
     app.log.error({ err: error }, 'ShipNow request failed');
 
+    const statusCode = typeof (error as { statusCode?: unknown }).statusCode === 'number'
+      ? (error as { statusCode: number }).statusCode
+      : null;
+    if (statusCode && statusCode >= 400 && statusCode < 600) {
+      const message = error instanceof Error ? error.message : 'Request failed';
+      reply.status(statusCode).send({ error: message });
+      return;
+    }
+
     if (error instanceof ZodError) {
       reply.status(400).send({
         error: 'Validation failed',

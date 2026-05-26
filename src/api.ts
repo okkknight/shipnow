@@ -12,11 +12,14 @@ function readRuntimeApiBase(): string | null {
 const API_BASE = readRuntimeApiBase() || import.meta.env.VITE_SHIPNOW_API_BASE_URL || '/api';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body !== undefined && init?.body !== null;
+  const headers: Record<string, string> = {
+    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+    ...(init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {}),
+  };
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers,
     ...init,
   });
 
