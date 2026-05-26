@@ -476,7 +476,7 @@ export class ShipNowManager {
     }
     const releasePath = resolve(paths.previewReleasesRoot, `${taskId}-${randomUUID().slice(0, 8)}`);
     await this.copyDirectory(distPath, releasePath);
-    await injectBaseHref(resolve(releasePath, 'index.html'), `/${projectName}/`);
+    await injectBaseHref(resolve(releasePath, 'index.html'), `/${projectName}/preview/`);
     await updateCurrentReleaseLink(releasePath, paths.previewCurrentRoot);
     const release = this.store.createRelease({
       projectName,

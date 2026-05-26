@@ -194,8 +194,8 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     return manager.getTaskLog(taskId);
   });
 
-  const previewRoot = env.previewStaticRoot;
   const publicRoot = env.publicStaticRoot;
+  const previewRoot = env.publicStaticRoot;
   const clientDistRoot = resolve(process.cwd(), 'dist/client');
   const shipnowIndexApiBase = env.shipnowApiBaseUrl;
 
@@ -259,7 +259,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     const sitePrefix = '/site/';
     if (requestPath.startsWith(previewPrefix)) {
       const projectName = requestPath.slice(previewPrefix.length).split('/')[0];
-      const projectRoot = resolve(previewRoot, projectName);
+      const projectRoot = resolve(previewRoot, projectName, 'preview');
       const rest = requestPath.slice((previewPrefix + projectName).length);
       return await serveRelease(`/preview/${projectName}`, projectRoot, rest, reply, `/preview/${projectName}/`);
     }
@@ -288,7 +288,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   app.get('/preview/:projectName/*', async (request, reply) => {
     const { projectName } = request.params as { projectName: string };
     const safeName = projectNameSchema.parse(projectName);
-    const projectRoot = resolve(previewRoot, safeName);
+    const projectRoot = resolve(previewRoot, safeName, 'preview');
     const rest = request.url.slice(`/preview/${safeName}`.length);
     if (!(await serveRelease(`/preview/${safeName}`, projectRoot, rest, reply, `/preview/${safeName}/`))) {
       reply.code(404).send('Preview not found.');
@@ -298,7 +298,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   app.get('/preview/:projectName', async (request, reply) => {
     const { projectName } = request.params as { projectName: string };
     const safeName = projectNameSchema.parse(projectName);
-    const projectRoot = resolve(previewRoot, safeName);
+    const projectRoot = resolve(previewRoot, safeName, 'preview');
     if (!(await serveRelease(`/preview/${safeName}`, projectRoot, '', reply, `/preview/${safeName}/`))) {
       reply.code(404).send('Preview not found.');
     }

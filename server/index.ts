@@ -5,7 +5,7 @@ import { createShipNowApp } from './app.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  const store = new ShipNowStore(env.dbPath);
+  const store = new ShipNowStore(env.dbPath, env.publicStaticRoot);
   const manager = new ShipNowManager(store, env);
   await manager.initialize();
   const app = await createShipNowApp(manager, env);
@@ -31,4 +31,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

@@ -6,39 +6,39 @@ import type { ProjectType } from './types.js';
 export interface ProjectPaths {
   projectRoot: string;
   sourceRoot: string;
+  publicIndexPath: string;
+  publicAssetsPath: string;
   previewCurrentRoot: string;
   publicCurrentRoot: string;
+  previewIndexPath: string;
+  previewAssetsPath: string;
   previewReleasesRoot: string;
   publicReleasesRoot: string;
   logPath: string;
 }
 
 export function projectPaths(env: ShipNowEnv, projectName: string): ProjectPaths {
-  const projectRoot = resolve(env.workspaceRoot, 'projects', projectName);
-  const siteDataRoot = resolve(env.publicStaticRoot, '.shipnow');
+  const projectRoot = resolve(env.publicStaticRoot, projectName);
   return {
     projectRoot,
-    sourceRoot: join(siteDataRoot, 'projects', projectName, 'source'),
-    previewCurrentRoot: resolve(env.previewStaticRoot, projectName),
-    publicCurrentRoot: resolve(env.publicStaticRoot, projectName),
-    previewReleasesRoot: resolve(siteDataRoot, 'releases', 'preview', projectName),
-    publicReleasesRoot: resolve(siteDataRoot, 'releases', 'public', projectName),
-    logPath: resolve(siteDataRoot, 'logs', `${projectName}.log`),
+    sourceRoot: join(projectRoot, 'source'),
+    publicIndexPath: resolve(projectRoot, 'index.html'),
+    publicAssetsPath: resolve(projectRoot, 'assets'),
+    previewCurrentRoot: resolve(projectRoot, 'current-preview'),
+    publicCurrentRoot: resolve(projectRoot, 'current-public'),
+    previewIndexPath: resolve(projectRoot, 'preview', 'index.html'),
+    previewAssetsPath: resolve(projectRoot, 'preview', 'assets'),
+    previewReleasesRoot: resolve(projectRoot, 'releases', 'preview'),
+    publicReleasesRoot: resolve(projectRoot, 'releases', 'public'),
+    logPath: resolve(projectRoot, 'logs', `${projectName}.log`),
   };
 }
 
 export async function ensureWorkspaceRoots(env: ShipNowEnv): Promise<void> {
-  const siteDataRoot = resolve(env.publicStaticRoot, '.shipnow');
   await Promise.all([
     ensureDir(env.workspaceRoot),
     ensureDir(env.templateRoot),
-    ensureDir(env.previewStaticRoot),
     ensureDir(env.publicStaticRoot),
-    ensureDir(siteDataRoot),
-    ensureDir(resolve(siteDataRoot, 'projects')),
-    ensureDir(resolve(siteDataRoot, 'releases', 'preview')),
-    ensureDir(resolve(siteDataRoot, 'releases', 'public')),
-    ensureDir(resolve(siteDataRoot, 'logs')),
   ]);
 }
 
@@ -46,8 +46,20 @@ export async function prepareProjectWorkspace(env: ShipNowEnv, projectName: stri
   const paths = projectPaths(env, projectName);
   await Promise.all([
     ensureDir(paths.projectRoot),
+    ensureDir(resolve(paths.projectRoot, 'preview')),
+    ensureDir(resolve(paths.projectRoot, 'logs')),
+    ensureDir(resolve(paths.projectRoot, 'releases', 'preview')),
+    ensureDir(resolve(paths.projectRoot, 'releases', 'public')),
     ensureDir(paths.previewReleasesRoot),
     ensureDir(paths.publicReleasesRoot),
+    ensureDir(resolve(paths.projectRoot, 'current-preview')),
+    ensureDir(resolve(paths.projectRoot, 'current-public')),
+  ]);
+  await Promise.all([
+    updateCurrentReleaseLink(resolve(paths.publicCurrentRoot, 'index.html'), paths.publicIndexPath),
+    updateCurrentReleaseLink(resolve(paths.publicCurrentRoot, 'assets'), paths.publicAssetsPath),
+    updateCurrentReleaseLink(resolve(paths.previewCurrentRoot, 'index.html'), paths.previewIndexPath),
+    updateCurrentReleaseLink(resolve(paths.previewCurrentRoot, 'assets'), paths.previewAssetsPath),
   ]);
   return paths;
 }
@@ -108,11 +120,5 @@ export async function injectBaseHref(indexPath: string, baseHref: string): Promi
 }
 
 export async function removeProjectWorkspace(paths: ProjectPaths): Promise<void> {
-  await Promise.all([
-    removePath(paths.projectRoot),
-    removePath(paths.previewCurrentRoot),
-    removePath(paths.publicCurrentRoot),
-    removePath(paths.previewReleasesRoot),
-    removePath(paths.publicReleasesRoot),
-  ]);
+  await removePath(paths.projectRoot);
 }

@@ -7,7 +7,6 @@ export interface ShipNowEnv {
   shipnowApiBaseUrl: string;
   workspaceRoot: string;
   templateRoot: string;
-  previewStaticRoot: string;
   publicStaticRoot: string;
   dbPath: string;
   codexBin: string;
@@ -42,7 +41,6 @@ function envPrefix(name: string, fallback: string): string {
 
 export function loadEnv(): ShipNowEnv {
   const workspaceRoot = envPath('SHIPNOW_WORKSPACE_ROOT', 'workspace');
-  const previewStaticRoot = envPath('SHIPNOW_PREVIEW_STATIC_ROOT', 'workspace/preview');
   const publicStaticRoot = envPath('SHIPNOW_PUBLIC_STATIC_ROOT', 'workspace/public');
   return {
     port: envInt('SHIPNOW_PORT', 3000),
@@ -51,7 +49,6 @@ export function loadEnv(): ShipNowEnv {
     shipnowApiBaseUrl: process.env.SHIPNOW_API_BASE_URL?.trim() || '/api',
     workspaceRoot,
     templateRoot: envPath('SHIPNOW_TEMPLATE_ROOT', 'templates'),
-    previewStaticRoot,
     publicStaticRoot,
     dbPath: envPath('SHIPNOW_DB_PATH', 'workspace/shipnow.sqlite'),
     codexBin: process.env.SHIPNOW_CODEX_BIN?.trim() || 'codex',

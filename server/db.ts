@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { dirname } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { appendFile } from 'node:fs/promises';
@@ -19,13 +19,16 @@ function toMaybeString(value: unknown): string | null {
 
 export class ShipNowStore {
   private readonly db: SqlDatabase;
+  private readonly publicStaticRoot: string;
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, publicStaticRoot: string) {
+    this.publicStaticRoot = publicStaticRoot;
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.migrate();
+    this.migrateLegacySiteLayout();
   }
 
   private migrate(): void {
@@ -78,6 +81,82 @@ export class ShipNowStore {
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_releases_project_kind ON releases(project_name, kind);
     `);
+  }
+
+  private migrateLegacySiteLayout(): void {
+    const projects = this.db.prepare('SELECT * FROM projects ORDER BY created_at ASC').all() as ProjectRecord[];
+    const updateTaskPath = this.db.prepare('UPDATE tasks SET log_path = ?, updated_at = ? WHERE id = ?');
+    const updateReleasePath = this.db.prepare('UPDATE releases SET source = ?, release_path = ? WHERE id = ?');
+    const updateProjectPaths = this.db.prepare(`
+      UPDATE projects SET
+        source_root = ?,
+        preview_release_path = ?,
+        public_release_path = ?,
+        updated_at = ?
+      WHERE name = ?
+    `);
+
+    const transaction = this.db.transaction(() => {
+      for (const project of projects) {
+        const projectRoot = resolve(this.publicStaticRoot, project.name);
+        const sourceRoot = resolve(projectRoot, 'source');
+        const migratedAt = nowIso();
+        const previewReleaseRows = this.db
+          .prepare('SELECT * FROM releases WHERE project_name = ? AND kind = ? ORDER BY created_at ASC')
+          .all(project.name, 'preview') as ReleaseRecord[];
+        const publicReleaseRows = this.db
+          .prepare('SELECT * FROM releases WHERE project_name = ? AND kind = ? ORDER BY created_at ASC')
+          .all(project.name, 'public') as ReleaseRecord[];
+
+        const migrateReleasePath = (kind: ReleaseKind, currentPath: string): string => {
+          const leaf = basename(currentPath);
+          return resolve(projectRoot, 'releases', kind, leaf);
+        };
+
+        const migratedPreviewReleases = previewReleaseRows.map((release) => {
+          const releasePath = migrateReleasePath('preview', release.release_path);
+          return {
+            id: release.id,
+            source: sourceRoot,
+            releasePath,
+          };
+        });
+
+        const migratedPublicReleases = publicReleaseRows.map((release) => {
+          const releasePath = migrateReleasePath('public', release.release_path);
+          const sourcePath = release.source ? migrateReleasePath('preview', release.source) : sourceRoot;
+          return {
+            id: release.id,
+            source: sourcePath,
+            releasePath,
+          };
+        });
+
+        for (const task of this.db.prepare('SELECT * FROM tasks WHERE project_name = ? ORDER BY created_at ASC').all(project.name) as TaskRecord[]) {
+          updateTaskPath.run(resolve(projectRoot, 'logs', `${project.name}.log`), migratedAt, task.id);
+        }
+
+        for (const release of migratedPreviewReleases) {
+          updateReleasePath.run(release.source, release.releasePath, release.id);
+        }
+
+        for (const release of migratedPublicReleases) {
+          updateReleasePath.run(release.source, release.releasePath, release.id);
+        }
+
+        const currentPreview = this.getCurrentRelease(project.name, 'preview') ?? this.getLatestRelease(project.name, 'preview');
+        const currentPublic = this.getCurrentRelease(project.name, 'public') ?? this.getLatestRelease(project.name, 'public');
+        updateProjectPaths.run(
+          sourceRoot,
+          currentPreview?.release_path ?? null,
+          currentPublic?.release_path ?? null,
+          migratedAt,
+          project.name
+        );
+      }
+    });
+
+    transaction();
   }
 
   close(): void {
