@@ -19,3 +19,9 @@
 - Switched generated static sites to a relative Vite base so preview and public releases resolve assets correctly under `/preview/<project>` and `/project`, then rebuilt and republished `vps-accept-20260525` to verify both routes serve 200s.
 - Simplified project creation to a single default template flow: removed the visible project-type picker, and now infer game projects from the prompt so Codex can switch them to Phaser when needed.
 - Added a live overview banner that shows the current task status plus the latest task log excerpt while a project is generating or publishing.
+
+## 2026-05-26
+
+- Ran an independent browser acceptance pass against the live VPS ShipNow entry.
+- Verified the core UI flow: project list renders, the new-project modal opens, project creation starts, task logs stream, preview release generation completes, and the temporary smoke project reaches `preview_ready`.
+- Found a design-blocking issue: `https://boringmax.com/shipnow` and the API are still reachable without an authentication gate, so the deployment does not yet satisfy the design doc's access-protection requirement.
