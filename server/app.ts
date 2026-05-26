@@ -40,12 +40,24 @@ function normalizeAssetPath(pathname: string, prefix: string): string {
   return stripped.replace(/^\/+/, '');
 }
 
-async function sendIndex(reply: FastifyReply, filePath: string, apiBase: string): Promise<void> {
+function injectHeadContent(html: string, headContent: string): string {
+  const headMatch = html.match(/<head[^>]*>/i);
+  if (!headMatch) {
+    return `${headContent}\n${html}`;
+  }
+  return html.replace(headMatch[0], `${headMatch[0]}\n  ${headContent}`);
+}
+
+async function sendIndex(reply: FastifyReply, filePath: string, apiBase: string, baseHref?: string): Promise<void> {
   reply.header('Content-Type', 'text/html; charset=utf-8');
   reply.header('Cache-Control', 'no-store');
   const html = await readFile(filePath, 'utf8');
-  const injectedMeta = `<meta name="shipnow-api-base" content="${escapeHtml(apiBase)}">`;
-  const rendered = html.includes('</head>') ? html.replace('</head>', `  ${injectedMeta}\n  </head>`) : `${injectedMeta}\n${html}`;
+  const normalizedHtml = baseHref ? html.replace(/<base\s+href="[^"]*"\s*>/i, '') : html;
+  const tags = [
+    baseHref ? `<base href="${escapeHtml(baseHref)}">` : null,
+    `<meta name="shipnow-api-base" content="${escapeHtml(apiBase)}">`,
+  ].filter(Boolean);
+  const rendered = injectHeadContent(normalizedHtml, tags.join('\n  '));
   await reply.send(rendered);
 }
 
@@ -187,7 +199,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   const clientDistRoot = resolve(process.cwd(), 'dist/client');
   const shipnowIndexApiBase = env.shipnowApiBaseUrl;
 
-  async function serveRelease(prefix: string, rootDir: string, requestPath: string, reply: any): Promise<boolean> {
+  async function serveRelease(prefix: string, rootDir: string, requestPath: string, reply: any, baseHref?: string): Promise<boolean> {
     if (!existsSync(rootDir)) {
       return false;
     }
@@ -199,7 +211,11 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
       return true;
     }
     if (indexFile) {
-      await sendFile(reply, indexFile);
+      if (baseHref) {
+        await sendIndex(reply as any, indexFile, shipnowIndexApiBase, baseHref);
+      } else {
+        await sendFile(reply, indexFile);
+      }
       return true;
     }
     return false;
@@ -245,13 +261,26 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
       const projectName = requestPath.slice(previewPrefix.length).split('/')[0];
       const projectRoot = resolve(previewRoot, projectName);
       const rest = requestPath.slice((previewPrefix + projectName).length);
-      return await serveRelease(`/preview/${projectName}`, projectRoot, rest, reply);
+      return await serveRelease(`/preview/${projectName}`, projectRoot, rest, reply, `/preview/${projectName}/`);
     }
     if (requestPath.startsWith(sitePrefix)) {
       const projectName = requestPath.slice(sitePrefix.length).split('/')[0];
       const projectRoot = resolve(publicRoot, projectName);
       const rest = requestPath.slice((sitePrefix + projectName).length);
-      return await serveRelease(`/site/${projectName}`, projectRoot, rest, reply);
+      return await serveRelease(`/site/${projectName}`, projectRoot, rest, reply, `/site/${projectName}/`);
+    }
+
+    const rootSegments = requestPath.replace(/^\/+/, '').split('/').filter(Boolean);
+    if (rootSegments.length > 0) {
+      const projectName = rootSegments[0];
+      const parsed = projectNameSchema.safeParse(projectName);
+      if (parsed.success) {
+        const projectRoot = resolve(publicRoot, parsed.data);
+        const baseHref = `/${parsed.data}/`;
+        if (await serveRelease(`/${parsed.data}`, projectRoot, requestPath, reply, baseHref)) {
+          return true;
+        }
+      }
     }
     return false;
   }
@@ -261,7 +290,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     const safeName = projectNameSchema.parse(projectName);
     const projectRoot = resolve(previewRoot, safeName);
     const rest = request.url.slice(`/preview/${safeName}`.length);
-    if (!(await serveRelease(`/preview/${safeName}`, projectRoot, rest, reply))) {
+    if (!(await serveRelease(`/preview/${safeName}`, projectRoot, rest, reply, `/preview/${safeName}/`))) {
       reply.code(404).send('Preview not found.');
     }
   });
@@ -270,7 +299,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     const { projectName } = request.params as { projectName: string };
     const safeName = projectNameSchema.parse(projectName);
     const projectRoot = resolve(previewRoot, safeName);
-    if (!(await serveRelease(`/preview/${safeName}`, projectRoot, '', reply))) {
+    if (!(await serveRelease(`/preview/${safeName}`, projectRoot, '', reply, `/preview/${safeName}/`))) {
       reply.code(404).send('Preview not found.');
     }
   });
@@ -280,7 +309,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     const safeName = projectNameSchema.parse(projectName);
     const projectRoot = resolve(publicRoot, safeName);
     const rest = request.url.slice(`/site/${safeName}`.length);
-    if (!(await serveRelease(`/site/${safeName}`, projectRoot, rest, reply))) {
+    if (!(await serveRelease(`/site/${safeName}`, projectRoot, rest, reply, `/site/${safeName}/`))) {
       reply.code(404).send('Site not found.');
     }
   });
@@ -289,7 +318,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     const { projectName } = request.params as { projectName: string };
     const safeName = projectNameSchema.parse(projectName);
     const projectRoot = resolve(publicRoot, safeName);
-    if (!(await serveRelease(`/site/${safeName}`, projectRoot, '', reply))) {
+    if (!(await serveRelease(`/site/${safeName}`, projectRoot, '', reply, `/site/${safeName}/`))) {
       reply.code(404).send('Site not found.');
     }
   });

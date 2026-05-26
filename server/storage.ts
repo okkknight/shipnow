@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path';
-import { copyDirectory, ensureDir, atomicSymlink, removePath, writeText } from './utils.js';
+import { copyDirectory, ensureDir, atomicSymlink, readText, removePath, writeText } from './utils.js';
 import type { ShipNowEnv } from './env.js';
 import type { ProjectType } from './types.js';
 
@@ -75,6 +75,33 @@ export type ProjectConfig = typeof projectConfig;
 export async function updateCurrentReleaseLink(targetRoot: string, linkPath: string): Promise<void> {
   await removePath(linkPath);
   await atomicSymlink(targetRoot, linkPath);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function injectHeadContent(html: string, headContent: string): string {
+  const headMatch = html.match(/<head[^>]*>/i);
+  if (!headMatch) {
+    return `${headContent}\n${html}`;
+  }
+  return html.replace(headMatch[0], `${headMatch[0]}\n  ${headContent}`);
+}
+
+export async function injectBaseHref(indexPath: string, baseHref: string): Promise<void> {
+  const html = await readText(indexPath);
+  if (!html) {
+    return;
+  }
+  const injectedBase = `<base href="${escapeHtml(baseHref)}">`;
+  const normalizedHtml = html.replace(/<base\s+href="[^"]*"\s*>/i, '');
+  const rendered = injectHeadContent(normalizedHtml, injectedBase);
+  await writeText(indexPath, rendered);
 }
 
 export async function removeProjectWorkspace(paths: ProjectPaths): Promise<void> {
