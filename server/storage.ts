@@ -15,27 +15,30 @@ export interface ProjectPaths {
 
 export function projectPaths(env: ShipNowEnv, projectName: string): ProjectPaths {
   const projectRoot = resolve(env.workspaceRoot, 'projects', projectName);
+  const siteDataRoot = resolve(env.publicStaticRoot, '.shipnow');
   return {
     projectRoot,
-    sourceRoot: join(projectRoot, 'source'),
+    sourceRoot: join(siteDataRoot, 'projects', projectName, 'source'),
     previewCurrentRoot: resolve(env.previewStaticRoot, projectName),
     publicCurrentRoot: resolve(env.publicStaticRoot, projectName),
-    previewReleasesRoot: resolve(env.workspaceRoot, 'releases', 'preview', projectName),
-    publicReleasesRoot: resolve(env.publicStaticRoot, 'releases', 'public', projectName),
-    logPath: resolve(env.logRoot, `${projectName}.log`),
+    previewReleasesRoot: resolve(siteDataRoot, 'releases', 'preview', projectName),
+    publicReleasesRoot: resolve(siteDataRoot, 'releases', 'public', projectName),
+    logPath: resolve(siteDataRoot, 'logs', `${projectName}.log`),
   };
 }
 
 export async function ensureWorkspaceRoots(env: ShipNowEnv): Promise<void> {
+  const siteDataRoot = resolve(env.publicStaticRoot, '.shipnow');
   await Promise.all([
     ensureDir(env.workspaceRoot),
     ensureDir(env.templateRoot),
     ensureDir(env.previewStaticRoot),
     ensureDir(env.publicStaticRoot),
-    ensureDir(env.logRoot),
-    ensureDir(resolve(env.workspaceRoot, 'projects')),
-    ensureDir(resolve(env.workspaceRoot, 'releases', 'preview')),
-    ensureDir(resolve(env.publicStaticRoot, 'releases', 'public')),
+    ensureDir(siteDataRoot),
+    ensureDir(resolve(siteDataRoot, 'projects')),
+    ensureDir(resolve(siteDataRoot, 'releases', 'preview')),
+    ensureDir(resolve(siteDataRoot, 'releases', 'public')),
+    ensureDir(resolve(siteDataRoot, 'logs')),
   ]);
 }
 

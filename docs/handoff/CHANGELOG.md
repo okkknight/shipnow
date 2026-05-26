@@ -27,3 +27,4 @@
 - Found a design-blocking issue: `https://boringmax.com/shipnow` and the API are still reachable without an authentication gate, so the deployment does not yet satisfy the design doc's access-protection requirement.
 - Ran a follow-up browser acceptance pass for the modify flow on `ui-smoke-20260526`.
 - Verified that apply-change completes successfully, a new preview release is produced, the preview page reflects the updated template title and description, and the public release remains unchanged until Publish is clicked.
+- Moved the VPS project artifacts to the site-root private layout under `/opt/boringmax/site/.shipnow`, updated the ShipNow service and Caddy preview root, reinstated dependencies in migrated project source directories, and verified that `test` rebuilds, previews, and republishes successfully after the move.

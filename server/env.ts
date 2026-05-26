@@ -9,7 +9,6 @@ export interface ShipNowEnv {
   templateRoot: string;
   previewStaticRoot: string;
   publicStaticRoot: string;
-  logRoot: string;
   dbPath: string;
   codexBin: string;
   taskTimeoutSeconds: number;
@@ -54,7 +53,6 @@ export function loadEnv(): ShipNowEnv {
     templateRoot: envPath('SHIPNOW_TEMPLATE_ROOT', 'templates'),
     previewStaticRoot,
     publicStaticRoot,
-    logRoot: envPath('SHIPNOW_LOG_ROOT', 'workspace/logs'),
     dbPath: envPath('SHIPNOW_DB_PATH', 'workspace/shipnow.sqlite'),
     codexBin: process.env.SHIPNOW_CODEX_BIN?.trim() || 'codex',
     taskTimeoutSeconds: envInt('SHIPNOW_TASK_TIMEOUT_SECONDS', 1800),
