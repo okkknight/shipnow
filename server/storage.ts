@@ -21,7 +21,7 @@ export function projectPaths(env: ShipNowEnv, projectName: string): ProjectPaths
     previewCurrentRoot: resolve(env.previewStaticRoot, projectName),
     publicCurrentRoot: resolve(env.publicStaticRoot, projectName),
     previewReleasesRoot: resolve(env.workspaceRoot, 'releases', 'preview', projectName),
-    publicReleasesRoot: resolve(env.workspaceRoot, 'releases', 'public', projectName),
+    publicReleasesRoot: resolve(env.publicStaticRoot, 'releases', 'public', projectName),
     logPath: resolve(env.logRoot, `${projectName}.log`),
   };
 }
@@ -35,7 +35,7 @@ export async function ensureWorkspaceRoots(env: ShipNowEnv): Promise<void> {
     ensureDir(env.logRoot),
     ensureDir(resolve(env.workspaceRoot, 'projects')),
     ensureDir(resolve(env.workspaceRoot, 'releases', 'preview')),
-    ensureDir(resolve(env.workspaceRoot, 'releases', 'public')),
+    ensureDir(resolve(env.publicStaticRoot, 'releases', 'public')),
   ]);
 }
 
