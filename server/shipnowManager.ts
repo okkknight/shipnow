@@ -12,6 +12,7 @@ import {
   prepareProjectWorkspace,
   projectPaths,
   removeProjectWorkspace,
+  injectBaseHref,
   updateCurrentReleaseLink,
   writeProjectConfig,
 } from './storage.js';
@@ -363,9 +364,7 @@ export class ShipNowManager {
       this.store.setTaskStatus(task.id, 'failed', { finished_at: nowIso(), error_message: message });
       if (task.type === 'publish') {
         this.store.updateProjectStatus(project.name, 'publish_failed');
-      } else if (task.type === 'delete_project') {
-        this.store.updateProjectStatus(project.name, 'published');
-      } else {
+      } else if (task.type !== 'delete_project') {
         this.store.updateProjectStatus(project.name, 'build_failed');
       }
     }
@@ -382,10 +381,14 @@ export class ShipNowManager {
     });
     await this.ensureGitRepository(paths.sourceRoot, task.id);
     await this.store.appendTaskLogAsync(task.id, `Copied template into ${paths.sourceRoot}.`);
-    await this.store.appendTaskLogAsync(task.id, 'Installing project dependencies with pnpm install --frozen-lockfile.');
+    const lockfilePath = resolve(paths.sourceRoot, 'pnpm-lock.yaml');
+    const installArgs = existsSync(lockfilePath)
+      ? ['install', '--frozen-lockfile']
+      : ['install', '--no-frozen-lockfile'];
+    await this.store.appendTaskLogAsync(task.id, `Installing project dependencies with pnpm ${installArgs.join(' ')}.`);
     const install = await runCommand({
       command: 'pnpm',
-      args: ['install', '--frozen-lockfile'],
+      args: installArgs,
       cwd: paths.sourceRoot,
       timeoutMs,
       onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
@@ -442,6 +445,7 @@ export class ShipNowManager {
     await mkdir(paths.publicReleasesRoot, { recursive: true });
     const releasePath = resolve(paths.publicReleasesRoot, `${previewRelease.id}-${randomUUID().slice(0, 8)}`);
     await this.copyDirectory(previewRelease.release_path, releasePath);
+    await injectBaseHref(resolve(releasePath, 'index.html'), `/${project.name}/`);
     await updateCurrentReleaseLink(releasePath, paths.publicCurrentRoot);
     const publicRelease = this.store.createRelease({
       projectName: project.name,
@@ -472,6 +476,7 @@ export class ShipNowManager {
     }
     const releasePath = resolve(paths.previewReleasesRoot, `${taskId}-${randomUUID().slice(0, 8)}`);
     await this.copyDirectory(distPath, releasePath);
+    await injectBaseHref(resolve(releasePath, 'index.html'), `/${projectName}/`);
     await updateCurrentReleaseLink(releasePath, paths.previewCurrentRoot);
     const release = this.store.createRelease({
       projectName,
