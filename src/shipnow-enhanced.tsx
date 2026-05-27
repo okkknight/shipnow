@@ -459,95 +459,79 @@ export function MobilePreviewPage({
   ];
 
   return (
-    <div className={`sn-visual-mobile ${embedded ? 'sn-visual-mobile-embedded' : ''}`}>
-      <div className={`sn-visual-mobile-device ${embedded ? 'sn-visual-mobile-device-embedded' : ''}`}>
-        <div className={`sn-visual-mobile-screen ${embedded ? 'sn-visual-mobile-screen-embedded' : ''}`}>
-          <div className="sn-visual-mobile-statusbar">
-            <span className="sn-visual-mobile-time">9:41</span>
-            <div className="sn-visual-mobile-indicators" aria-hidden="true">
-              <span className="sn-visual-mobile-signal">
-                <span />
-                <span />
-                <span />
-                <span />
-              </span>
-              <span className="sn-visual-mobile-wifi" />
-              <span className="sn-visual-mobile-battery">
-                <span />
-              </span>
-            </div>
+    <MobilePageSurface className={`sn-mobile-preview-page ${embedded ? 'sn-mobile-preview-page-embedded' : ''}`.trim()}>
+      <div className="sn-mobile-preview-visual">
+        <header className="sn-mobile-preview-nav">
+          <button className="sn-mobile-preview-nav-icon" type="button" aria-label="返回" onClick={onBackEdit}>
+            <ChevronLeft className="size-5" />
+          </button>
+          <div className="sn-mobile-preview-nav-title">{projectName}</div>
+          <button className="sn-mobile-preview-nav-pill" type="button" onClick={onPublish}>
+            Publish
+          </button>
+        </header>
+
+        <div className="sn-mobile-preview-body">
+          <div className="sn-mobile-preview-version">v1 · Home</div>
+
+          <section className="sn-mobile-preview-hero">
+            <h1>Ship faster.<br />Ship now.</h1>
+            <p>ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。</p>
+          </section>
+
+          <div className="sn-mobile-preview-actions">
+            <MobileActionButton variant="primary" className="sn-mobile-preview-primary">
+              Get started
+            </MobileActionButton>
+            <MobileActionButton variant="secondary" className="sn-mobile-preview-secondary">
+              Learn more
+            </MobileActionButton>
           </div>
 
-          <header className="sn-visual-mobile-nav">
-            <button className="sn-visual-mobile-nav-icon" type="button" aria-label="返回" onClick={onBackEdit}>
-              <ChevronLeft className="size-5" />
-            </button>
-            <div className="sn-visual-mobile-nav-title">{projectName}</div>
-            <button className="sn-visual-mobile-nav-pill" type="button" onClick={onPublish}>
+          <div className="sn-mobile-preview-art">
+            <div className="sn-mobile-preview-art-background" />
+            <div className="sn-mobile-preview-art-card sn-mobile-preview-art-card-left">
+              <div className="sn-mobile-preview-art-icon">↺</div>
+            </div>
+            <div className="sn-mobile-preview-art-card sn-mobile-preview-art-card-center">
+              <div className="sn-mobile-preview-art-grid">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+            <div className="sn-mobile-preview-art-card sn-mobile-preview-art-card-right">
+              <div className="sn-mobile-preview-art-icon">◎</div>
+            </div>
+            <div className="sn-mobile-preview-art-badge" />
+          </div>
+
+          <div className="sn-mobile-preview-feature-grid">
+            {featureCards.map((item) => (
+              <div key={item.title} className="sn-mobile-preview-feature-card">
+                <div className="sn-mobile-preview-feature-icon">{item.icon}</div>
+                <div className="sn-mobile-preview-feature-copy">
+                  <div className="sn-mobile-preview-feature-title">{item.title}</div>
+                  <div className="sn-mobile-preview-feature-desc">{item.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="sn-mobile-preview-footer-actions">
+            <MobileActionButton variant="secondary" className="sn-mobile-preview-footer-secondary" onClick={onBackEdit}>
+              <Sparkles className="size-4" />
+              Continue editing
+            </MobileActionButton>
+            <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onPublish}>
+              <Upload className="size-4" />
               Publish
-            </button>
-          </header>
-
-          <div className="sn-visual-mobile-body">
-            <div className="sn-visual-mobile-version">v1 · Home</div>
-
-            <section className="sn-visual-mobile-hero">
-              <h1>Ship faster.<br />Ship now.</h1>
-              <p>ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。</p>
-            </section>
-
-            <div className="sn-visual-mobile-actions">
-              <SnButton variant="primary" className="sn-visual-mobile-primary">
-                Get started
-              </SnButton>
-              <SnButton variant="secondary" className="sn-visual-mobile-secondary">
-                Learn more
-              </SnButton>
-            </div>
-
-            <div className="sn-visual-mobile-art">
-              <div className="sn-visual-mobile-art-background" />
-              <div className="sn-visual-mobile-art-card sn-visual-mobile-art-card-left">
-                <div className="sn-visual-mobile-art-icon">↺</div>
-              </div>
-              <div className="sn-visual-mobile-art-card sn-visual-mobile-art-card-center">
-                <div className="sn-visual-mobile-art-grid">
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </div>
-              <div className="sn-visual-mobile-art-card sn-visual-mobile-art-card-right">
-                <div className="sn-visual-mobile-art-icon">◎</div>
-              </div>
-              <div className="sn-visual-mobile-art-badge" />
-            </div>
-
-            <div className="sn-visual-mobile-feature-grid">
-              {featureCards.map((item) => (
-                <div key={item.title} className="sn-visual-mobile-feature-card">
-                  <div className="sn-visual-mobile-feature-icon">{item.icon}</div>
-                  <div className="sn-visual-mobile-feature-copy">
-                    <div className="sn-visual-mobile-feature-title">{item.title}</div>
-                    <div className="sn-visual-mobile-feature-desc">{item.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="sn-visual-mobile-footer-actions">
-              <SnButton variant="secondary" className="sn-visual-mobile-footer-secondary" icon={<Sparkles className="size-4" />} onClick={onBackEdit}>
-                Continue editing
-              </SnButton>
-              <SnButton variant="primary" className="sn-visual-mobile-footer-primary" icon={<Upload className="size-4" />} onClick={onPublish}>
-                Publish
-              </SnButton>
-            </div>
+            </MobileActionButton>
           </div>
         </div>
       </div>
-    </div>
+    </MobilePageSurface>
   );
 }
 
@@ -569,64 +553,64 @@ export function MobilePublishResultPage({
   onViewLogs: () => void;
 }) {
   return (
-    <ReferencePhoneShell className="is-compact">
-      <div className="sn-reference-phone-result">
-        <div className={`sn-reference-result-figure ${success ? 'is-success' : 'is-failure'}`}>
-          <div className="sn-reference-result-cloud is-left" />
-          <div className="sn-reference-result-cloud is-center" />
-          <div className="sn-reference-result-cloud is-right" />
-          <div className={`sn-reference-result-blob ${success ? 'is-success' : 'is-failure'}`}>
+    <MobilePageSurface className="sn-mobile-result-page">
+      <div className="sn-mobile-result-content">
+        <div className={`sn-mobile-result-figure ${success ? 'is-success' : 'is-failure'}`}>
+          <div className="sn-mobile-result-cloud is-left" />
+          <div className="sn-mobile-result-cloud is-center" />
+          <div className="sn-mobile-result-cloud is-right" />
+          <div className={`sn-mobile-result-blob ${success ? 'is-success' : 'is-failure'}`}>
             {success ? <CheckCircle2 className="size-6" /> : <CircleAlert className="size-6" />}
           </div>
         </div>
-        <div className="sn-reference-result-title">{success ? '发布成功' : '发布失败'}</div>
-        <div className="sn-reference-result-copy">
+        <div className="sn-mobile-result-title">{success ? '发布成功' : '发布失败'}</div>
+        <div className="sn-mobile-result-copy">
           {success ? '你的网站已上线，全球都可以访问了！' : '部署过程中遇到了一些问题，但我们可以继续修复。'}
         </div>
-        <div className="sn-reference-result-card">
-          <div className="sn-reference-label">{success ? '线上地址' : '常见原因'}</div>
+        <div className="sn-mobile-result-card">
+          <div className="sn-mobile-result-label">{success ? '线上地址' : '常见原因'}</div>
           {success ? (
-            <div className="sn-reference-address">
+            <div className="sn-mobile-result-address">
               <span>{publicUrl}</span>
               <Copy className="size-4" />
             </div>
           ) : (
-            <ul className="sn-reference-bullet-list">
+            <ul className="sn-mobile-result-bullet-list">
               <li>构建错误</li>
               <li>依赖安装失败</li>
               <li>配置文件问题</li>
             </ul>
           )}
         </div>
-        <div className="sn-reference-result-actions is-stacked">
+        <div className="sn-mobile-result-actions is-stacked">
           {success ? (
             <>
-              <ReferencePhoneActionButton variant="primary" onClick={onOpenWebsite}>
+              <MobileActionButton variant="primary" onClick={onOpenWebsite}>
                 <ArrowUpRight className="size-4" /> 打开网站
-              </ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary" onClick={onCopyLink}>
+              </MobileActionButton>
+              <MobileActionButton variant="secondary" onClick={onCopyLink}>
                 <Copy className="size-4" /> 复制链接
-              </ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary" onClick={onContinueEditing}>
+              </MobileActionButton>
+              <MobileActionButton variant="secondary" onClick={onContinueEditing}>
                 <Edit2 className="size-4" /> 继续编辑
-              </ReferencePhoneActionButton>
+              </MobileActionButton>
             </>
           ) : (
             <>
-              <ReferencePhoneActionButton variant="primary" onClick={onAutoFix}>
+              <MobileActionButton variant="primary" onClick={onAutoFix}>
                 <Zap className="size-4" /> ShipNow 自动修复
-              </ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary" onClick={onViewLogs}>
+              </MobileActionButton>
+              <MobileActionButton variant="secondary" onClick={onViewLogs}>
                 <Info className="size-4" /> 查看日志
-              </ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary" onClick={onContinueEditing}>
+              </MobileActionButton>
+              <MobileActionButton variant="secondary" onClick={onContinueEditing}>
                 稍后再试
-              </ReferencePhoneActionButton>
+              </MobileActionButton>
             </>
           )}
         </div>
       </div>
-    </ReferencePhoneShell>
+    </MobilePageSurface>
   );
 }
 
@@ -695,6 +679,71 @@ export function ReferencePhoneActionButton({
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const variantClass = variant === 'primary' ? 'is-primary' : variant === 'ghost' ? 'is-ghost' : 'is-secondary';
   return <button className={`sn-reference-phone-action ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
+}
+
+export function MobilePageSurface({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={`sn-mobile-page ${className ?? ''}`.trim()}>{children}</div>;
+}
+
+export function MobileTopBar({
+  left,
+  title,
+  right,
+  className,
+}: {
+  left?: ReactNode;
+  title: ReactNode;
+  right?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`sn-mobile-topbar ${className ?? ''}`.trim()}>
+      <div className="sn-mobile-topbar-left">{left}</div>
+      <div className="sn-mobile-topbar-title">{title}</div>
+      <div className="sn-mobile-topbar-right">{right}</div>
+    </div>
+  );
+}
+
+export function MobileIconButton({
+  children,
+  className,
+  ...buttonProps
+}: {
+  children: ReactNode;
+  className?: string;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button className={`sn-mobile-icon-button ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
+}
+
+export function MobileStatusPill({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={`sn-mobile-status-pill ${className ?? ''}`.trim()}>{children}</div>;
+}
+
+export function MobileActionButton({
+  children,
+  variant = 'secondary',
+  className,
+  ...buttonProps
+}: {
+  children: ReactNode;
+  variant?: 'primary' | 'secondary' | 'ghost';
+  className?: string;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const variantClass = variant === 'primary' ? 'is-primary' : variant === 'ghost' ? 'is-ghost' : 'is-secondary';
+  return <button className={`sn-mobile-action-button ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
 }
 
 function ReferencePreviewPhone() {
@@ -1292,7 +1341,16 @@ export function ChatBubble({
 
   return (
     <div className={`sn-chat-bubble ${roleClass}`}>
-      {role === 'assistant' ? <div className="sn-chat-avatar">S</div> : null}
+      {role === 'assistant' ? (
+        <div className="sn-chat-avatar is-assistant" aria-hidden="true">
+          <Sparkles className="size-4" />
+        </div>
+      ) : null}
+      {role === 'user' ? (
+        <div className="sn-chat-avatar is-user" aria-hidden="true">
+          <User className="size-4" />
+        </div>
+      ) : null}
       <div className="sn-chat-copy">{children}</div>
     </div>
   );

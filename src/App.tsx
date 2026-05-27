@@ -49,10 +49,14 @@ import {
   EmptyState,
   MobilePreviewPage,
   MobilePublishResultPage,
+  MobilePageSurface,
+  MobileTopBar,
+  MobileIconButton,
+  MobileStatusPill,
+  MobileActionButton,
   ProjectCard,
   QuickActionChip,
   ReferencePhoneActionButton,
-  ReferencePhoneShell,
   ReferencePhoneTopBar,
   ShipNowDesignSystemPage,
   ShipNowVisualReferencePage,
@@ -941,22 +945,22 @@ function HomeWorkspace({
 
   if (isMobile) {
     return (
-      <ReferencePhoneShell className="is-compact">
-        <ReferencePhoneTopBar
+      <MobilePageSurface className="sn-mobile-home-page">
+        <MobileTopBar
           left={
-            <button className="sn-reference-phone-icon-button" type="button" aria-label="菜单" onClick={() => setSidebarOpen(true)}>
+            <MobileIconButton type="button" aria-label="菜单" onClick={() => setSidebarOpen(true)}>
               <Menu className="size-4" />
-            </button>
+            </MobileIconButton>
           }
-          title={<div className="sn-reference-phone-brand">ShipNow</div>}
+          title={<div className="sn-mobile-brand">ShipNow</div>}
           right={
-            <div className="sn-reference-phone-topbar-actions">
-              <button className="sn-reference-phone-pill is-status" type="button">
-                <span className="sn-reference-dot" />
+            <div className="sn-mobile-topbar-actions">
+              <MobileStatusPill>
+                <span className="sn-mobile-status-dot" />
                 Preview ready
-              </button>
+              </MobileStatusPill>
               <button
-                className="sn-reference-phone-plus"
+                className="sn-mobile-new-button"
                 type="button"
                 aria-label="新建项目"
                 onClick={() => {
@@ -970,59 +974,59 @@ function HomeWorkspace({
           }
         />
 
-        <div className="sn-reference-phone-body sn-reference-entry-welcome">
-          <div className="sn-reference-welcome-title">你好！👋</div>
-          <div className="sn-reference-welcome-copy">告诉我你想做什么，我来帮你快速实现。</div>
+        <div className="sn-mobile-page-body sn-mobile-entry-welcome">
+          <div className="sn-mobile-home-title">你好！👋</div>
+          <div className="sn-mobile-home-copy">告诉我你想做什么，我来帮你快速实现。</div>
 
-          <div className="sn-reference-entry-list">
+          <div className="sn-mobile-home-entry-list">
             <button
               type="button"
-              className="sn-reference-entry-card"
+              className="sn-mobile-home-entry-card"
               onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}
             >
-              <div className="sn-reference-entry-icon">✦</div>
+              <div className="sn-mobile-home-entry-icon">✦</div>
               <div>
-                <div className="sn-reference-entry-title">创建产品官网</div>
-                <div className="sn-reference-entry-desc">展示产品与核心卖点</div>
+                <div className="sn-mobile-home-entry-title">创建产品官网</div>
+                <div className="sn-mobile-home-entry-desc">展示产品与核心卖点</div>
               </div>
             </button>
             <button
               type="button"
-              className="sn-reference-entry-card"
+              className="sn-mobile-home-entry-card"
               onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}
             >
-              <div className="sn-reference-entry-icon">◌</div>
+              <div className="sn-mobile-home-entry-icon">◌</div>
               <div>
-                <div className="sn-reference-entry-title">做一个小游戏</div>
-                <div className="sn-reference-entry-desc">轻松有趣的互动体验</div>
+                <div className="sn-mobile-home-entry-title">做一个小游戏</div>
+                <div className="sn-mobile-home-entry-desc">轻松有趣的互动体验</div>
               </div>
             </button>
             <button
               type="button"
-              className="sn-reference-entry-card"
+              className="sn-mobile-home-entry-card"
               onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}
             >
-              <div className="sn-reference-entry-icon">☺</div>
+              <div className="sn-mobile-home-entry-icon">☺</div>
               <div>
-                <div className="sn-reference-entry-title">创建个人主页</div>
-                <div className="sn-reference-entry-desc">展示自己与作品集</div>
+                <div className="sn-mobile-home-entry-title">创建个人主页</div>
+                <div className="sn-mobile-home-entry-desc">展示自己与作品集</div>
               </div>
             </button>
           </div>
 
-          <div className="sn-reference-composer-card is-bottom">
-            <div className="sn-reference-composer-rail">
-              <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+          <div className="sn-mobile-home-composer-card is-bottom">
+            <div className="sn-mobile-home-composer-rail">
+              <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
                 <Paperclip className="size-4" />
               </button>
               <textarea
-                className="sn-reference-composer-input"
+                className="sn-mobile-home-composer-input"
                 placeholder="告诉 ShipNow 你想做什么..."
                 value={composerPrompt}
                 onChange={(event) => setComposerPrompt(event.target.value)}
               />
               <button
-                className="sn-reference-send-button"
+                className="sn-mobile-home-send-button"
                 type="button"
                 aria-label="发送"
                 onClick={onSubmit}
@@ -1031,17 +1035,17 @@ function HomeWorkspace({
                 <Send className="size-4" />
               </button>
             </div>
-            <div className="sn-reference-footer-actions">
-              <ReferencePhoneActionButton variant="secondary" onClick={() => navigate('/templates')}>
+            <div className="sn-mobile-home-footer-actions">
+              <MobileActionButton variant="secondary" onClick={() => navigate('/templates')}>
                 <Sparkles className="size-4" /> 模板中心
-              </ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
+              </MobileActionButton>
+              <MobileActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
                 <Upload className="size-4" /> 开始创建
-              </ReferencePhoneActionButton>
+              </MobileActionButton>
             </div>
           </div>
 
-          <div className="sn-reference-quick-chip-row">
+          <div className="sn-mobile-home-quick-chip-row">
             {HOME_QUICK_PROMPTS.map(({ label, prompt }) => (
               <QuickActionChip key={label} icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt(prompt)}>
                 {label}
@@ -1049,32 +1053,32 @@ function HomeWorkspace({
             ))}
           </div>
 
-          <div className="sn-reference-section-copy">最近项目</div>
-          <div className="sn-reference-project-list">
+          <div className="sn-mobile-section-copy">最近项目</div>
+          <div className="sn-mobile-project-list">
             {projectsLoading ? (
-              <div className="sn-reference-drawer-empty">正在加载项目列表…</div>
+              <div className="sn-mobile-empty">正在加载项目列表…</div>
             ) : homeRecentProjects.length === 0 ? (
-              <div className="sn-reference-drawer-empty">还没有项目，先用一句话创建一个。</div>
+              <div className="sn-mobile-empty">还没有项目，先用一句话创建一个。</div>
             ) : (
               homeRecentProjects.map((project) => (
                 <button
                   key={project.projectId}
                   type="button"
-                  className="sn-reference-project-card"
+                  className="sn-mobile-project-card"
                   onClick={() => navigate(`/project/${project.projectId}`)}
                 >
-                  <div className="sn-reference-project-thumb" />
-                  <div className="sn-reference-project-copy">
-                    <div className="sn-reference-project-head">
+                  <div className="sn-mobile-project-thumb" />
+                  <div className="sn-mobile-project-copy">
+                    <div className="sn-mobile-project-head">
                       <div>
-                        <div className="sn-reference-project-name">{project.displayName}</div>
-                        <div className="sn-reference-project-desc">{project.publicHandle}</div>
+                        <div className="sn-mobile-project-name">{project.displayName}</div>
+                        <div className="sn-mobile-project-desc">{project.publicHandle}</div>
                       </div>
                       <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
                         {statusLabel(project.status)}
                       </StatusChip>
                     </div>
-                    <div className="sn-reference-project-meta">
+                    <div className="sn-mobile-project-meta">
                       <span>{formatTime(project.updatedAt)}</span>
                       <span>{project.type}</span>
                     </div>
@@ -1108,7 +1112,7 @@ function HomeWorkspace({
             setSidebarOpen(false);
           }}
         />
-      </ReferencePhoneShell>
+      </MobilePageSurface>
     );
   }
 
@@ -1167,9 +1171,9 @@ function HomeWorkspace({
 
             <div className="sn-reference-composer-card is-bottom">
               <div className="sn-reference-composer-rail">
-                <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
-                  <Paperclip className="size-4" />
-                </button>
+              <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
+                <Paperclip className="size-4" />
+              </button>
                 <textarea
                   className="sn-reference-composer-input"
                   placeholder="告诉 ShipNow 你想做什么..."
@@ -1181,14 +1185,14 @@ function HomeWorkspace({
                 </button>
               </div>
               <div className="sn-reference-footer-actions">
-                <ReferencePhoneActionButton variant="secondary" onClick={() => navigate('/templates')}>
-                  <Sparkles className="size-4" /> 模板中心
-                </ReferencePhoneActionButton>
-                <ReferencePhoneActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
-                  <Upload className="size-4" /> 开始创建
-                </ReferencePhoneActionButton>
-              </div>
+              <MobileActionButton variant="secondary" onClick={() => navigate('/templates')}>
+                <Sparkles className="size-4" /> 模板中心
+              </MobileActionButton>
+              <MobileActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
+                <Upload className="size-4" /> 开始创建
+              </MobileActionButton>
             </div>
+          </div>
           </section>
 
           <section className="sn-panel sn-reference-projects">
@@ -1278,42 +1282,42 @@ function TemplatesWorkspace({
 
   if (isMobile) {
     return (
-      <ReferencePhoneShell className="is-compact">
-        <ReferencePhoneTopBar
+      <MobilePageSurface className="sn-mobile-templates-page">
+        <MobileTopBar
           left={
-            <button className="sn-reference-phone-icon-button" type="button" aria-label="菜单" onClick={onBackHome}>
+            <MobileIconButton type="button" aria-label="菜单" onClick={onBackHome}>
               <Menu className="size-4" />
-            </button>
+            </MobileIconButton>
           }
           title="模板中心"
           right={<div />}
         />
-        <div className="sn-reference-phone-body">
-          <div className="sn-reference-section-copy">选择一个模板开始</div>
-          <div className="sn-reference-template-grid">
+        <div className="sn-mobile-page-body">
+          <div className="sn-mobile-section-copy">选择一个模板开始</div>
+          <div className="sn-mobile-template-grid">
             {templates.map((template) => (
               <button
                 key={template.title}
                 type="button"
-                className={`sn-reference-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
+                className={`sn-mobile-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
                 onClick={() => {
                   onSelectTemplate(template.prompt);
                   onBackHome();
                 }}
               >
-                <div className="sn-reference-template-thumb">
-                  <div className="sn-reference-template-thumb-shape" />
+                <div className="sn-mobile-template-thumb">
+                  <div className="sn-mobile-template-thumb-shape" />
                 </div>
-                <div className="sn-reference-template-title">{template.title}</div>
-                <div className="sn-reference-template-desc">{template.desc}</div>
+                <div className="sn-mobile-template-title">{template.title}</div>
+                <div className="sn-mobile-template-desc">{template.desc}</div>
               </button>
             ))}
           </div>
-          <ReferencePhoneActionButton variant="secondary" className="sn-reference-import-btn">
+          <MobileActionButton variant="secondary" className="sn-mobile-import-btn">
             <Upload className="size-4" /> 导入现有项目
-          </ReferencePhoneActionButton>
+          </MobileActionButton>
         </div>
-      </ReferencePhoneShell>
+      </MobilePageSurface>
     );
   }
 
@@ -1409,23 +1413,23 @@ function ProjectsWorkspace({
 
   if (isMobile) {
     return (
-      <ReferencePhoneShell className="is-compact">
-        <ReferencePhoneTopBar
+      <MobilePageSurface className="sn-mobile-projects-page">
+        <MobileTopBar
           left={
-            <button className="sn-reference-phone-icon-button" type="button" aria-label="菜单" onClick={onBackHome}>
+            <MobileIconButton type="button" aria-label="菜单" onClick={onBackHome}>
               <Menu className="size-4" />
-            </button>
+            </MobileIconButton>
           }
           title="我的项目"
           right={
-            <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="新建项目" onClick={onBackHome}>
+            <MobileIconButton className="is-soft" type="button" aria-label="新建项目" onClick={onBackHome}>
               <Plus className="size-4" />
-            </button>
+            </MobileIconButton>
           }
         />
 
-        <div className="sn-reference-phone-body">
-          <div className="sn-reference-project-filter">
+        <div className="sn-mobile-page-body">
+          <div className="sn-mobile-project-filter">
             全部项目 <ChevronDown className="size-4" />
           </div>
 
@@ -1436,28 +1440,28 @@ function ProjectsWorkspace({
               <Skeleton className="h-36 rounded-[24px]" />
             </div>
           ) : projects.length === 0 ? (
-            <div className="sn-reference-drawer-empty">还没有项目。先创建一个再回来这里看列表。</div>
+            <div className="sn-mobile-empty">还没有项目。先创建一个再回来这里看列表。</div>
           ) : (
-            <div className="sn-reference-project-list">
+            <div className="sn-mobile-project-list">
               {projects.map((project) => (
                 <button
                   key={project.projectId}
                   type="button"
-                  className={`sn-reference-project-card ${project.status === 'preview_ready' ? 'is-active' : ''}`}
+                  className={`sn-mobile-project-card ${project.status === 'preview_ready' ? 'is-active' : ''}`}
                   onClick={() => onOpenProject(project.projectId)}
                 >
-                  <div className="sn-reference-project-thumb" />
-                  <div className="sn-reference-project-copy">
-                    <div className="sn-reference-project-head">
+                  <div className="sn-mobile-project-thumb" />
+                  <div className="sn-mobile-project-copy">
+                    <div className="sn-mobile-project-head">
                       <div>
-                        <div className="sn-reference-project-name">{project.displayName}</div>
-                        <div className="sn-reference-project-desc">{project.title}</div>
+                        <div className="sn-mobile-project-name">{project.displayName}</div>
+                        <div className="sn-mobile-project-desc">{project.title}</div>
                       </div>
                       <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
                         {statusLabel(project.status)}
                       </StatusChip>
                     </div>
-                    <div className="sn-reference-project-meta">
+                    <div className="sn-mobile-project-meta">
                       <span>{formatTime(project.updatedAt)}</span>
                       <span>{project.type}</span>
                     </div>
@@ -1467,7 +1471,7 @@ function ProjectsWorkspace({
             </div>
           )}
         </div>
-      </ReferencePhoneShell>
+      </MobilePageSurface>
     );
   }
 
@@ -1630,60 +1634,28 @@ function MobilePublishConfirmSheet({
 }) {
   return (
     <div className="sn-mobile-confirm-overlay">
-      <div className="sn-reference-phone is-compact">
-      <div className="sn-reference-phone-device">
-        <div className="sn-reference-phone-screen">
-          <div className="sn-reference-phone-statusbar">
-            <span className="sn-reference-phone-time">9:41</span>
-            <div className="sn-reference-phone-indicators" aria-hidden="true">
-              <span className="sn-reference-phone-signal">
-                <span />
-                <span />
-                <span />
-                <span />
-              </span>
-              <span className="sn-reference-phone-wifi" />
-              <span className="sn-reference-phone-battery">
-                <span />
-              </span>
-            </div>
-          </div>
-          <div className="sn-reference-modal-backdrop">
-            <div className="sn-reference-modal-preview is-faint">
-              <div className="sn-reference-version">v1 · Home</div>
-              <h3 className="sn-reference-headline">
-                Ship faster.
-                <br />
-                Ship now.
-              </h3>
-            </div>
-          </div>
-          <div className="sn-reference-phone-overlay" />
-          <div className="sn-reference-phone-sheet is-bottom">
-            <div className="sn-reference-sheet-close">×</div>
-            <div className="sn-reference-sheet-badge">确认发布</div>
-            <div className="sn-reference-sheet-title">确认要把当前版本发布到正式站点吗？</div>
-            <div className="sn-reference-address">
-              <span>{project.publicUrl}</span>
-              <Copy className="size-4" />
-            </div>
-            <div className="sn-reference-checklist">
-              <div>将覆盖当前版本：{project.displayName}</div>
-              <div>构建并发布到线上环境</div>
-              <div>发布后立即可通过该地址访问</div>
-            </div>
-            <div className="sn-reference-confirm-actions is-stacked">
-              <button className="sn-reference-phone-action is-primary" type="button" onClick={onConfirm} disabled={!canPublish}>
-                确认发布
-              </button>
-              <button className="sn-reference-phone-action is-secondary" type="button" onClick={onCancel}>
-                取消
-              </button>
-            </div>
-          </div>
+      <div className="sn-mobile-confirm-sheet">
+        <div className="sn-mobile-confirm-handle" />
+        <div className="sn-mobile-confirm-badge">确认发布</div>
+        <div className="sn-mobile-confirm-title">确认要把当前版本发布到正式站点吗？</div>
+        <div className="sn-mobile-confirm-address">
+          <span>{project.publicUrl}</span>
+          <Copy className="size-4" />
+        </div>
+        <div className="sn-mobile-confirm-list">
+          <div>将覆盖当前版本：{project.displayName}</div>
+          <div>构建并发布到线上环境</div>
+          <div>发布后立即可通过该地址访问</div>
+        </div>
+        <div className="sn-mobile-confirm-actions">
+          <button className="sn-mobile-confirm-button is-primary" type="button" onClick={onConfirm} disabled={!canPublish}>
+            确认发布
+          </button>
+          <button className="sn-mobile-confirm-button is-secondary" type="button" onClick={onCancel}>
+            取消
+          </button>
         </div>
       </div>
-    </div>
     </div>
   );
 }
@@ -2058,7 +2030,7 @@ function ProjectWorkspace({
                 修复问题
               </QuickActionChip>
               <button
-                className="sn-reference-phone-icon-button is-soft"
+                className="sn-mobile-icon-button is-soft"
                 type="button"
                 aria-label="刷新"
                 onClick={onRebuild}
@@ -2068,19 +2040,19 @@ function ProjectWorkspace({
               </button>
             </div>
 
-            <div className="sn-reference-composer-card is-bottom">
-              <div className="sn-reference-composer-rail">
-                <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+            <div className="sn-mobile-composer-card is-bottom">
+              <div className="sn-mobile-composer-rail">
+                <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
                   <Paperclip className="size-4" />
                 </button>
                 <textarea
-                  className="sn-reference-composer-input"
+                  className="sn-mobile-composer-input"
                   placeholder="例如：把首屏的大标题再收一点，按钮更明确，配色更薄荷绿。"
                   value={composerPrompt}
                   onChange={(event) => setComposerPrompt(event.target.value)}
                 />
                 <button
-                  className="sn-reference-send-button"
+                  className="sn-mobile-send-button"
                   type="button"
                   aria-label="发送修改"
                   onClick={onSubmit}
@@ -2089,13 +2061,13 @@ function ProjectWorkspace({
                   <Send className="size-4" />
                 </button>
               </div>
-              <div className="sn-reference-composer-actions">
-                <ReferencePhoneActionButton variant="secondary" onClick={onOpenPreview}>
+              <div className="sn-mobile-composer-actions">
+                <MobileActionButton variant="secondary" onClick={onOpenPreview}>
                   <Eye className="size-4" /> Preview
-                </ReferencePhoneActionButton>
-                <ReferencePhoneActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+                </MobileActionButton>
+                <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
                   <Upload className="size-4" /> Publish
-                </ReferencePhoneActionButton>
+                </MobileActionButton>
               </div>
             </div>
           </section>
@@ -2107,9 +2079,9 @@ function ProjectWorkspace({
                 <div className="sn-reference-note">状态、发布和日志都收纳到更清晰的层次里。</div>
               </div>
               <div className="sn-reference-projects-toolbar">
-                <ReferencePhoneActionButton variant="secondary" onClick={onOpenStatus}>
-                  <MoreHorizontal className="size-4" /> 更多
-                </ReferencePhoneActionButton>
+              <MobileActionButton variant="secondary" onClick={onOpenStatus}>
+                <MoreHorizontal className="size-4" /> 更多
+              </MobileActionButton>
               </div>
             </div>
 
@@ -2249,11 +2221,10 @@ function ReferenceProjectWorkspaceMobile({
   const previewRelease = detail?.releases.find((release) => release.kind === 'preview' && release.isCurrentPreview) ?? detail?.releases[0] ?? null;
 
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <MobilePageSurface className="sn-mobile-project-page">
+      <MobileTopBar
         left={
-          <button
-            className="sn-reference-phone-icon-button"
+          <MobileIconButton
             type="button"
             aria-label="菜单"
             onClick={() => {
@@ -2262,17 +2233,17 @@ function ReferenceProjectWorkspaceMobile({
             }}
           >
             <Menu className="size-4" />
-          </button>
+          </MobileIconButton>
         }
-        title={<div className="sn-reference-phone-brand">ShipNow</div>}
+        title={<div className="sn-mobile-brand">ShipNow</div>}
         right={
-          <div className="sn-reference-phone-topbar-actions">
-            <button className="sn-reference-phone-pill is-status" type="button">
-              <span className="sn-reference-dot" />
+          <div className="sn-mobile-topbar-actions">
+            <MobileStatusPill>
+              <span className="sn-mobile-status-dot" />
               {statusTone(project.status) === 'preview-ready' ? 'Preview ready' : statusLabel(project.status)}
-            </button>
+            </MobileStatusPill>
             <button
-              className="sn-reference-phone-plus"
+              className="sn-mobile-new-button"
               type="button"
               aria-label="新建"
               onClick={() => {
@@ -2287,34 +2258,29 @@ function ReferenceProjectWorkspaceMobile({
         }
       />
 
-      <div className="sn-reference-phone-body sn-reference-chat-phone" ref={conversationRef}>
-        <div className="sn-reference-project-card is-compact-header">
-          <div className="sn-reference-project-thumb is-mini" />
-          <div className="sn-reference-project-copy">
-            <div className="sn-reference-project-head">
+      <div className="sn-mobile-page-body sn-mobile-chat-page" ref={conversationRef}>
+        <div className="sn-mobile-project-card is-compact-header">
+          <div className="sn-mobile-project-thumb is-mini" />
+          <div className="sn-mobile-project-copy">
+            <div className="sn-mobile-project-head">
               <div>
-                <div className="sn-reference-project-title-row">
-                  <div className="sn-reference-project-name">{project.displayName}</div>
-                  <Edit2 className="size-3 sn-reference-project-edit" />
+                <div className="sn-mobile-project-title-row">
+                  <div className="sn-mobile-project-name">{project.displayName}</div>
+                  <Edit2 className="size-3 sn-mobile-project-edit" />
                 </div>
-                <div className="sn-reference-project-desc">{project.title}</div>
+                <div className="sn-mobile-project-desc">{project.title}</div>
               </div>
-              <button
-                className="sn-reference-phone-icon-button is-soft"
-                type="button"
-                aria-label="更多"
-                onClick={() => {
-                  setStatusOpen(true);
-                  setSidebarOpen(false);
-                }}
-              >
+              <button className="sn-mobile-icon-button is-soft" type="button" aria-label="更多" onClick={() => {
+                setStatusOpen(true);
+                setSidebarOpen(false);
+              }}>
                 <MoreHorizontal className="size-4" />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="sn-reference-chat-stack">
+        <div className="sn-mobile-chat-stack">
           {userMessages.map((message) => (
             <ChatBubble key={message.id} role="user">
               {message.content}
@@ -2343,7 +2309,7 @@ function ReferenceProjectWorkspaceMobile({
           ) : null}
         </div>
 
-        <div className="sn-reference-quick-chip-row">
+        <div className="sn-mobile-quick-chip-row">
           <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
             优化文案
           </QuickActionChip>
@@ -2359,30 +2325,24 @@ function ReferenceProjectWorkspaceMobile({
           <QuickActionChip icon={<CircleAlert className="size-4" />} onClick={onAutoFix} className={activeAction !== null || !canAutoFix ? 'opacity-50 pointer-events-none' : ''}>
             修复问题
           </QuickActionChip>
-          <button
-            className="sn-reference-phone-icon-button is-soft"
-            type="button"
-            aria-label="刷新"
-            onClick={onRebuild}
-            disabled={activeAction !== null}
-          >
+          <button className="sn-mobile-icon-button is-soft" type="button" aria-label="刷新" onClick={onRebuild} disabled={activeAction !== null}>
             <RefreshCcw className="size-4" />
           </button>
         </div>
 
-        <div className="sn-reference-composer-card is-bottom">
-          <div className="sn-reference-composer-rail">
-            <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+        <div className="sn-mobile-composer-card is-bottom">
+          <div className="sn-mobile-composer-rail">
+            <MobileIconButton className="is-soft" type="button" aria-label="附件">
               <Paperclip className="size-4" />
-            </button>
+            </MobileIconButton>
             <textarea
-              className="sn-reference-composer-input"
+              className="sn-mobile-composer-input"
               placeholder="告诉 ShipNow 你想做什么..."
               value={composerPrompt}
               onChange={(event) => setComposerPrompt(event.target.value)}
             />
             <button
-              className="sn-reference-send-button"
+              className="sn-mobile-send-button"
               type="button"
               aria-label="发送"
               onClick={onSubmit}
@@ -2391,13 +2351,13 @@ function ReferenceProjectWorkspaceMobile({
               <Send className="size-4" />
             </button>
           </div>
-          <div className="sn-reference-composer-actions">
-            <ReferencePhoneActionButton variant="secondary" onClick={onOpenPreview}>
+          <div className="sn-mobile-composer-actions">
+            <MobileActionButton variant="secondary" onClick={onOpenPreview}>
               <Eye className="size-4" /> Preview
-            </ReferencePhoneActionButton>
-            <ReferencePhoneActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+            </MobileActionButton>
+            <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
               <Upload className="size-4" /> Publish
-            </ReferencePhoneActionButton>
+            </MobileActionButton>
           </div>
         </div>
       </div>
@@ -2445,11 +2405,11 @@ function ReferenceProjectWorkspaceMobile({
         onClose={() => setStatusOpen(false)}
         onOpenPreview={onOpenPreview}
         onPublish={onPublish}
-        onContinueEditing={() => document.querySelector('.sn-reference-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+        onContinueEditing={() => document.querySelector('.sn-mobile-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
         onAutoFix={onAutoFix}
         onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
       />
-    </ReferencePhoneShell>
+    </MobilePageSurface>
   );
 }
 
@@ -2483,53 +2443,53 @@ function ReferenceWorkspaceDrawer({
   }
 
   return (
-    <div className="sn-reference-drawer-shell">
+    <div className="sn-mobile-drawer-shell">
       <div
-        className="sn-reference-modal-backdrop"
+        className="sn-mobile-drawer-backdrop"
         onClick={onClose}
         role="presentation"
       />
-      <div className="sn-reference-drawer-sheet">
-        <button className="sn-reference-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
+      <div className="sn-mobile-drawer-sheet">
+        <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
           ×
         </button>
-        <div className="sn-reference-drawer-brand">
-          <div className="sn-reference-mini-brand">
+        <div className="sn-mobile-drawer-brand">
+          <div className="sn-mobile-mini-brand">
             <Zap className="size-4" />
             <span>ShipNow</span>
           </div>
         </div>
-        <button className="sn-reference-drawer-item is-highlight" type="button" onClick={onCreateProject}>
+        <button className="sn-mobile-drawer-item is-highlight" type="button" onClick={onCreateProject}>
           <Plus className="size-4" />
           <span>新建项目</span>
         </button>
-        <div className="sn-reference-drawer-group">
-          <button className="sn-reference-drawer-item" type="button" onClick={onOpenTemplates}>
+        <div className="sn-mobile-drawer-group">
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenTemplates}>
             <LayoutGrid className="size-4" />
             <span>模板中心</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-reference-drawer-item" type="button" onClick={onOpenProjects}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenProjects}>
             <Folder className="size-4" />
             <span>项目管理</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-reference-drawer-item" type="button" onClick={onOpenReleases}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenReleases}>
             <CalendarDays className="size-4" />
             <span>最近发布</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-reference-drawer-item" type="button" onClick={onOpenSettings}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenSettings}>
             <Settings2 className="size-4" />
             <span>设置与偏好</span>
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="sn-reference-drawer-user">
+        <div className="sn-mobile-drawer-user">
           <div className="sn-chat-avatar">艾</div>
           <div>
-            <div className="sn-reference-drawer-user-name">艾米</div>
-            <div className="sn-reference-drawer-user-mail">hello@shipnow.com</div>
+            <div className="sn-mobile-drawer-user-name">艾米</div>
+            <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
           </div>
         </div>
       </div>
@@ -2563,56 +2523,56 @@ function ReferenceHomeDrawer({
   }
 
   return (
-    <div className="sn-reference-drawer-shell">
-      <div className="sn-reference-modal-backdrop" onClick={onClose} role="presentation" />
-      <div className="sn-reference-drawer-sheet">
-        <button className="sn-reference-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
+    <div className="sn-mobile-drawer-shell">
+      <div className="sn-mobile-drawer-backdrop" onClick={onClose} role="presentation" />
+      <div className="sn-mobile-drawer-sheet">
+        <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
           ×
         </button>
-        <div className="sn-reference-drawer-brand">
-          <div className="sn-reference-mini-brand">
+        <div className="sn-mobile-drawer-brand">
+          <div className="sn-mobile-mini-brand">
             <Zap className="size-4" />
             <span>ShipNow</span>
           </div>
         </div>
-        <button className="sn-reference-drawer-item is-highlight" type="button" onClick={onCreateProject}>
+        <button className="sn-mobile-drawer-item is-highlight" type="button" onClick={onCreateProject}>
           <Plus className="size-4" />
           <span>新建项目</span>
         </button>
-        <div className="sn-reference-drawer-group">
-          <button className="sn-reference-drawer-item" type="button" onClick={onOpenTemplates}>
+        <div className="sn-mobile-drawer-group">
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenTemplates}>
             <LayoutGrid className="size-4" />
             <span>模板中心</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-reference-drawer-item" type="button" onClick={onOpenProjects}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenProjects}>
             <Folder className="size-4" />
             <span>项目管理</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-reference-drawer-item" type="button" onClick={() => navigate('/projects')}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={() => navigate('/projects')}>
             <CalendarDays className="size-4" />
             <span>最近发布</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-reference-drawer-item" type="button" onClick={onClose}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onClose}>
             <Settings2 className="size-4" />
             <span>设置与偏好</span>
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="sn-reference-drawer-group">
-          <div className="sn-reference-drawer-item is-static">
+        <div className="sn-mobile-drawer-group">
+          <div className="sn-mobile-drawer-item is-static">
             <span>最近项目</span>
             <span className="text-xs text-[rgb(var(--muted))]">{projectsLoading ? '加载中' : `${recentProjects.length} 个`}</span>
           </div>
           {recentProjects.length === 0 ? (
-            <div className="sn-reference-drawer-empty">还没有项目，先从一句话开始。</div>
+            <div className="sn-mobile-drawer-empty">还没有项目，先从一句话开始。</div>
           ) : (
             recentProjects.map((project) => (
               <button
                 key={project.projectId}
-                className="sn-reference-drawer-item"
+                className="sn-mobile-drawer-item"
                 type="button"
                 onClick={() => {
                   onClose();
@@ -2628,15 +2588,15 @@ function ReferenceHomeDrawer({
             ))
           )}
         </div>
-        <div className="sn-reference-drawer-group">
-          <div className="sn-reference-drawer-item is-static">
+        <div className="sn-mobile-drawer-group">
+          <div className="sn-mobile-drawer-item is-static">
             <span>模板快捷入口</span>
           </div>
           {TEMPLATE_PROMPTS.slice(0, 4).map((prompt, index) => (
             <button
               key={prompt}
               type="button"
-              className="sn-reference-drawer-item"
+              className="sn-mobile-drawer-item"
               onClick={() => {
                 onClose();
                 onSelectTemplate(prompt);
@@ -2649,11 +2609,11 @@ function ReferenceHomeDrawer({
             </button>
           ))}
         </div>
-        <div className="sn-reference-drawer-user">
+        <div className="sn-mobile-drawer-user">
           <div className="sn-chat-avatar">艾</div>
           <div>
-            <div className="sn-reference-drawer-user-name">艾米</div>
-            <div className="sn-reference-drawer-user-mail">hello@shipnow.com</div>
+            <div className="sn-mobile-drawer-user-name">艾米</div>
+            <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
           </div>
         </div>
       </div>
@@ -2695,98 +2655,98 @@ function ReferenceWorkspaceStatusDrawer({
   const releases = detail?.releases ?? [];
 
   return (
-    <div className="sn-reference-drawer-shell">
-      <div className="sn-reference-modal-backdrop" onClick={onClose} role="presentation" />
-      <div className="sn-reference-drawer-sheet">
-        <button className="sn-reference-drawer-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
+    <div className="sn-mobile-drawer-shell">
+      <div className="sn-mobile-drawer-backdrop" onClick={onClose} role="presentation" />
+      <div className="sn-mobile-drawer-sheet">
+        <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
           ×
         </button>
-        <div className="sn-reference-drawer-brand">
-          <div className="sn-reference-mini-brand">
+        <div className="sn-mobile-drawer-brand">
+          <div className="sn-mobile-mini-brand">
             <Sparkles className="size-4" />
             <span>ShipNow 状态</span>
           </div>
         </div>
-        <div className="sn-reference-status-row">
+        <div className="sn-mobile-status-row">
           <div>
-            <div className="sn-reference-label">当前项目</div>
-            <div className="sn-reference-sheet-title">{project.displayName}</div>
-            <div className="sn-reference-note">{project.publicHandle}</div>
+            <div className="sn-mobile-label">当前项目</div>
+            <div className="sn-mobile-sheet-title">{project.displayName}</div>
+            <div className="sn-mobile-note">{project.publicHandle}</div>
           </div>
           <Chip tone={statusTone(project.status)}>{statusLabel(project.status)}</Chip>
         </div>
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-label">当前版本</div>
-          <div className="sn-reference-history-list">
-            <div className="sn-reference-history-item">
+        <div className="sn-mobile-status-block">
+          <div className="sn-mobile-label">当前版本</div>
+          <div className="sn-mobile-history-list">
+            <div className="sn-mobile-history-item">
               <span>预览地址</span>
               <small>{project.previewUrl}</small>
             </div>
-            <div className="sn-reference-history-item">
+            <div className="sn-mobile-history-item">
               <span>正式地址</span>
               <small>{project.publicUrl}</small>
             </div>
-            <div className="sn-reference-history-item">
+            <div className="sn-mobile-history-item">
               <span>最后构建</span>
               <small>{project.lastBuiltAt ? formatTime(project.lastBuiltAt) : '暂无'}</small>
             </div>
           </div>
         </div>
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-label">最近任务</div>
+        <div className="sn-mobile-status-block">
+          <div className="sn-mobile-label">最近任务</div>
           {latestTask ? (
-            <div className="sn-reference-task-item">
+            <div className="sn-mobile-task-item">
               <span>{taskTypeLabel(latestTask.type)}</span>
               <StatusChip tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}>
                 {taskStatusLabel(latestTask.status)}
               </StatusChip>
             </div>
           ) : (
-            <div className="sn-reference-drawer-empty">还没有最近任务。</div>
+            <div className="sn-mobile-drawer-empty">还没有最近任务。</div>
           )}
         </div>
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-label">最近发布</div>
-          <div className="sn-reference-history-list">
+        <div className="sn-mobile-status-block">
+          <div className="sn-mobile-label">最近发布</div>
+          <div className="sn-mobile-history-list">
             {releases.length > 0 ? (
               releases.slice(0, 3).map((release) => (
-                <div key={release.id} className="sn-reference-history-item">
+                <div key={release.id} className="sn-mobile-history-item">
                   <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
                   <small>{formatTime(release.createdAt)}</small>
                 </div>
               ))
             ) : (
-              <div className="sn-reference-drawer-empty">还没有发布记录。</div>
+              <div className="sn-mobile-drawer-empty">还没有发布记录。</div>
             )}
           </div>
         </div>
-        <div className="sn-reference-status-block status-logs">
-          <div className="sn-reference-label">技术日志入口</div>
-          <div className="sn-reference-drawer-empty">
+        <div className="sn-mobile-status-block status-logs">
+          <div className="sn-mobile-label">技术日志入口</div>
+          <div className="sn-mobile-drawer-empty">
             {latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ReferencePhoneActionButton variant="secondary" onClick={onViewLogs}>
+            <MobileActionButton variant="secondary" onClick={onViewLogs}>
               查看日志
-            </ReferencePhoneActionButton>
-            <ReferencePhoneActionButton variant="secondary" onClick={onClose}>
+            </MobileActionButton>
+            <MobileActionButton variant="secondary" onClick={onClose}>
               收起
-            </ReferencePhoneActionButton>
+            </MobileActionButton>
           </div>
         </div>
-        <div className="sn-reference-confirm-actions">
-          <ReferencePhoneActionButton variant="secondary" onClick={onOpenPreview}>
+        <div className="sn-mobile-status-actions">
+          <MobileActionButton variant="secondary" onClick={onOpenPreview}>
             打开预览
-          </ReferencePhoneActionButton>
-          <ReferencePhoneActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+          </MobileActionButton>
+          <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
             发布
-          </ReferencePhoneActionButton>
-          <ReferencePhoneActionButton variant="secondary" onClick={onContinueEditing}>
+          </MobileActionButton>
+          <MobileActionButton variant="secondary" onClick={onContinueEditing}>
             继续编辑
-          </ReferencePhoneActionButton>
-          <ReferencePhoneActionButton variant="secondary" onClick={onAutoFix} disabled={activeAction !== null || !latestTask}>
+          </MobileActionButton>
+          <MobileActionButton variant="secondary" onClick={onAutoFix} disabled={activeAction !== null || !latestTask}>
             ShipNow 自动修复
-          </ReferencePhoneActionButton>
+          </MobileActionButton>
         </div>
       </div>
     </div>
