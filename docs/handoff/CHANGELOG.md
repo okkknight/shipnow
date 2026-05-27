@@ -14,6 +14,7 @@
 - Left-aligned the project details drawer status pill so it sits beside "当前状态" instead of hugging the far right edge.
 - Removed the bottom "收起" action from the project details drawer so closing relies on the existing close controls only.
 - Left-aligned the mobile preview nav title so the project name sits closer to the back button instead of centered in the bar.
+- Fixed the mobile preview page's Publish/Continue editing footer so it stays pinned to the bottom of the phone viewport while scrolling.
 
 ## 2026-05-25
 
