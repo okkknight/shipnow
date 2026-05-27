@@ -2485,9 +2485,9 @@ function HomeWorkspaceDrawer({
               >
                 <div className="min-w-0 flex items-center gap-2">
                   <div className="min-w-0 flex-1 truncate font-medium">{project.displayName}</div>
-                  <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                  <span className={`sn-mobile-drawer-status-text ${statusTone(project.status)}`.trim()}>
                     {statusLabel(project.status)}
-                  </StatusChip>
+                  </span>
                 </div>
                 <ChevronRight className="size-4" />
               </button>

@@ -5071,6 +5071,40 @@
     min-width: 0;
   }
 
+  .sn-mobile-drawer-status-text {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .sn-mobile-drawer-status-text.tone-success {
+    color: #0d6b50;
+  }
+
+  .sn-mobile-drawer-status-text.tone-warm {
+    color: var(--sn-color-warning-text);
+  }
+
+  .sn-mobile-drawer-status-text.tone-danger {
+    color: var(--sn-color-danger-text);
+  }
+
+  .sn-mobile-drawer-status-text.tone-muted {
+    color: var(--sn-color-muted);
+  }
+
+  .sn-mobile-drawer-status-text.tone-neutral {
+    color: var(--sn-color-muted);
+  }
+
   .sn-mobile-drawer-create-btn {
     width: 100%;
     margin-top: 18px;
