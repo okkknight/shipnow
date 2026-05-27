@@ -2619,11 +2619,6 @@ function WorkspaceStatusDrawer({
           ) : null}
         </div>
 
-        <div className="sn-reference-status-actions">
-          <MobileActionButton variant="secondary" onClick={onClose}>
-            收起
-          </MobileActionButton>
-        </div>
       </div>
     </div>
   );
