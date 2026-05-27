@@ -2061,12 +2061,12 @@ function ProjectWorkspace({
                 </button>
               </div>
               <div className="sn-project-workspace-actions">
-                <MobileActionButton variant="secondary" onClick={onOpenPreview}>
+                <SnActionButton variant="secondary" onClick={onOpenPreview}>
                   <Eye className="size-4" /> Preview
-                </MobileActionButton>
-                <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+                </SnActionButton>
+                <SnActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
                   <Upload className="size-4" /> Publish
-                </MobileActionButton>
+                </SnActionButton>
               </div>
             </div>
           </section>
@@ -2078,9 +2078,9 @@ function ProjectWorkspace({
                 <div className="sn-project-workspace-note">状态、发布和日志都收纳到更清晰的层次里。</div>
               </div>
               <div className="sn-project-workspace-toolbar">
-              <MobileActionButton variant="secondary" onClick={onOpenStatus}>
+              <SnActionButton variant="secondary" onClick={onOpenStatus}>
                 <MoreHorizontal className="size-4" /> 更多
-              </MobileActionButton>
+              </SnActionButton>
               </div>
             </div>
 
