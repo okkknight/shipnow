@@ -799,7 +799,7 @@ function App() {
       {!isMobileLayout ? (
         <>
           {route.kind === 'home' ? (
-            <ReferenceHomeDrawer
+            <HomeWorkspaceDrawer
               open={sidebarOpen}
               projectsLoading={projectsLoading}
               recentProjects={homeRecentProjects}
@@ -823,7 +823,7 @@ function App() {
               }}
             />
           ) : currentProject ? (
-            <ReferenceWorkspaceDrawer
+            <WorkspaceDrawer
               open={sidebarOpen}
               currentProject={currentProject}
               recentProjects={homeRecentProjects}
@@ -858,7 +858,7 @@ function App() {
           ) : null}
 
           {currentProject ? (
-            <ReferenceWorkspaceStatusDrawer
+            <WorkspaceStatusDrawer
               open={statusOpen}
               project={currentProject}
               detail={detail}
@@ -879,7 +879,7 @@ function App() {
       <div className="shipnow-app-content">{page}</div>
 
       {currentProject ? (
-        <ReferencePublishConfirmSurface
+        <ProjectPublishConfirmSurface
           open={publishConfirmOpen || previewConfirmDebug}
           project={currentProject}
           canPublish={canPublish && activeAction === null}
@@ -890,7 +890,7 @@ function App() {
       ) : null}
 
       {currentProject ? (
-        <ReferenceConfirmModal
+        <ProjectConfirmModal
           open={deleteConfirmOpen}
           destructive
           title="删除这个项目吗？"
@@ -1088,7 +1088,7 @@ function HomeWorkspace({
           </div>
         </div>
 
-        <ReferenceHomeDrawer
+        <HomeWorkspaceDrawer
           open={sidebarOpen}
           projectsLoading={projectsLoading}
           recentProjects={homeRecentProjects}
@@ -1603,8 +1603,8 @@ function ProjectPreviewWorkspace({
             </div>
             <div className="sn-visual-status-block">
               <div className="sn-visual-status-title">地址</div>
-              <InfoRow label="预览地址" value={project.previewUrl} />
-              <InfoRow label="正式地址" value={project.publicUrl} />
+              <DetailRow label="预览地址" value={project.previewUrl} />
+              <DetailRow label="正式地址" value={project.publicUrl} />
             </div>
             <div className="sn-visual-status-block">
               <div className="sn-visual-status-title">操作</div>
@@ -1659,7 +1659,7 @@ function MobilePublishConfirmSheet({
   );
 }
 
-function ReferenceConfirmModal({
+function ProjectConfirmModal({
   open,
   destructive = false,
   title,
@@ -1687,10 +1687,10 @@ function ReferenceConfirmModal({
   }
 
   return (
-    <div className="sn-reference-confirm-modal">
-      <div className="sn-reference-confirm-backdrop" onClick={onCancel} role="presentation" />
-      <div className="sn-reference-confirm-panel">
-        <div className="sn-confirmation-sheet sn-reference-confirm-sheet">
+    <div className="sn-project-confirm-modal">
+      <div className="sn-project-confirm-backdrop" onClick={onCancel} role="presentation" />
+      <div className="sn-project-confirm-panel">
+        <div className="sn-confirmation-sheet sn-project-confirm-sheet">
           <div className="sn-confirmation-head">
             <div className={`sn-confirmation-badge ${destructive ? 'is-destructive' : ''}`.trim()}>
               {destructive ? 'Delete confirmation' : 'Publish confirmation'}
@@ -1698,12 +1698,12 @@ function ReferenceConfirmModal({
             <div className="sn-confirmation-title">{title}</div>
             <p className="sn-confirmation-description">{description}</p>
           </div>
-          <div className="sn-reference-confirm-details">
+          <div className="sn-project-confirm-details">
             {details.map((detail) => (
-              <InfoRow key={detail.label} label={detail.label} value={detail.value} />
+              <DetailRow key={detail.label} label={detail.label} value={detail.value} />
             ))}
           </div>
-          <div className="sn-confirmation-footer sn-reference-confirm-footer">
+          <div className="sn-confirmation-footer sn-project-confirm-footer">
             <SnButton variant="secondary" onClick={onCancel} className="rounded-full border-border bg-background shadow-none">
               {cancelLabel}
             </SnButton>
@@ -1717,7 +1717,7 @@ function ReferenceConfirmModal({
   );
 }
 
-function ReferencePublishConfirmSurface({
+function ProjectPublishConfirmSurface({
   open,
   project,
   canPublish,
@@ -1748,7 +1748,7 @@ function ReferencePublishConfirmSurface({
   }
 
   return (
-    <ReferenceConfirmModal
+    <ProjectConfirmModal
       open={open}
       title="确认发布到正式站点"
       description={`ShipNow 会把当前预览复制到正式站点，并使用 ${project.publicUrl} 作为访问地址。`}
@@ -1927,7 +1927,7 @@ function ProjectWorkspace({
 
   if (isMobileLayout) {
     return (
-      <ReferenceProjectWorkspaceMobile
+      <ProjectWorkspaceMobile
         project={project}
         detail={detail}
         timelineItems={timelineItems}
@@ -2163,7 +2163,7 @@ function ProjectWorkspace({
   );
 }
 
-function ReferenceProjectWorkspaceMobile({
+function ProjectWorkspaceMobile({
   project,
   detail,
   timelineItems,
@@ -2361,7 +2361,7 @@ function ReferenceProjectWorkspaceMobile({
         </div>
       </div>
 
-      <ReferenceWorkspaceDrawer
+      <WorkspaceDrawer
         open={sidebarOpen}
         currentProject={project}
         recentProjects={recentProjects}
@@ -2394,7 +2394,7 @@ function ReferenceProjectWorkspaceMobile({
         }}
       />
 
-      <ReferenceWorkspaceStatusDrawer
+      <WorkspaceStatusDrawer
         open={statusOpen}
         project={project}
         detail={detail}
@@ -2412,7 +2412,7 @@ function ReferenceProjectWorkspaceMobile({
   );
 }
 
-function ReferenceWorkspaceDrawer({
+function WorkspaceDrawer({
   open,
   currentProject,
   recentProjects,
@@ -2496,7 +2496,7 @@ function ReferenceWorkspaceDrawer({
   );
 }
 
-function ReferenceHomeDrawer({
+function HomeWorkspaceDrawer({
   open,
   projectsLoading,
   recentProjects,
@@ -2620,7 +2620,7 @@ function ReferenceHomeDrawer({
   );
 }
 
-function ReferenceWorkspaceStatusDrawer({
+function WorkspaceStatusDrawer({
   open,
   project,
   detail,
@@ -2752,9 +2752,9 @@ function ReferenceWorkspaceStatusDrawer({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }): ReactElement {
+function DetailRow({ label, value }: { label: string; value: string }): ReactElement {
   return (
-    <div className="sn-reference-info-row">
+    <div className="sn-project-info-row">
       <span>{label}</span>
       <span className="break-all text-right font-medium text-[rgb(var(--ink))]">{value}</span>
     </div>

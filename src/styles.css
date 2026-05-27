@@ -2901,7 +2901,7 @@
     gap: 10px;
   }
 
-  .sn-reference-confirm-modal {
+  .sn-project-confirm-modal {
     position: fixed;
     inset: 0;
     z-index: 70;
@@ -2910,14 +2910,14 @@
     padding: 24px 16px;
   }
 
-  .sn-reference-confirm-backdrop {
+  .sn-project-confirm-backdrop {
     position: absolute;
     inset: 0;
     background: rgba(18, 23, 31, 0.44);
     backdrop-filter: blur(10px);
   }
 
-  .sn-reference-confirm-panel {
+  .sn-project-confirm-panel {
     position: relative;
     width: min(680px, calc(100vw - 32px));
     max-height: min(100vh - 48px, 820px);
@@ -2925,16 +2925,16 @@
     scrollbar-width: none;
   }
 
-  .sn-reference-confirm-panel::-webkit-scrollbar {
+  .sn-project-confirm-panel::-webkit-scrollbar {
     display: none;
   }
 
-  .sn-reference-confirm-sheet {
+  .sn-project-confirm-sheet {
     width: 100%;
     max-width: none;
   }
 
-  .sn-reference-confirm-details {
+  .sn-project-confirm-details {
     display: grid;
     gap: 0;
     border: 1px solid var(--sn-color-border);
@@ -2943,36 +2943,36 @@
     background: rgba(250, 247, 243, 0.82);
   }
 
-  .sn-reference-confirm-details .sn-reference-info-row {
+  .sn-project-confirm-details .sn-project-info-row {
     padding-inline: 14px;
   }
 
-  .sn-reference-confirm-footer {
+  .sn-project-confirm-footer {
     flex-wrap: wrap;
   }
 
   @media (max-width: 767px) {
-    .sn-reference-confirm-modal {
+    .sn-project-confirm-modal {
       align-items: end;
       padding: 0;
     }
 
-    .sn-reference-confirm-panel {
+    .sn-project-confirm-panel {
       width: 100%;
       max-height: 100vh;
     }
 
-    .sn-reference-confirm-sheet {
+    .sn-project-confirm-sheet {
       border-radius: 28px 28px 0 0;
       box-shadow: 0 -24px 60px rgba(15, 17, 21, 0.16);
     }
 
-    .sn-reference-confirm-footer {
+    .sn-project-confirm-footer {
       flex-direction: column;
     }
 
-    .sn-reference-confirm-footer .sn-button,
-    .sn-reference-confirm-footer .sn-action-button {
+    .sn-project-confirm-footer .sn-button,
+    .sn-project-confirm-footer .sn-action-button {
       width: 100%;
       justify-content: center;
     }
@@ -4002,7 +4002,7 @@
       @apply rounded-[18px] border border-dashed border-[rgb(var(--line))] bg-[rgba(255,255,255,0.7)] px-4 py-4 text-sm text-[rgb(var(--muted))];
     }
 
-  .sn-reference-info-row {
+  .sn-project-info-row {
     @apply flex items-start justify-between gap-4 border-b border-[rgb(var(--line))] py-2 text-xs text-[rgb(var(--muted))] last:border-b-0;
   }
 
