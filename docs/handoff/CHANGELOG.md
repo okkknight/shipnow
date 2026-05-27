@@ -8,6 +8,7 @@
 - Renamed the project status drawer title to "项目详情" to match the current acceptance copy.
 - Removed the "最近任务" section from the project details drawer so the drawer keeps only the remaining live project metadata and release history.
 - Switched the recent-project status in the project drawer from a pill chip to plain status text so it reads lighter while keeping the same status color language.
+- Tightened the spacing between the drawer's create-project button and the user card so the button sits closer to the bottom information area.
 
 ## 2026-05-25
 
