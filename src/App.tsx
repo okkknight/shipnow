@@ -868,7 +868,7 @@ function App() {
               onClose={() => setStatusOpen(false)}
               onOpenPreview={() => navigate(`/project/${currentProject.projectId}/preview`)}
               onPublish={() => setPublishConfirmOpen(true)}
-              onContinueEditing={() => document.querySelector('.sn-reference-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              onContinueEditing={() => document.querySelector('.sn-home-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
               onAutoFix={handleAutoFix}
               onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
             />
@@ -1139,51 +1139,51 @@ function HomeWorkspace({
           </p>
         </header>
 
-        <div className="sn-reference-workspace-grid">
-          <section className="sn-panel sn-reference-entry-welcome">
-            <div className="sn-reference-welcome-title">你好！👋</div>
-            <div className="sn-reference-welcome-copy">告诉我你想做什么，我来帮你快速实现。</div>
+        <div className="sn-home-workspace-grid">
+          <section className="sn-panel sn-home-entry-welcome">
+            <div className="sn-home-welcome-title">你好！👋</div>
+            <div className="sn-home-welcome-copy">告诉我你想做什么，我来帮你快速实现。</div>
 
-            <div className="sn-reference-entry-list">
-              <button type="button" className="sn-reference-entry-card" onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}>
-                <div className="sn-reference-entry-icon">✦</div>
+            <div className="sn-home-entry-list">
+              <button type="button" className="sn-home-entry-card" onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}>
+                <div className="sn-home-entry-icon">✦</div>
                 <div>
-                  <div className="sn-reference-entry-title">创建产品官网</div>
-                  <div className="sn-reference-entry-desc">展示产品与核心卖点</div>
+                  <div className="sn-home-entry-title">创建产品官网</div>
+                  <div className="sn-home-entry-desc">展示产品与核心卖点</div>
                 </div>
               </button>
-              <button type="button" className="sn-reference-entry-card" onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}>
-                <div className="sn-reference-entry-icon">◌</div>
+              <button type="button" className="sn-home-entry-card" onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}>
+                <div className="sn-home-entry-icon">◌</div>
                 <div>
-                  <div className="sn-reference-entry-title">做一个小游戏</div>
-                  <div className="sn-reference-entry-desc">轻松有趣的互动体验</div>
+                  <div className="sn-home-entry-title">做一个小游戏</div>
+                  <div className="sn-home-entry-desc">轻松有趣的互动体验</div>
                 </div>
               </button>
-              <button type="button" className="sn-reference-entry-card" onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}>
-                <div className="sn-reference-entry-icon">☺</div>
+              <button type="button" className="sn-home-entry-card" onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}>
+                <div className="sn-home-entry-icon">☺</div>
                 <div>
-                  <div className="sn-reference-entry-title">创建个人主页</div>
-                  <div className="sn-reference-entry-desc">展示自己与作品集</div>
+                  <div className="sn-home-entry-title">创建个人主页</div>
+                  <div className="sn-home-entry-desc">展示自己与作品集</div>
                 </div>
               </button>
             </div>
 
-            <div className="sn-reference-composer-card is-bottom">
-              <div className="sn-reference-composer-rail">
+            <div className="sn-home-composer-card is-bottom">
+              <div className="sn-home-composer-rail">
               <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
                 <Paperclip className="size-4" />
               </button>
                 <textarea
-                  className="sn-reference-composer-input"
+                  className="sn-home-composer-input"
                   placeholder="告诉 ShipNow 你想做什么..."
                   value={composerPrompt}
                   onChange={(event) => setComposerPrompt(event.target.value)}
                 />
-                <button className="sn-reference-send-button" type="button" aria-label="发送" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
+                <button className="sn-home-send-button" type="button" aria-label="发送" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
                   <Send className="size-4" />
                 </button>
               </div>
-              <div className="sn-reference-footer-actions">
+              <div className="sn-home-footer-actions">
               <MobileActionButton variant="secondary" onClick={() => navigate('/templates')}>
                 <Sparkles className="size-4" /> 模板中心
               </MobileActionButton>
@@ -1194,21 +1194,21 @@ function HomeWorkspace({
           </div>
           </section>
 
-          <section className="sn-panel sn-reference-projects">
-            <div className="sn-reference-projects-head">
+          <section className="sn-panel sn-home-projects">
+            <div className="sn-home-projects-head">
               <div>
-                <div className="sn-reference-section-copy">最近项目</div>
-                <div className="sn-reference-note">卡片列表，而不是表格。</div>
+                <div className="sn-home-section-copy">最近项目</div>
+                <div className="sn-home-note">卡片列表，而不是表格。</div>
               </div>
-              <div className="sn-reference-projects-toolbar">
+              <div className="sn-home-projects-toolbar">
                 <SnActionButton variant="secondary" onClick={() => navigate('/projects')}>
                   <Folder className="size-4" /> 项目管理
                 </SnActionButton>
               </div>
             </div>
-            <div className="sn-reference-project-list">
+            <div className="sn-home-project-list">
               {projectsLoading ? (
-                <div className="sn-reference-drawer-empty">正在加载项目列表…</div>
+                <div className="sn-home-empty">正在加载项目列表…</div>
               ) : homeRecentProjects.length === 0 ? (
                 <EmptyState title="No projects yet" description="Start a conversation to build your first site." icon={<Plus className="size-6" />} />
               ) : (
@@ -1344,11 +1344,11 @@ function TemplatesWorkspace({
           </p>
         </header>
 
-        <div className="sn-reference-workspace-grid">
-          <section className="sn-panel sn-reference-entry-welcome">
-            <div className="sn-reference-welcome-title">选择一个模板开始。</div>
-            <div className="sn-reference-welcome-copy">先用合适的起点，再继续对话修改。这里用卡片承载模板，不用表格。</div>
-            <div className="sn-reference-template-grid">
+        <div className="sn-template-workspace-grid">
+          <section className="sn-panel sn-template-entry-welcome">
+            <div className="sn-template-welcome-title">选择一个模板开始。</div>
+            <div className="sn-template-welcome-copy">先用合适的起点，再继续对话修改。这里用卡片承载模板，不用表格。</div>
+            <div className="sn-template-grid">
               {projectsLoading
                 ? Array.from({ length: 6 }).map((_, index) => (
                     <Skeleton key={index} className="h-40 rounded-[24px]" />
@@ -1357,35 +1357,35 @@ function TemplatesWorkspace({
                     <button
                       key={template.title}
                       type="button"
-                      className={`sn-reference-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
+                      className={`sn-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
                       onClick={() => {
                         onSelectTemplate(template.prompt);
                         onBackHome();
                       }}
                     >
-                      <div className="sn-reference-template-thumb">
+                      <div className="sn-template-thumb">
                         {template.icon === '+' ? (
-                          <Plus className="size-7 sn-reference-template-empty-plus" />
+                          <Plus className="size-7 sn-template-empty-plus" />
                         ) : (
-                          <div className="sn-reference-template-thumb-shape" />
+                          <div className="sn-template-thumb-shape" />
                         )}
                       </div>
-                      <div className="sn-reference-template-title">{template.title}</div>
-                      <div className="sn-reference-template-desc">{template.desc}</div>
+                      <div className="sn-template-title">{template.title}</div>
+                      <div className="sn-template-desc">{template.desc}</div>
                     </button>
                   ))}
             </div>
           </section>
 
-          <section className="sn-panel sn-reference-projects">
-            <div className="sn-reference-projects-head">
+          <section className="sn-panel sn-template-projects">
+            <div className="sn-template-projects-head">
               <div>
-                <div className="sn-reference-section-copy">导入现有项目</div>
-                <div className="sn-reference-note">如果已有站点，直接导入继续改。</div>
+                <div className="sn-template-section-copy">导入现有项目</div>
+                <div className="sn-template-note">如果已有站点，直接导入继续改。</div>
               </div>
             </div>
-            <div className="sn-reference-project-list">
-              <div className="sn-reference-drawer-empty">从现有项目导入后，可以继续沿用当前风格与结构。</div>
+            <div className="sn-template-project-list">
+              <div className="sn-template-empty">从现有项目导入后，可以继续沿用当前风格与结构。</div>
               <SnActionButton variant="secondary" onClick={onBackHome}>
                 <Upload className="size-4" /> 导入现有项目
               </SnActionButton>
@@ -1498,13 +1498,13 @@ function ProjectsWorkspace({
           </p>
         </header>
 
-        <section className="sn-panel sn-reference-projects">
-          <div className="sn-reference-projects-head">
+        <section className="sn-panel sn-projects-panel">
+          <div className="sn-projects-head">
             <div>
-              <div className="sn-reference-section-copy">所有项目</div>
-              <div className="sn-reference-note">卡片列表，而不是表格。</div>
+              <div className="sn-projects-section-copy">所有项目</div>
+              <div className="sn-projects-note">卡片列表，而不是表格。</div>
             </div>
-            <div className="sn-reference-projects-toolbar">
+            <div className="sn-projects-toolbar">
               <SnActionButton variant="secondary" onClick={onBackHome}>
                 <Plus className="size-4" /> 新建项目
               </SnActionButton>
@@ -1520,7 +1520,7 @@ function ProjectsWorkspace({
           ) : projects.length === 0 ? (
             <EmptyState title="No projects yet" description="Start a conversation to build your first site." icon={<Plus className="size-6" />} />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="sn-projects-list">
               {projects.map((project) => (
                 <ProjectCard
                   key={project.projectId}
@@ -1554,7 +1554,7 @@ function ProjectPreviewWorkspace({
       <div className="sn-page-shell">
         <TopBar mode="preview" />
 
-        <div className="sn-reference-workspace-grid">
+        <div className="sn-project-preview-grid">
           <section className="sn-panel sn-visual-main">
             <div className="sn-visual-main-head">
               <div className="sn-visual-project-head">
@@ -1790,7 +1790,7 @@ function PublishResultWorkspace({
       <div className="sn-page-shell">
         <TopBar mode="preview" />
 
-        <div className="sn-reference-workspace-grid">
+        <div className="sn-project-workspace-grid">
           <section className="sn-panel sn-visual-main">
             <div className="sn-visual-main-head">
               <div className="sn-visual-project-head">
@@ -1979,7 +1979,7 @@ function ProjectWorkspace({
           </p>
         </header>
 
-        <div className="sn-reference-workspace-grid">
+        <div className="sn-project-workspace-grid">
           <section className="sn-panel sn-reference-entry-welcome">
             <div className="sn-reference-welcome-title">{project.displayName}</div>
             <div className="sn-reference-welcome-copy">{project.title}</div>
