@@ -10,6 +10,7 @@
 - Switched the recent-project status in the project drawer from a pill chip to plain status text so it reads lighter while keeping the same status color language.
 - Tightened the spacing between the drawer's create-project button and the user card so the button sits closer to the bottom information area.
 - Removed the project handle line from the project details drawer header so the title area only shows the project name and status.
+- Replaced the project-name line in the project details drawer with the fixed label "当前状态" to match the latest acceptance copy.
 
 ## 2026-05-25
 

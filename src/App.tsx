@@ -2563,7 +2563,7 @@ function WorkspaceStatusDrawer({
 
         <div className="sn-reference-status-block">
           <div className="sn-reference-project-head">
-            <div className="sn-reference-project-name">{project.displayName}</div>
+            <div className="sn-reference-project-name">当前状态</div>
             <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
               {statusLabel(project.status)}
             </StatusChip>
