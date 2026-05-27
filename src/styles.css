@@ -1341,7 +1341,8 @@
 
     .sn-visual-mobile-nav-title,
     .sn-mobile-preview-nav-title {
-      text-align: center;
+      text-align: left;
+      justify-self: start;
       font-size: 0.9rem;
       font-weight: 600;
       letter-spacing: -0.02em;

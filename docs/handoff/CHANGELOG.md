@@ -13,6 +13,7 @@
 - Replaced the project-name line in the project details drawer with the fixed label "当前状态" to match the latest acceptance copy.
 - Left-aligned the project details drawer status pill so it sits beside "当前状态" instead of hugging the far right edge.
 - Removed the bottom "收起" action from the project details drawer so closing relies on the existing close controls only.
+- Left-aligned the mobile preview nav title so the project name sits closer to the back button instead of centered in the bar.
 
 ## 2026-05-25
 
