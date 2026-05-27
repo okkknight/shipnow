@@ -6,6 +6,7 @@
 - Fixed the project status drawer white-screen crash by restoring the collapsible task/history open-state hooks that the drawer body still depends on.
 - Added a primary "新建项目" button above the drawer user card and wired it to return to the home route.
 - Renamed the project status drawer title to "项目详情" to match the current acceptance copy.
+- Removed the "最近任务" section from the project details drawer so the drawer keeps only the remaining live project metadata and release history.
 
 ## 2026-05-25
 

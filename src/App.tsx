@@ -959,7 +959,6 @@ function App() {
               open={statusOpen}
               project={currentProject}
               detail={detail}
-              latestTask={latestTask}
               canPublish={canPublish}
               activeAction={activeAction}
               onClose={() => setStatusOpen(false)}
@@ -2394,7 +2393,6 @@ function ProjectWorkspaceMobile({
         open={statusOpen}
         project={project}
         detail={detail}
-        latestTask={latestTask}
         canPublish={canPublish}
         activeAction={activeAction}
         onClose={() => setStatusOpen(false)}
@@ -2523,7 +2521,6 @@ function WorkspaceStatusDrawer({
   open,
   project,
   detail,
-  latestTask,
   canPublish,
   activeAction,
   onClose,
@@ -2536,7 +2533,6 @@ function WorkspaceStatusDrawer({
   open: boolean;
   project: ProjectView;
   detail: ProjectDetailResponse | null;
-  latestTask: TaskView | null;
   canPublish: boolean;
   activeAction: string | null;
   onClose: () => void;
@@ -2548,7 +2544,6 @@ function WorkspaceStatusDrawer({
 }) {
   const { shouldRender, isOpen } = useDrawerTransition(open);
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const [recentTasksOpen, setRecentTasksOpen] = useState(true);
   const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
 
   if (!shouldRender) {
@@ -2594,38 +2589,6 @@ function WorkspaceStatusDrawer({
           ) : (
             <div className="sn-reference-note">尚未发布到正式版本</div>
           )}
-        </div>
-
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-block-head">
-            <div className="sn-reference-label">最近任务</div>
-            <button
-              className="sn-reference-collapse-btn"
-              type="button"
-              onClick={() => setRecentTasksOpen((value) => !value)}
-              aria-expanded={recentTasksOpen}
-              aria-label={recentTasksOpen ? '收起最近任务' : '展开最近任务'}
-            >
-              <ChevronDown className={`size-4 ${recentTasksOpen ? 'is-rotated' : ''}`} />
-            </button>
-          </div>
-          {recentTasksOpen ? (
-            detail?.tasks?.length ? (
-              <div className="sn-reference-task-list">
-                {detail.tasks.slice(0, 3).map((task) => (
-                  <div key={task.id} className="sn-reference-task-item">
-                    <span>{taskTypeLabel(task.type)}</span>
-                    <StatusChip tone={task.status === 'failed' ? 'needs-fix' : task.status === 'success' ? 'published' : 'building'}>
-                      {taskStatusLabel(task.status)}
-                    </StatusChip>
-                    <time>{formatTime(task.startedAt ?? task.createdAt)}</time>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="sn-reference-drawer-empty">还没有最近任务。</div>
-            )
-          ) : null}
         </div>
 
         <div className="sn-reference-status-block">
