@@ -11,6 +11,7 @@
 - Tightened the spacing between the drawer's create-project button and the user card so the button sits closer to the bottom information area.
 - Removed the project handle line from the project details drawer header so the title area only shows the project name and status.
 - Replaced the project-name line in the project details drawer with the fixed label "当前状态" to match the latest acceptance copy.
+- Left-aligned the project details drawer status pill so it sits beside "当前状态" instead of hugging the far right edge.
 
 ## 2026-05-25
 
