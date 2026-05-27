@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-28
+
+- Removed the hardcoded assistant sample action card from the project workspace conversation stream so the page now shows only real project messages and events.
+
 ## 2026-05-25
 
 - Bootstrapped the ShipNow implementation workspace.

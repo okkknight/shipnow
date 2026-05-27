@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode
 import {
   ArrowUpRight,
   CheckCircle2,
+  CalendarDays,
+  ChevronRight,
   ChevronLeft,
   ChevronDown,
   CircleAlert,
@@ -9,6 +11,7 @@ import {
   Edit2,
   Eye,
   Folder,
+  LayoutGrid,
   Info,
   Menu,
   MoreHorizontal,
@@ -17,6 +20,7 @@ import {
   RefreshCcw,
   Send,
   Sparkles,
+  Settings2,
   Upload,
   WandSparkles,
   X,
@@ -41,7 +45,6 @@ import type {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  AssistantActionCard,
   ChatBubble,
   Composer,
   ConfirmationSheet as SnConfirmationSheet,
@@ -50,7 +53,7 @@ import {
   MobilePreviewPage,
   MobilePublishResultPage,
   MobilePageSurface,
-  MobileTopBar,
+  MobileCompactHeader,
   MobileIconButton,
   MobileStatusPill,
   MobileActionButton,
@@ -70,6 +73,7 @@ type RouteState =
   | { kind: 'project-preview'; projectId: string }
   | { kind: 'publish-success'; projectId: string }
   | { kind: 'publish-failure'; projectId: string }
+  | { kind: 'settings' }
   | { kind: 'templates' }
   | { kind: 'projects' }
   | { kind: 'design-system' }
@@ -121,13 +125,6 @@ const TEMPLATE_PROMPTS = [
   '做一个活动页，带强视觉冲击和明确的报名 / 购买转化。',
   '做一个空白项目，先搭好结构，再让我继续细化。',
 ];
-
-const HOME_QUICK_PROMPTS = [
-  { label: '产品官网', prompt: TEMPLATE_PROMPTS[0] },
-  { label: '个人主页', prompt: TEMPLATE_PROMPTS[1] },
-  { label: '小游戏', prompt: TEMPLATE_PROMPTS[2] },
-  { label: '工具站', prompt: TEMPLATE_PROMPTS[3] },
-] as const;
 
 function normalizeAppBase(base: string): string {
   const trimmed = base.trim();
@@ -187,6 +184,9 @@ function parseRoute(pathname: string): RouteState {
   if (segments[0] === 'projects') {
     return { kind: 'projects' };
   }
+  if (segments[0] === 'settings') {
+    return { kind: 'settings' };
+  }
   return { kind: 'home' };
 }
 
@@ -229,6 +229,35 @@ function useMediaQuery(query: string): boolean {
   }, [query]);
 
   return matches;
+}
+
+function useDrawerTransition(open: boolean, durationMs = 240): { shouldRender: boolean; isOpen: boolean } {
+  const [shouldRender, setShouldRender] = useState(open);
+  const [isOpen, setIsOpen] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setShouldRender(true);
+      let secondFrame = 0;
+      const firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => {
+          setIsOpen(true);
+        });
+      });
+      return () => {
+        window.cancelAnimationFrame(firstFrame);
+        window.cancelAnimationFrame(secondFrame);
+      };
+    }
+
+    setIsOpen(false);
+    const timeout = window.setTimeout(() => {
+      setShouldRender(false);
+    }, durationMs);
+    return () => window.clearTimeout(timeout);
+  }, [durationMs, open]);
+
+  return { shouldRender, isOpen };
 }
 
 function slugifyHandle(value: string): string {
@@ -323,6 +352,28 @@ function statusTone(status: string): string {
       return 'tone-muted';
     default:
       return 'tone-neutral';
+  }
+}
+
+function statusDescription(status: string): string {
+  switch (status) {
+    case 'preview_ready':
+      return '预览已就绪，随时可以发布到线上。';
+    case 'published':
+      return '当前版本已经发布到正式站点。';
+    case 'generating':
+    case 'publishing':
+      return '项目正在处理，请稍等片刻再查看。';
+    case 'build_failed':
+    case 'publish_failed':
+    case 'failed':
+      return '当前版本需要修复后再继续。';
+    case 'draft':
+      return '还在起步阶段，可以先从一句话开始。';
+    case 'deleted':
+      return '该项目已删除。';
+    default:
+      return '状态信息会随着当前项目实时更新。';
   }
 }
 
@@ -721,9 +772,37 @@ function App() {
       />
     );
   } else if (route.kind === 'templates') {
-    page = <TemplatesWorkspace onBackHome={() => navigate('/')} onSelectTemplate={(prompt) => setComposerPrompt(prompt)} projectsLoading={projectsLoading} />;
+    page = (
+      <TemplatesWorkspace
+        onBackHome={() => navigate('/')}
+        onSelectTemplate={(prompt) => setComposerPrompt(prompt)}
+        projectsLoading={projectsLoading}
+        recentProjects={homeRecentProjects}
+        navigate={navigate}
+      />
+    );
   } else if (route.kind === 'projects') {
-    page = <ProjectsWorkspace projects={projects} projectsLoading={projectsLoading} onOpenProject={(projectId) => navigate(`/project/${projectId}`)} onBackHome={() => navigate('/')} />;
+    page = (
+      <ProjectsWorkspace
+        projects={projects}
+        projectsLoading={projectsLoading}
+        onOpenProject={(projectId) => navigate(`/project/${projectId}`)}
+        onBackHome={() => navigate('/')}
+        recentProjects={homeRecentProjects}
+        navigate={navigate}
+      />
+    );
+  } else if (route.kind === 'settings') {
+    page = (
+      <SettingsWorkspace
+        onOpenMenu={() => setSidebarOpen(true)}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        projectsLoading={projectsLoading}
+        recentProjects={homeRecentProjects}
+        navigate={navigate}
+      />
+    );
   } else if (route.kind === 'home') {
     page = (
       <HomeWorkspace
@@ -805,10 +884,6 @@ function App() {
               recentProjects={homeRecentProjects}
               navigate={navigate}
               onClose={() => setSidebarOpen(false)}
-              onCreateProject={() => {
-                navigate('/');
-                setSidebarOpen(false);
-              }}
               onOpenTemplates={() => {
                 navigate('/templates');
                 setSidebarOpen(false);
@@ -817,8 +892,28 @@ function App() {
                 navigate('/projects');
                 setSidebarOpen(false);
               }}
-              onSelectTemplate={(prompt) => {
-                setComposerPrompt(prompt);
+              onOpenSettings={() => {
+                navigate('/settings');
+                setSidebarOpen(false);
+              }}
+            />
+          ) : route.kind === 'settings' ? (
+            <HomeWorkspaceDrawer
+              open={sidebarOpen}
+              projectsLoading={projectsLoading}
+              recentProjects={homeRecentProjects}
+              navigate={navigate}
+              onClose={() => setSidebarOpen(false)}
+              onOpenTemplates={() => {
+                navigate('/templates');
+                setSidebarOpen(false);
+              }}
+              onOpenProjects={() => {
+                navigate('/projects');
+                setSidebarOpen(false);
+              }}
+              onOpenSettings={() => {
+                navigate('/settings');
                 setSidebarOpen(false);
               }}
             />
@@ -846,7 +941,9 @@ function App() {
                 setStatusOpen(true);
               }}
               onOpenSettings={() => {
-                setStatusOpen(true);
+                navigate('/settings');
+                setSidebarOpen(false);
+                setStatusOpen(false);
               }}
               onSelectTemplate={(prompt) => {
                 navigate('/');
@@ -945,81 +1042,69 @@ function HomeWorkspace({
   if (isMobile) {
     return (
       <MobilePageSurface className="sn-mobile-home-page">
-        <MobileTopBar
-          left={
+        <div className="sn-mobile-page-body sn-mobile-entry-welcome">
+          <div className="sn-mobile-home-brand-row">
             <MobileIconButton type="button" aria-label="菜单" onClick={() => setSidebarOpen(true)}>
               <Menu className="size-4" />
             </MobileIconButton>
-          }
-          title={<div className="sn-mobile-brand">ShipNow</div>}
-          right={
-            <div className="sn-mobile-topbar-actions">
+            <div className="sn-mobile-brand">ShipNow</div>
+          </div>
+
+          <div className="sn-mobile-home-hero">
+            <div className="sn-mobile-home-title">你好！👋</div>
+            <div className="sn-mobile-home-copy">
+              <span>告诉我你想做什么，</span>
+              <span>我来帮你快速实现。</span>
+            </div>
+
+            <div className="sn-mobile-home-entry-list">
               <button
-                className="sn-mobile-new-button"
                 type="button"
-                aria-label="新建项目"
-                onClick={() => {
-                  navigate('/');
-                  setSidebarOpen(false);
-                }}
+                className="sn-mobile-home-entry-card"
+                onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}
               >
-                <Plus className="size-4" />
+                <div className="sn-mobile-home-entry-icon">✦</div>
+                <div>
+                  <div className="sn-mobile-home-entry-title">创建产品官网</div>
+                  <div className="sn-mobile-home-entry-desc">展示产品与核心卖点</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="sn-mobile-home-entry-card"
+                onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}
+              >
+                <div className="sn-mobile-home-entry-icon">◌</div>
+                <div>
+                  <div className="sn-mobile-home-entry-title">做一个小游戏</div>
+                  <div className="sn-mobile-home-entry-desc">轻松有趣的互动体验</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="sn-mobile-home-entry-card"
+                onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}
+              >
+                <div className="sn-mobile-home-entry-icon">☺</div>
+                <div>
+                  <div className="sn-mobile-home-entry-title">创建个人主页</div>
+                  <div className="sn-mobile-home-entry-desc">展示自己与作品集</div>
+                </div>
               </button>
             </div>
-          }
-        />
-
-        <div className="sn-mobile-page-body sn-mobile-entry-welcome">
-          <div className="sn-mobile-home-title">你好！👋</div>
-          <div className="sn-mobile-home-copy">告诉我你想做什么，我来帮你快速实现。</div>
-
-          <div className="sn-mobile-home-entry-list">
-            <button
-              type="button"
-              className="sn-mobile-home-entry-card"
-              onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}
-            >
-              <div className="sn-mobile-home-entry-icon">✦</div>
-              <div>
-                <div className="sn-mobile-home-entry-title">创建产品官网</div>
-                <div className="sn-mobile-home-entry-desc">展示产品与核心卖点</div>
-              </div>
-            </button>
-            <button
-              type="button"
-              className="sn-mobile-home-entry-card"
-              onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}
-            >
-              <div className="sn-mobile-home-entry-icon">◌</div>
-              <div>
-                <div className="sn-mobile-home-entry-title">做一个小游戏</div>
-                <div className="sn-mobile-home-entry-desc">轻松有趣的互动体验</div>
-              </div>
-            </button>
-            <button
-              type="button"
-              className="sn-mobile-home-entry-card"
-              onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}
-            >
-              <div className="sn-mobile-home-entry-icon">☺</div>
-              <div>
-                <div className="sn-mobile-home-entry-title">创建个人主页</div>
-                <div className="sn-mobile-home-entry-desc">展示自己与作品集</div>
-              </div>
-            </button>
           </div>
 
           <div className="sn-mobile-home-composer-card is-bottom">
-            <div className="sn-mobile-home-composer-rail">
+            <textarea
+              className="sn-mobile-home-composer-input"
+              placeholder="你想做什么？"
+              value={composerPrompt}
+              onChange={(event) => setComposerPrompt(event.target.value)}
+            />
+            <div className="sn-mobile-home-composer-actions">
               <button className="icon-button h-10 w-10" type="button" aria-label="附件">
                 <Paperclip className="size-4" />
               </button>
-              <textarea
-                className="sn-mobile-home-composer-input"
-                placeholder="告诉 ShipNow 你想做什么..."
-                value={composerPrompt}
-                onChange={(event) => setComposerPrompt(event.target.value)}
-              />
               <button
                 className="sn-mobile-home-send-button"
                 type="button"
@@ -1030,58 +1115,8 @@ function HomeWorkspace({
                 <Send className="size-4" />
               </button>
             </div>
-            <div className="sn-mobile-home-footer-actions">
-              <MobileActionButton variant="secondary" onClick={() => navigate('/templates')}>
-                <Sparkles className="size-4" /> 模板中心
-              </MobileActionButton>
-              <MobileActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
-                <Upload className="size-4" /> 开始创建
-              </MobileActionButton>
-            </div>
           </div>
 
-          <div className="sn-mobile-home-quick-chip-row">
-            {HOME_QUICK_PROMPTS.map(({ label, prompt }) => (
-              <QuickActionChip key={label} icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt(prompt)}>
-                {label}
-              </QuickActionChip>
-            ))}
-          </div>
-
-          <div className="sn-mobile-section-copy">最近项目</div>
-          <div className="sn-mobile-project-list">
-            {projectsLoading ? (
-              <div className="sn-mobile-empty">正在加载项目列表…</div>
-            ) : homeRecentProjects.length === 0 ? (
-              <div className="sn-mobile-empty">还没有项目，先用一句话创建一个。</div>
-            ) : (
-              homeRecentProjects.map((project) => (
-                <button
-                  key={project.projectId}
-                  type="button"
-                  className="sn-mobile-project-card"
-                  onClick={() => navigate(`/project/${project.projectId}`)}
-                >
-                  <div className="sn-mobile-project-thumb" />
-                  <div className="sn-mobile-project-copy">
-                    <div className="sn-mobile-project-head">
-                      <div>
-                        <div className="sn-mobile-project-name">{project.displayName}</div>
-                        <div className="sn-mobile-project-desc">{project.publicHandle}</div>
-                      </div>
-                      <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
-                        {statusLabel(project.status)}
-                      </StatusChip>
-                    </div>
-                    <div className="sn-mobile-project-meta">
-                      <span>{formatTime(project.updatedAt)}</span>
-                      <span>{project.type}</span>
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
         </div>
 
         <HomeWorkspaceDrawer
@@ -1090,20 +1125,12 @@ function HomeWorkspace({
           recentProjects={homeRecentProjects}
           navigate={navigate}
           onClose={() => setSidebarOpen(false)}
-          onCreateProject={() => {
-            navigate('/');
-            setSidebarOpen(false);
-          }}
           onOpenTemplates={() => {
             navigate('/templates');
             setSidebarOpen(false);
           }}
           onOpenProjects={() => {
             navigate('/projects');
-            setSidebarOpen(false);
-          }}
-          onSelectTemplate={(prompt) => {
-            setComposerPrompt(prompt);
             setSidebarOpen(false);
           }}
         />
@@ -1189,38 +1216,69 @@ function HomeWorkspace({
             </div>
           </div>
           </section>
-
-          <section className="sn-panel sn-home-projects">
-            <div className="sn-home-projects-head">
-              <div>
-                <div className="sn-home-section-copy">最近项目</div>
-                <div className="sn-home-note">卡片列表，而不是表格。</div>
-              </div>
-              <div className="sn-home-projects-toolbar">
-                <SnActionButton variant="secondary" onClick={() => navigate('/projects')}>
-                  <Folder className="size-4" /> 项目管理
-                </SnActionButton>
-              </div>
-            </div>
-            <div className="sn-home-project-list">
-              {projectsLoading ? (
-                <div className="sn-home-empty">正在加载项目列表…</div>
-              ) : homeRecentProjects.length === 0 ? (
-                <EmptyState title="No projects yet" description="Start a conversation to build your first site." icon={<Plus className="size-6" />} />
-              ) : (
-                homeRecentProjects.map((project) => (
-                  <ProjectCard
-                    key={project.projectId}
-                    name={project.displayName}
-                    description={project.title}
-                    status={project.status === 'preview_ready' ? 'preview-ready' : project.status === 'published' ? 'published' : project.status === 'build_failed' || project.status === 'publish_failed' ? 'needs-fix' : 'building'}
-                    updatedAt={formatTime(project.updatedAt)}
-                  />
-                ))
-              )}
-            </div>
-          </section>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsWorkspace({
+  onOpenMenu,
+  sidebarOpen,
+  setSidebarOpen,
+  projectsLoading,
+  recentProjects,
+  navigate,
+}: {
+  onOpenMenu: () => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (value: boolean) => void;
+  projectsLoading: boolean;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
+}) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
+
+  if (isMobile) {
+    return (
+      <MobilePageSurface className="sn-mobile-settings-page">
+        <div className="sn-mobile-page-body sn-mobile-settings-body">
+          <div className="sn-mobile-home-brand-row">
+            <MobileIconButton type="button" aria-label="菜单" onClick={onOpenMenu}>
+              <Menu className="size-4" />
+            </MobileIconButton>
+            <div className="sn-mobile-brand">设置与偏好</div>
+          </div>
+          <div className="sn-mobile-settings-spacer" />
+        </div>
+        <HomeWorkspaceDrawer
+          open={sidebarOpen}
+          projectsLoading={projectsLoading}
+          recentProjects={recentProjects}
+          navigate={navigate}
+          onClose={() => setSidebarOpen(false)}
+          onOpenTemplates={() => {
+            navigate('/templates');
+            setSidebarOpen(false);
+          }}
+          onOpenProjects={() => {
+            navigate('/projects');
+            setSidebarOpen(false);
+          }}
+          onOpenSettings={() => {
+            navigate('/settings');
+            setSidebarOpen(false);
+          }}
+        />
+      </MobilePageSurface>
+    );
+  }
+
+  return (
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <EmptyState title="设置与偏好" description="这里暂时留空。" icon={<Settings2 className="size-6" />} />
       </div>
     </div>
   );
@@ -1230,12 +1288,17 @@ function TemplatesWorkspace({
   onBackHome,
   onSelectTemplate,
   projectsLoading,
+  recentProjects,
+  navigate,
 }: {
   onBackHome: () => void;
   onSelectTemplate: (prompt: string) => void;
   projectsLoading: boolean;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
 }) {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const templates = [
     {
       title: '产品官网',
@@ -1256,18 +1319,6 @@ function TemplatesWorkspace({
       icon: '☺',
     },
     {
-      title: '小工具',
-      desc: '解决一个小问题',
-      prompt: TEMPLATE_PROMPTS[3],
-      icon: '◌',
-    },
-    {
-      title: '小游戏',
-      desc: '轻松有趣的互动体验',
-      prompt: TEMPLATE_PROMPTS[2],
-      icon: '◎',
-    },
-    {
       title: '空白项目',
       desc: '从空白开始，自由发挥',
       prompt: TEMPLATE_PROMPTS[5],
@@ -1276,18 +1327,13 @@ function TemplatesWorkspace({
   ];
 
   if (isMobile) {
-    return (
+      return (
       <MobilePageSurface className="sn-mobile-templates-page">
-        <MobileTopBar
-          left={
-            <MobileIconButton type="button" aria-label="菜单" onClick={onBackHome}>
-              <Menu className="size-4" />
-            </MobileIconButton>
-          }
-          title="模板中心"
-          right={<div />}
-        />
         <div className="sn-mobile-page-body">
+          <MobileCompactHeader
+            onMenu={() => setSidebarOpen(true)}
+            title="模板中心"
+          />
           <div className="sn-mobile-section-copy">选择一个模板开始</div>
           <div className="sn-mobile-template-grid">
             {templates.map((template) => (
@@ -1312,6 +1358,25 @@ function TemplatesWorkspace({
             <Upload className="size-4" /> 导入现有项目
           </MobileActionButton>
         </div>
+        <HomeWorkspaceDrawer
+          open={sidebarOpen}
+          projectsLoading={projectsLoading}
+          recentProjects={recentProjects}
+          navigate={navigate}
+          onClose={() => setSidebarOpen(false)}
+          onOpenTemplates={() => {
+            navigate('/templates');
+            setSidebarOpen(false);
+          }}
+          onOpenProjects={() => {
+            navigate('/projects');
+            setSidebarOpen(false);
+          }}
+          onOpenSettings={() => {
+            navigate('/settings');
+            setSidebarOpen(false);
+          }}
+        />
       </MobilePageSurface>
     );
   }
@@ -1398,32 +1463,27 @@ function ProjectsWorkspace({
   projectsLoading,
   onOpenProject,
   onBackHome,
+  recentProjects,
+  navigate,
 }: {
   projects: ProjectView[];
   projectsLoading: boolean;
   onOpenProject: (projectId: string) => void;
   onBackHome: () => void;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
 }) {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (isMobile) {
     return (
       <MobilePageSurface className="sn-mobile-projects-page">
-        <MobileTopBar
-          left={
-            <MobileIconButton type="button" aria-label="菜单" onClick={onBackHome}>
-              <Menu className="size-4" />
-            </MobileIconButton>
-          }
-          title="我的项目"
-          right={
-            <MobileIconButton className="is-soft" type="button" aria-label="新建项目" onClick={onBackHome}>
-              <Plus className="size-4" />
-            </MobileIconButton>
-          }
-        />
-
         <div className="sn-mobile-page-body">
+          <MobileCompactHeader
+            onMenu={() => setSidebarOpen(true)}
+            title="我的项目"
+          />
           <div className="sn-mobile-project-filter">
             全部项目 <ChevronDown className="size-4" />
           </div>
@@ -1466,6 +1526,25 @@ function ProjectsWorkspace({
             </div>
           )}
         </div>
+        <HomeWorkspaceDrawer
+          open={sidebarOpen}
+          projectsLoading={projectsLoading}
+          recentProjects={recentProjects}
+          navigate={navigate}
+          onClose={() => setSidebarOpen(false)}
+          onOpenTemplates={() => {
+            navigate('/templates');
+            setSidebarOpen(false);
+          }}
+          onOpenProjects={() => {
+            navigate('/projects');
+            setSidebarOpen(false);
+          }}
+          onOpenSettings={() => {
+            navigate('/settings');
+            setSidebarOpen(false);
+          }}
+        />
       </MobilePageSurface>
     );
   }
@@ -1995,10 +2074,7 @@ function ProjectWorkspace({
                       {item.role === 'user' ? (
                         <ChatBubble role="user">{item.content}</ChatBubble>
                       ) : (
-                        <>
-                          <ChatBubble role="assistant">{item.content}</ChatBubble>
-                          <AssistantActionCard title={`${project.displayName} · Preview`} summary="Hero、核心优势和操作引导先搭起来，整体保持克制与留白。" />
-                        </>
+                        <ChatBubble role="assistant">{item.content}</ChatBubble>
                       )}
                     </div>
                   ))
@@ -2208,130 +2284,78 @@ function ProjectWorkspaceMobile({
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
 }) {
-  const visibleTimelineItems = timelineItems.filter((item) => item.kind === 'message');
-  const userMessages = visibleTimelineItems.filter((item) => item.role === 'user').slice(-2);
-  const assistantMessages = visibleTimelineItems.filter((item) => item.role === 'assistant').slice(-2);
-  const firstAssistant = assistantMessages[0]?.content ?? '好的！我为你生成了一个简洁高级的产品宣传页，突出速度快与一键部署的核心卖点。';
-  const secondAssistant = assistantMessages[1]?.content ?? '已应用薄荷绿主色，并把文案压缩得更直接，让主要价值主张更突出。';
-  const previewRelease = detail?.releases.find((release) => release.kind === 'preview' && release.isCurrentPreview) ?? detail?.releases[0] ?? null;
+  const visibleTimelineItems = timelineItems.filter(
+    (item): item is Extract<TimelineItem, { kind: 'message' }> => item.kind === 'message' && (item.role === 'user' || item.role === 'assistant')
+  );
 
   return (
     <MobilePageSurface className="sn-mobile-project-page">
-      <MobileTopBar
-        left={
-          <MobileIconButton
-            type="button"
-            aria-label="菜单"
-            onClick={() => {
-              setSidebarOpen(true);
-              setStatusOpen(false);
-            }}
-          >
-            <Menu className="size-4" />
-          </MobileIconButton>
-        }
-        title={<div className="sn-mobile-brand">ShipNow</div>}
-        right={
-          <div className="sn-mobile-topbar-actions">
-            <button
-              className="sn-mobile-new-button"
+      <div className="sn-mobile-project-content sn-mobile-chat-page" ref={conversationRef}>
+        <div className="sn-mobile-project-header">
+          <div className="sn-mobile-project-header-left">
+            <MobileIconButton
               type="button"
-              aria-label="新建"
+              aria-label="菜单"
               onClick={() => {
-                navigate('/');
-                setSidebarOpen(false);
+                setSidebarOpen(true);
                 setStatusOpen(false);
               }}
             >
-              <Plus className="size-4" />
-            </button>
-          </div>
-        }
-      />
-
-      <div className="sn-mobile-page-body sn-mobile-chat-page" ref={conversationRef}>
-        <div className="sn-mobile-project-card is-compact-header">
-          <div className="sn-mobile-project-thumb is-mini" />
-          <div className="sn-mobile-project-copy">
-            <div className="sn-mobile-project-head">
-              <div>
-                <div className="sn-mobile-project-title-row">
-                  <div className="sn-mobile-project-name">{project.displayName}</div>
-                  <Edit2 className="size-3 sn-mobile-project-edit" />
-                </div>
-                <div className="sn-mobile-project-desc">{project.title}</div>
+              <Menu className="size-4" />
+            </MobileIconButton>
+            <div className="sn-mobile-project-header-title">
+              <div className="sn-mobile-project-name-row">
+                <div className="sn-mobile-brand">{project.displayName}</div>
+                <button className="sn-mobile-project-edit-button" type="button" aria-label="编辑项目名称">
+                  <Edit2 className="size-3" />
+                </button>
               </div>
-              <button className="sn-mobile-icon-button is-soft" type="button" aria-label="更多" onClick={() => {
-                setStatusOpen(true);
-                setSidebarOpen(false);
-              }}>
-                <MoreHorizontal className="size-4" />
-              </button>
             </div>
+          </div>
+          <div className="sn-mobile-project-header-right">
+            <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+              {statusLabel(project.status)}
+            </StatusChip>
+            <MobileIconButton className="is-soft" type="button" aria-label="项目详情" onClick={onOpenStatus}>
+              <Info className="size-4" />
+            </MobileIconButton>
           </div>
         </div>
 
         <div className="sn-mobile-chat-stack">
-          {userMessages.map((message) => (
-            <ChatBubble key={message.id} role="user">
-              {message.content}
-            </ChatBubble>
-          ))}
-
-          {assistantMessages[0] ? (
-            <>
-              <ChatBubble role="assistant">{firstAssistant}</ChatBubble>
-              <AssistantActionCard
-                title={`${previewRelease?.kind === 'preview' ? 'v1 · Home' : 'v1 · Home'}`}
-                summary="首个版本先把 Hero、核心优势和操作按钮搭起来，视觉节奏更克制。"
-              />
-            </>
-          ) : null}
-
-          {assistantMessages[1] ? (
-            <>
-              <ChatBubble role="user">把配色换成薄荷绿主色，文案再简洁有力一点。</ChatBubble>
-              <ChatBubble role="assistant">{secondAssistant}</ChatBubble>
-              <AssistantActionCard
-                title="v2 · Home (Updated)"
-                summary="继续压缩内容密度，让主要价值主张和下一步动作更突出。"
-              />
-            </>
-          ) : null}
+          {visibleTimelineItems.length === 0 ? (
+            <div className="sn-mobile-chat-empty">刚打开这个项目。先说一句你要改什么。</div>
+          ) : (
+            visibleTimelineItems.map((message) => (
+              <ChatBubble key={message.id} role={message.role}>
+                {message.content}
+              </ChatBubble>
+            ))
+          )}
         </div>
 
-        <div className="sn-mobile-quick-chip-row">
-          <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
-            优化文案
-          </QuickActionChip>
-          <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把配色再轻一点，偏薄荷绿和更柔和的留白。')}>
-            调整配色
-          </QuickActionChip>
-          <QuickActionChip icon={<Plus className="size-4" />} onClick={() => setComposerPrompt('增加一个独立页面，保留当前风格和层次。')}>
-            增加页面
-          </QuickActionChip>
-          <QuickActionChip icon={<Upload className="size-4" />} onClick={() => setComposerPrompt('帮我替换一张更合适的图片 / 视觉素材。')}>
-            上传图片
-          </QuickActionChip>
-          <QuickActionChip icon={<CircleAlert className="size-4" />} onClick={onAutoFix} className={activeAction !== null || !canAutoFix ? 'opacity-50 pointer-events-none' : ''}>
-            修复问题
-          </QuickActionChip>
-          <button className="sn-mobile-icon-button is-soft" type="button" aria-label="刷新" onClick={onRebuild} disabled={activeAction !== null}>
-            <RefreshCcw className="size-4" />
-          </button>
-        </div>
+      </div>
 
-        <div className="sn-mobile-composer-card is-bottom">
-          <div className="sn-mobile-composer-rail">
+      <div className="sn-mobile-project-composer-fixed">
+        <div className="sn-mobile-project-composer-actions">
+          <MobileActionButton variant="secondary" onClick={onOpenPreview}>
+            <Eye className="size-4" /> Preview
+          </MobileActionButton>
+          <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+            <Upload className="size-4" /> Publish
+          </MobileActionButton>
+        </div>
+        <div className="sn-mobile-home-composer-card is-bottom">
+          <textarea
+            className="sn-mobile-home-composer-input"
+            placeholder="你想做什么？"
+            value={composerPrompt}
+            onChange={(event) => setComposerPrompt(event.target.value)}
+          />
+          <div className="sn-mobile-home-composer-actions">
             <MobileIconButton className="is-soft" type="button" aria-label="附件">
               <Paperclip className="size-4" />
             </MobileIconButton>
-            <textarea
-              className="sn-mobile-composer-input"
-              placeholder="告诉 ShipNow 你想做什么..."
-              value={composerPrompt}
-              onChange={(event) => setComposerPrompt(event.target.value)}
-            />
             <button
               className="sn-mobile-send-button"
               type="button"
@@ -2341,14 +2365,6 @@ function ProjectWorkspaceMobile({
             >
               <Send className="size-4" />
             </button>
-          </div>
-          <div className="sn-mobile-composer-actions">
-            <MobileActionButton variant="secondary" onClick={onOpenPreview}>
-              <Eye className="size-4" /> Preview
-            </MobileActionButton>
-            <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
-              <Upload className="size-4" /> Publish
-            </MobileActionButton>
           </div>
         </div>
       </div>
@@ -2372,12 +2388,14 @@ function ProjectWorkspaceMobile({
           navigate('/projects');
           setSidebarOpen(false);
         }}
-        onOpenReleases={() => {
-          setStatusOpen(true);
-        }}
-        onOpenSettings={() => {
-          setStatusOpen(true);
-        }}
+              onOpenReleases={() => {
+                setStatusOpen(true);
+              }}
+              onOpenSettings={() => {
+                navigate('/settings');
+                setSidebarOpen(false);
+                setStatusOpen(false);
+              }}
         onSelectTemplate={(prompt) => {
           navigate('/');
           setSidebarOpen(false);
@@ -2396,7 +2414,7 @@ function ProjectWorkspaceMobile({
         onClose={() => setStatusOpen(false)}
         onOpenPreview={onOpenPreview}
         onPublish={onPublish}
-        onContinueEditing={() => document.querySelector('.sn-mobile-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              onContinueEditing={() => document.querySelector('.sn-mobile-project-composer-fixed')?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
         onAutoFix={onAutoFix}
         onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
       />
@@ -2429,18 +2447,27 @@ function WorkspaceDrawer({
   onOpenSettings: () => void;
   onSelectTemplate: (prompt: string) => void;
 }) {
-  if (!open) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const [recentTasksOpen, setRecentTasksOpen] = useState(true);
+  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
+
+  if (!shouldRender) {
     return null;
   }
 
   return (
-    <div className="sn-mobile-drawer-shell">
-      <div
+    <div
+      className={`sn-mobile-drawer-shell ${isOpen ? 'is-open' : ''}`.trim()}
+      role="presentation"
+    >
+      <button
         className="sn-mobile-drawer-backdrop"
+        type="button"
+        aria-label="关闭抽屉"
         onClick={onClose}
-        role="presentation"
       />
-      <div className="sn-mobile-drawer-sheet">
+      <div ref={sheetRef} className="sn-mobile-drawer-sheet" onClick={(event) => event.stopPropagation()}>
         <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
           ×
         </button>
@@ -2494,29 +2521,33 @@ function HomeWorkspaceDrawer({
   recentProjects,
   navigate,
   onClose,
-  onCreateProject,
   onOpenTemplates,
   onOpenProjects,
-  onSelectTemplate,
+  onOpenSettings,
 }: {
   open: boolean;
   projectsLoading: boolean;
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
   onClose: () => void;
-  onCreateProject: () => void;
   onOpenTemplates: () => void;
   onOpenProjects: () => void;
-  onSelectTemplate: (prompt: string) => void;
+  onOpenSettings: () => void;
 }) {
-  if (!open) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+
+  if (!shouldRender) {
     return null;
   }
 
   return (
-    <div className="sn-mobile-drawer-shell">
-      <div className="sn-mobile-drawer-backdrop" onClick={onClose} role="presentation" />
-      <div className="sn-mobile-drawer-sheet">
+    <div
+      className={`sn-mobile-drawer-shell ${isOpen ? 'is-open' : ''}`.trim()}
+      role="presentation"
+    >
+      <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭抽屉" onClick={onClose} />
+      <div ref={sheetRef} className="sn-mobile-drawer-sheet" onClick={(event) => event.stopPropagation()}>
         <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
           ×
         </button>
@@ -2526,10 +2557,6 @@ function HomeWorkspaceDrawer({
             <span>ShipNow</span>
           </div>
         </div>
-        <button className="sn-mobile-drawer-item is-highlight" type="button" onClick={onCreateProject}>
-          <Plus className="size-4" />
-          <span>新建项目</span>
-        </button>
         <div className="sn-mobile-drawer-group">
           <button className="sn-mobile-drawer-item" type="button" onClick={onOpenTemplates}>
             <LayoutGrid className="size-4" />
@@ -2541,12 +2568,7 @@ function HomeWorkspaceDrawer({
             <span>项目管理</span>
             <ChevronRight className="size-4" />
           </button>
-          <button className="sn-mobile-drawer-item" type="button" onClick={() => navigate('/projects')}>
-            <CalendarDays className="size-4" />
-            <span>最近发布</span>
-            <ChevronRight className="size-4" />
-          </button>
-          <button className="sn-mobile-drawer-item" type="button" onClick={onClose}>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenSettings}>
             <Settings2 className="size-4" />
             <span>设置与偏好</span>
             <ChevronRight className="size-4" />
@@ -2563,42 +2585,23 @@ function HomeWorkspaceDrawer({
             recentProjects.map((project) => (
               <button
                 key={project.projectId}
-                className="sn-mobile-drawer-item"
+                className="sn-mobile-drawer-item is-project"
                 type="button"
                 onClick={() => {
                   onClose();
                   navigate(`/project/${project.projectId}`);
                 }}
               >
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{project.displayName}</div>
-                  <div className="truncate text-xs text-[rgb(var(--muted))]">{project.publicHandle}</div>
+                <div className="min-w-0 flex items-center gap-2">
+                  <div className="min-w-0 flex-1 truncate font-medium">{project.displayName}</div>
+                  <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                    {statusLabel(project.status)}
+                  </StatusChip>
                 </div>
                 <ChevronRight className="size-4" />
               </button>
             ))
           )}
-        </div>
-        <div className="sn-mobile-drawer-group">
-          <div className="sn-mobile-drawer-item is-static">
-            <span>模板快捷入口</span>
-          </div>
-          {TEMPLATE_PROMPTS.slice(0, 4).map((prompt, index) => (
-            <button
-              key={prompt}
-              type="button"
-              className="sn-mobile-drawer-item"
-              onClick={() => {
-                onClose();
-                onSelectTemplate(prompt);
-              }}
-            >
-              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(183,241,223,0.22)] text-xs font-semibold text-[rgb(var(--teal))]">
-                {index + 1}
-              </span>
-              <span className="line-clamp-2 text-left">{prompt}</span>
-            </button>
-          ))}
         </div>
         <div className="sn-mobile-drawer-user">
           <div className="sn-chat-avatar">艾</div>
@@ -2639,104 +2642,118 @@ function WorkspaceStatusDrawer({
   onAutoFix: () => void;
   onViewLogs: () => void;
 }) {
-  if (!open) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+
+  if (!shouldRender) {
     return null;
   }
 
   const releases = detail?.releases ?? [];
 
   return (
-    <div className="sn-mobile-drawer-shell">
-      <div className="sn-mobile-drawer-backdrop" onClick={onClose} role="presentation" />
-      <div className="sn-mobile-drawer-sheet">
-        <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
+    <div className={`sn-mobile-status-shell ${isOpen ? 'is-open' : ''}`.trim()} role="presentation">
+      <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭抽屉" onClick={onClose} />
+      <div ref={sheetRef} className="sn-mobile-status-sheet sn-reference-sheet" onClick={(event) => event.stopPropagation()}>
+        <button className="sn-reference-sheet-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
           ×
         </button>
-        <div className="sn-mobile-drawer-brand">
-          <div className="sn-mobile-mini-brand">
-            <Sparkles className="size-4" />
-            <span>ShipNow 状态</span>
+        <div className="sn-reference-sheet-title">项目状态</div>
+
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-project-head">
+            <div className="sn-reference-project-name">{project.displayName}</div>
+            <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+              {statusLabel(project.status)}
+            </StatusChip>
+          </div>
+          <div className="sn-reference-note">{project.publicHandle}</div>
+        </div>
+
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-label">预览地址</div>
+          <div className="sn-reference-address">
+            <span>{project.previewUrl}</span>
+            <Copy className="size-4" />
           </div>
         </div>
-        <div className="sn-mobile-status-row">
-          <div>
-            <div className="sn-mobile-label">当前项目</div>
-            <div className="sn-mobile-sheet-title">{project.displayName}</div>
-            <div className="sn-mobile-note">{project.publicHandle}</div>
-          </div>
-          <Chip tone={statusTone(project.status)}>{statusLabel(project.status)}</Chip>
-        </div>
-        <div className="sn-mobile-status-block">
-          <div className="sn-mobile-label">当前版本</div>
-          <div className="sn-mobile-history-list">
-            <div className="sn-mobile-history-item">
-              <span>预览地址</span>
-              <small>{project.previewUrl}</small>
-            </div>
-            <div className="sn-mobile-history-item">
-              <span>正式地址</span>
-              <small>{project.publicUrl}</small>
-            </div>
-            <div className="sn-mobile-history-item">
-              <span>最后构建</span>
-              <small>{project.lastBuiltAt ? formatTime(project.lastBuiltAt) : '暂无'}</small>
-            </div>
-          </div>
-        </div>
-        <div className="sn-mobile-status-block">
-          <div className="sn-mobile-label">最近任务</div>
-          {latestTask ? (
-            <div className="sn-mobile-task-item">
-              <span>{taskTypeLabel(latestTask.type)}</span>
-              <StatusChip tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}>
-                {taskStatusLabel(latestTask.status)}
-              </StatusChip>
+
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-label">线上地址</div>
+          {project.status === 'published' ? (
+            <div className="sn-reference-address">
+              <span>{project.publicUrl}</span>
+              <Copy className="size-4" />
             </div>
           ) : (
-            <div className="sn-mobile-drawer-empty">还没有最近任务。</div>
+            <div className="sn-reference-note">尚未发布到正式版本</div>
           )}
         </div>
-        <div className="sn-mobile-status-block">
-          <div className="sn-mobile-label">最近发布</div>
-          <div className="sn-mobile-history-list">
-            {releases.length > 0 ? (
-              releases.slice(0, 3).map((release) => (
-                <div key={release.id} className="sn-mobile-history-item">
-                  <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
-                  <small>{formatTime(release.createdAt)}</small>
-                </div>
-              ))
+
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-block-head">
+            <div className="sn-reference-label">最近任务</div>
+            <button
+              className="sn-reference-collapse-btn"
+              type="button"
+              onClick={() => setRecentTasksOpen((value) => !value)}
+              aria-expanded={recentTasksOpen}
+              aria-label={recentTasksOpen ? '收起最近任务' : '展开最近任务'}
+            >
+              <ChevronDown className={`size-4 ${recentTasksOpen ? 'is-rotated' : ''}`} />
+            </button>
+          </div>
+          {recentTasksOpen ? (
+            detail?.tasks?.length ? (
+              <div className="sn-reference-task-list">
+                {detail.tasks.slice(0, 3).map((task) => (
+                  <div key={task.id} className="sn-reference-task-item">
+                    <span>{taskTypeLabel(task.type)}</span>
+                    <StatusChip tone={task.status === 'failed' ? 'needs-fix' : task.status === 'success' ? 'published' : 'building'}>
+                      {taskStatusLabel(task.status)}
+                    </StatusChip>
+                    <time>{formatTime(task.startedAt ?? task.createdAt)}</time>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="sn-mobile-drawer-empty">还没有发布记录。</div>
-            )}
-          </div>
+              <div className="sn-reference-drawer-empty">还没有最近任务。</div>
+            )
+          ) : null}
         </div>
-        <div className="sn-mobile-status-block status-logs">
-          <div className="sn-mobile-label">技术日志入口</div>
-          <div className="sn-mobile-drawer-empty">
-            {latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}
+
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-block-head">
+            <div className="sn-reference-label">发布历史</div>
+            <button
+              className="sn-reference-collapse-btn"
+              type="button"
+              onClick={() => setReleaseHistoryOpen((value) => !value)}
+              aria-expanded={releaseHistoryOpen}
+              aria-label={releaseHistoryOpen ? '收起发布历史' : '展开发布历史'}
+            >
+              <ChevronDown className={`size-4 ${releaseHistoryOpen ? 'is-rotated' : ''}`} />
+            </button>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <MobileActionButton variant="secondary" onClick={onViewLogs}>
-              查看日志
-            </MobileActionButton>
-            <MobileActionButton variant="secondary" onClick={onClose}>
-              收起
-            </MobileActionButton>
-          </div>
+          {releaseHistoryOpen ? (
+            releases.length > 0 ? (
+              <div className="sn-reference-history-list">
+                {releases.slice(0, 3).map((release) => (
+                  <div key={release.id} className="sn-reference-history-item">
+                    <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
+                    <small>{formatTime(release.createdAt)}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="sn-reference-drawer-empty">还没有发布记录。</div>
+            )
+          ) : null}
         </div>
-        <div className="sn-mobile-status-actions">
-          <MobileActionButton variant="secondary" onClick={onOpenPreview}>
-            打开预览
-          </MobileActionButton>
-          <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
-            发布
-          </MobileActionButton>
-          <MobileActionButton variant="secondary" onClick={onContinueEditing}>
-            继续编辑
-          </MobileActionButton>
-          <MobileActionButton variant="secondary" onClick={onAutoFix} disabled={activeAction !== null || !latestTask}>
-            ShipNow 自动修复
+
+        <div className="sn-reference-status-actions">
+          <MobileActionButton variant="secondary" onClick={onClose}>
+            收起
           </MobileActionButton>
         </div>
       </div>

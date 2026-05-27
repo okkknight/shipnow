@@ -688,6 +688,25 @@ export function MobilePageSurface({
   return <div className={`sn-mobile-page ${className ?? ''}`.trim()}>{children}</div>;
 }
 
+export function MobileCompactHeader({
+  title,
+  onMenu,
+  className,
+}: {
+  title: ReactNode;
+  onMenu: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={`sn-mobile-page-header ${className ?? ''}`.trim()}>
+      <MobileIconButton type="button" aria-label="菜单" onClick={onMenu}>
+        <Menu className="size-4" />
+      </MobileIconButton>
+      <div className="sn-mobile-brand">{title}</div>
+    </div>
+  );
+}
+
 export function MobileTopBar({
   left,
   title,
