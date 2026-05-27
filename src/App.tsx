@@ -1015,7 +1015,7 @@ function HomeWorkspace({
 
           <div className="sn-mobile-home-composer-card is-bottom">
             <div className="sn-mobile-home-composer-rail">
-              <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
+              <button className="icon-button h-10 w-10" type="button" aria-label="附件">
                 <Paperclip className="size-4" />
               </button>
               <textarea
@@ -1170,7 +1170,7 @@ function HomeWorkspace({
 
             <div className="sn-home-composer-card is-bottom">
               <div className="sn-home-composer-rail">
-              <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
+              <button className="icon-button h-10 w-10" type="button" aria-label="附件">
                 <Paperclip className="size-4" />
               </button>
                 <textarea
