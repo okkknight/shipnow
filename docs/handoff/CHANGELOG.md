@@ -34,6 +34,12 @@
 
 ## 2026-05-27
 
+- Fully closed the UI redesign strong-track scope: the reference pages keep their explanatory styling, the real mobile pages now shrink/stack naturally at 390px, and the remaining design-system edge cases were brought back inside the viewport.
+- Re-ran the 390px browser checks after the final shrink pass and confirmed the visual-reference page and the real business pages no longer produce visible horizontal overflow.
+- Synchronized the redesign progress table with the actual implementation state so the doc now reflects a complete收口 instead of a stage-3 checkpoint.
+- Finished the 390px mobile UI closure pass for the real ShipNow pages: home, projects, project workspace, preview, and publish-result now shrink or stack their pills/cards naturally instead of clipping at the right edge, while the reference visual pages keep their explanatory shell styling.
+- Aligned the mobile preview page so the top header stays compact and the feature grid collapses to a mobile-friendly layout; verified the updated screens with fresh 390px browser screenshots.
+- Updated the UI redesign progress table to reflect the actual implementation state instead of the earlier stage-3 checkpoint.
 - Started the reference-component migration for the UI redesign refactor.
 - Exported the ShipNow reference primitives so business pages can reuse the same visual language as the design-system and visual-reference pages.
 - Switched the mobile home, template center, project list, and project workspace routes to the reference phone shell and card system.

@@ -954,10 +954,6 @@ function HomeWorkspace({
           title={<div className="sn-mobile-brand">ShipNow</div>}
           right={
             <div className="sn-mobile-topbar-actions">
-              <MobileStatusPill>
-                <span className="sn-mobile-status-dot" />
-                Preview ready
-              </MobileStatusPill>
               <button
                 className="sn-mobile-new-button"
                 type="button"
@@ -2237,10 +2233,6 @@ function ProjectWorkspaceMobile({
         title={<div className="sn-mobile-brand">ShipNow</div>}
         right={
           <div className="sn-mobile-topbar-actions">
-            <MobileStatusPill>
-              <span className="sn-mobile-status-dot" />
-              {statusTone(project.status) === 'preview-ready' ? 'Preview ready' : statusLabel(project.status)}
-            </MobileStatusPill>
             <button
               className="sn-mobile-new-button"
               type="button"

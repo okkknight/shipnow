@@ -466,9 +466,6 @@ export function MobilePreviewPage({
             <ChevronLeft className="size-5" />
           </button>
           <div className="sn-mobile-preview-nav-title">{projectName}</div>
-          <button className="sn-mobile-preview-nav-pill" type="button" onClick={onPublish}>
-            Publish
-          </button>
         </header>
 
         <div className="sn-mobile-preview-body">
