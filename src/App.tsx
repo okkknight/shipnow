@@ -2340,9 +2340,6 @@ function ProjectWorkspaceMobile({
           <MobileActionButton variant="secondary" onClick={onOpenPreview}>
             <Eye className="size-4" /> Preview
           </MobileActionButton>
-          <MobileActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
-            <Upload className="size-4" /> Publish
-          </MobileActionButton>
         </div>
         <div className="sn-mobile-home-composer-card is-bottom">
           <textarea
