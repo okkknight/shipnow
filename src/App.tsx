@@ -2564,7 +2564,7 @@ function WorkspaceStatusDrawer({
         <button className="sn-reference-sheet-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
           ×
         </button>
-        <div className="sn-reference-sheet-title">项目状态</div>
+        <div className="sn-reference-sheet-title">项目详情</div>
 
         <div className="sn-reference-status-block">
           <div className="sn-reference-project-head">
