@@ -15,7 +15,9 @@ export type TaskType = 'create_project' | 'apply_change' | 'rebuild' | 'publish'
 export type TaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
 
 export interface ProjectView {
-  name: string;
+  projectId: string;
+  displayName: string;
+  publicHandle: string;
   type: ProjectType;
   title: string;
   prompt: string;
@@ -37,7 +39,7 @@ export interface ProjectView {
 
 export interface TaskView {
   id: string;
-  projectName: string;
+  projectId: string;
   type: TaskType;
   status: TaskStatus;
   prompt: string;
@@ -47,6 +49,26 @@ export interface TaskView {
   createdAt: string;
   updatedAt: string;
   logPath: string;
+}
+
+export interface ProjectMessageView {
+  id: string;
+  projectId: string;
+  taskId: string | null;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  createdAt: string;
+}
+
+export interface ProjectEventView {
+  id: string;
+  projectId: string;
+  taskId: string | null;
+  type: string;
+  title: string;
+  detail: string | null;
+  data: Record<string, unknown> | null;
+  createdAt: string;
 }
 
 export interface ReleaseView {
@@ -64,6 +86,8 @@ export interface ReleaseView {
 export interface ProjectDetailResponse {
   project: ProjectView;
   tasks: TaskView[];
+  messages: ProjectMessageView[];
+  events: ProjectEventView[];
   releases: ReleaseView[];
 }
 
@@ -75,4 +99,3 @@ export interface ProjectActionResponse {
   project: ProjectView;
   taskId: string;
 }
-

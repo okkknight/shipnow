@@ -17,8 +17,8 @@ export interface ProjectPaths {
   logPath: string;
 }
 
-export function projectPaths(env: ShipNowEnv, projectName: string): ProjectPaths {
-  const projectRoot = resolve(env.publicStaticRoot, projectName);
+export function projectPaths(env: ShipNowEnv, projectId: string): ProjectPaths {
+  const projectRoot = resolve(env.publicStaticRoot, projectId);
   return {
     projectRoot,
     sourceRoot: join(projectRoot, 'source'),
@@ -30,7 +30,7 @@ export function projectPaths(env: ShipNowEnv, projectName: string): ProjectPaths
     previewAssetsPath: resolve(projectRoot, 'preview', 'assets'),
     previewReleasesRoot: resolve(projectRoot, 'releases', 'preview'),
     publicReleasesRoot: resolve(projectRoot, 'releases', 'public'),
-    logPath: resolve(projectRoot, 'logs', `${projectName}.log`),
+    logPath: resolve(projectRoot, 'logs', `${projectId}.log`),
   };
 }
 
@@ -72,7 +72,9 @@ export async function copyDefaultTemplate(env: ShipNowEnv, paths: ProjectPaths):
 export async function writeProjectConfig(
   paths: ProjectPaths,
   input: {
-    name: string;
+    projectId: string;
+    displayName: string;
+    publicHandle: string;
     type: ProjectType;
     title: string;
     prompt: string;

@@ -4,9 +4,11 @@ import { projectConfig } from './project.config';
 function useProjectMetadata() {
   return useMemo(
     () => ({
+      projectId: projectConfig.projectId,
+      displayName: projectConfig.displayName,
+      publicHandle: projectConfig.publicHandle,
       title: projectConfig.title,
       subtitle: projectConfig.prompt,
-      name: projectConfig.name,
       type: projectConfig.type,
     }),
     []
@@ -28,7 +30,15 @@ function App() {
     return <GameTemplate title={config.title} subtitle={config.subtitle} />;
   }
 
-  return <LandingTemplate title={config.title} subtitle={config.subtitle} name={config.name} />;
+  return (
+    <LandingTemplate
+      title={config.title}
+      subtitle={config.subtitle}
+      displayName={config.displayName}
+      publicHandle={config.publicHandle}
+      projectId={config.projectId}
+    />
+  );
 }
 
 type GamePhase = 'ready' | 'playing' | 'result';
@@ -54,7 +64,19 @@ function buildGameShareText(title: string, score: number, shots: number, bestPow
   ].join('\n');
 }
 
-function LandingTemplate({ title, subtitle, name }: { title: string; subtitle: string; name: string }) {
+function LandingTemplate({
+  title,
+  subtitle,
+  displayName,
+  publicHandle,
+  projectId,
+}: {
+  title: string;
+  subtitle: string;
+  displayName: string;
+  publicHandle: string;
+  projectId: string;
+}) {
   return (
     <div className="page-shell">
       <header className="card flex flex-col gap-8 overflow-hidden p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between">
@@ -73,7 +95,9 @@ function LandingTemplate({ title, subtitle, name }: { title: string; subtitle: s
         </div>
 
         <div className="grid min-w-[280px] gap-3 rounded-[24px] border border-[rgb(var(--line))] bg-[rgb(251 249 246)] p-4">
-          <Stat label="Project" value={name} />
+          <Stat label="Project" value={displayName} />
+          <Stat label="Handle" value={publicHandle} />
+          <Stat label="Project ID" value={projectId} />
           <Stat label="Type" value={projectConfig.type} />
           <Stat label="Template" value="default-static-site" />
         </div>

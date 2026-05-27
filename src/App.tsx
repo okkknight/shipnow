@@ -1,20 +1,96 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronDown,
+  CircleAlert,
+  Copy,
+  Edit2,
+  Eye,
+  Folder,
+  Info,
+  Menu,
+  MoreHorizontal,
+  Paperclip,
+  Plus,
+  RefreshCcw,
+  Send,
+  Sparkles,
+  Upload,
+  WandSparkles,
+  X,
+  Zap,
+} from 'lucide-react';
 import {
   applyChange,
   createProject,
   deleteProject,
-  getProject,
-  getTaskLogs,
   getApiBase,
-  listProjects,
+  getProject,
   publishProject,
   rebuildProject,
+  renameProject,
+  listProjects,
 } from './api';
-import type { ProjectDetailResponse, ProjectView, TaskView } from './types';
+import type {
+  ProjectDetailResponse,
+  ProjectView,
+  TaskView,
+} from './types';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AssistantActionCard,
+  ChatBubble,
+  Composer,
+  ConfirmationSheet as SnConfirmationSheet,
+  DrawerMock,
+  EmptyState,
+  MobilePreviewPage,
+  MobilePublishResultPage,
+  ProjectCard,
+  QuickActionChip,
+  ReferencePhoneActionButton,
+  ReferencePhoneShell,
+  ReferencePhoneTopBar,
+  ShipNowDesignSystemPage,
+  ShipNowVisualReferencePage,
+  SnButton,
+  StatusChip,
+  TopBar,
+} from './shipnow-enhanced';
 
-type DetailTab = 'overview' | 'tasks' | 'releases' | 'logs';
+type RouteState =
+  | { kind: 'home' }
+  | { kind: 'project'; projectId: string }
+  | { kind: 'project-preview'; projectId: string }
+  | { kind: 'publish-success'; projectId: string }
+  | { kind: 'publish-failure'; projectId: string }
+  | { kind: 'templates' }
+  | { kind: 'projects' }
+  | { kind: 'design-system' }
+  | { kind: 'visual-reference' };
 
-const reservedProjectNames = new Set([
+type TimelineItem =
+  | {
+      kind: 'message';
+      id: string;
+      createdAt: string;
+      role: 'user' | 'assistant' | 'system' | 'tool';
+      content: string;
+    }
+  | {
+      kind: 'event';
+      id: string;
+      createdAt: string;
+      title: string;
+      detail: string | null;
+      type: string;
+      data: Record<string, unknown> | null;
+    };
+
+const RESERVED_HANDLES = new Set([
   'shipnow',
   'api',
   'admin',
@@ -34,19 +110,150 @@ const reservedProjectNames = new Set([
   'private',
 ]);
 
-function validateProjectName(name: string): string | null {
-  const normalized = name.trim();
-  if (normalized.length < 3) {
-    return 'Project name must be at least 3 characters long.';
+const TEMPLATE_PROMPTS = [
+  '做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。',
+  '做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。',
+  '做一个小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。',
+  '做一个工具站，强调输入、结果、状态反馈和易用性。',
+  '做一个活动页，带强视觉冲击和明确的报名 / 购买转化。',
+  '做一个空白项目，先搭好结构，再让我继续细化。',
+];
+
+const HOME_QUICK_PROMPTS = [
+  { label: '产品官网', prompt: TEMPLATE_PROMPTS[0] },
+  { label: '个人主页', prompt: TEMPLATE_PROMPTS[1] },
+  { label: '小游戏', prompt: TEMPLATE_PROMPTS[2] },
+  { label: '工具站', prompt: TEMPLATE_PROMPTS[3] },
+] as const;
+
+function normalizeAppBase(base: string): string {
+  const trimmed = base.trim();
+  if (!trimmed || trimmed === '/') {
+    return '';
   }
-  if (normalized.length > 48) {
-    return 'Project name must be at most 48 characters long.';
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+}
+
+const APP_BASE = normalizeAppBase(import.meta.env.BASE_URL || '/shipnow/');
+
+function toAppPath(pathname: string): string {
+  const next = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  if (!APP_BASE) {
+    return next;
   }
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)) {
-    return 'Project name must use lowercase letters, numbers, and hyphens.';
+  return next === '/' ? `${APP_BASE}/` : `${APP_BASE}${next}`;
+}
+
+function stripAppBase(pathname: string): string {
+  if (!APP_BASE) {
+    return pathname || '/';
   }
-  if (reservedProjectNames.has(normalized)) {
-    return 'That project name is reserved.';
+  if (pathname === APP_BASE || pathname === `${APP_BASE}/`) {
+    return '/';
+  }
+  if (pathname.startsWith(`${APP_BASE}/`)) {
+    return pathname.slice(APP_BASE.length);
+  }
+  return pathname || '/';
+}
+
+function parseRoute(pathname: string): RouteState {
+  const path = stripAppBase(pathname).replace(/\/+$/, '') || '/';
+  const segments = path.split('/').filter(Boolean);
+  if (segments[0] === 'design-system') {
+    return { kind: 'design-system' };
+  }
+  if (segments[0] === 'visual-reference') {
+    return { kind: 'visual-reference' };
+  }
+  if (segments[0] === 'project' && segments[1]) {
+    if (segments[2] === 'preview') {
+      return { kind: 'project-preview', projectId: decodeURIComponent(segments[1]) };
+    }
+    if (segments[2] === 'publish-success') {
+      return { kind: 'publish-success', projectId: decodeURIComponent(segments[1]) };
+    }
+    if (segments[2] === 'publish-failure') {
+      return { kind: 'publish-failure', projectId: decodeURIComponent(segments[1]) };
+    }
+    return { kind: 'project', projectId: decodeURIComponent(segments[1]) };
+  }
+  if (segments[0] === 'templates') {
+    return { kind: 'templates' };
+  }
+  if (segments[0] === 'projects') {
+    return { kind: 'projects' };
+  }
+  return { kind: 'home' };
+}
+
+function useWorkspaceRoute() {
+  const [route, setRoute] = useState<RouteState>(() => parseRoute(window.location.pathname));
+
+  useEffect(() => {
+    const handlePopState = () => setRoute(parseRoute(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path: string): void => {
+    const nextPath = toAppPath(path);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+      setRoute(parseRoute(window.location.pathname));
+    }
+  };
+
+  return { route, navigate };
+}
+
+function useMediaQuery(query: string): boolean {
+  const getMatches = () => window.matchMedia(query).matches;
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    const mediaQueryList = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQueryList.matches);
+    handleChange();
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleChange);
+      return () => mediaQueryList.removeEventListener('change', handleChange);
+    }
+
+    mediaQueryList.addListener(handleChange);
+    return () => mediaQueryList.removeListener(handleChange);
+  }, [query]);
+
+  return matches;
+}
+
+function slugifyHandle(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '')
+    .replace(/-{2,}/g, '-');
+}
+
+function isReservedHandle(handle: string): boolean {
+  return RESERVED_HANDLES.has(handle.toLowerCase());
+}
+
+function validateHandle(value: string): string | null {
+  if (value.length < 3) {
+    return '名称至少 3 个字符。';
+  }
+  if (value.length > 48) {
+    return '名称最多 48 个字符。';
+  }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+    return '只能使用小写字母、数字和短横线。';
+  }
+  if (isReservedHandle(value)) {
+    return '这个名称被系统保留了。';
   }
   return null;
 }
@@ -61,820 +268,2546 @@ function formatTime(value: string | null): string {
   }).format(new Date(value));
 }
 
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'draft':
+      return '草稿';
+    case 'generating':
+      return '正在修改';
+    case 'build_failed':
+      return '修改失败';
+    case 'preview_ready':
+      return '预览已就绪';
+    case 'published':
+      return '已上线';
+    case 'publishing':
+      return '正在发布';
+    case 'publish_failed':
+      return '发布失败';
+    case 'deleted':
+      return '已删除';
+    case 'pending':
+      return '等待中';
+    case 'running':
+      return '执行中';
+    case 'success':
+      return '成功';
+    case 'failed':
+      return '失败';
+    case 'cancelled':
+      return '已取消';
+    default:
+      return status.replace(/_/g, ' ');
+  }
+}
+
 function statusTone(status: string): string {
   switch (status) {
     case 'published':
     case 'preview_ready':
     case 'success':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+      return 'tone-success';
     case 'generating':
     case 'running':
     case 'publishing':
     case 'pending':
-      return 'border-amber-200 bg-amber-50 text-amber-800';
+      return 'tone-warm';
     case 'build_failed':
     case 'publish_failed':
     case 'failed':
-      return 'border-rose-200 bg-rose-50 text-rose-700';
+      return 'tone-danger';
     case 'deleted':
-      return 'border-slate-200 bg-slate-100 text-slate-500';
+      return 'tone-muted';
     default:
-      return 'border-slate-200 bg-slate-50 text-slate-700';
+      return 'tone-neutral';
   }
 }
 
-function statusLabel(status: string): string {
-  return status.replace(/_/g, ' ');
+function taskStatusLabel(status: string): string {
+  return statusLabel(status);
 }
 
-function actionLabel(action: string | null): string {
-  switch (action) {
-    case 'create':
-      return 'create project';
+function taskTypeLabel(type: string): string {
+  switch (type) {
+    case 'create_project':
+      return '创建项目';
+    case 'apply_change':
+      return '应用修改';
     case 'rebuild':
-      return 'rebuild';
+      return '重新构建';
     case 'publish':
-      return 'publish';
-    case 'change':
-      return 'apply change';
+      return '发布上线';
+    case 'delete_project':
+      return '删除项目';
     default:
-      return 'task';
+      return type;
   }
 }
 
-function taskBadge(task: TaskView): string {
-  return statusTone(task.status);
+function eventTitle(type: string): string {
+  switch (type) {
+    case 'project_created':
+      return '项目已创建';
+    case 'task_queued':
+      return '任务已排队';
+    case 'task_started':
+      return '任务开始';
+    case 'task_completed':
+      return '任务完成';
+    case 'task_failed':
+      return '任务失败';
+    case 'preview_ready':
+    case 'preview_refreshed':
+      return '预览已更新';
+    case 'publish_requested':
+      return '请求发布';
+    case 'published':
+      return '发布成功';
+    case 'delete_requested':
+      return '请求删除';
+    case 'deleted':
+      return '项目已删除';
+    case 'project_renamed':
+      return '项目已重命名';
+    default:
+      return type;
+  }
 }
 
-function readWorkspaceHint(): string {
-  return import.meta.env.VITE_SHIPNOW_WORKSPACE_ROOT || './workspace';
+function buildAutoFixPrompt(detail: ProjectDetailResponse | null): string {
+  const latestFailureEvent = detail?.events.slice().reverse().find((event) => event.type === 'task_failed');
+  const latestTask = detail?.tasks[0] ?? null;
+  const errorMessage = latestTask?.errorMessage || latestFailureEvent?.detail || '没有额外错误信息。';
+  return [
+    '请根据最近一次失败信息自动修复当前项目，并保持原有产品意图不变。',
+    `失败信息：${errorMessage}`,
+    '修复完成后请重新构建预览。',
+  ].join('\n');
+}
+
+function buildConversationItems(detail: ProjectDetailResponse | null): TimelineItem[] {
+  if (!detail) {
+    return [];
+  }
+  const items: TimelineItem[] = [
+    ...detail.messages.map((message) => ({
+      kind: 'message' as const,
+      id: message.id,
+      createdAt: message.createdAt,
+      role: message.role,
+      content: message.content,
+    })),
+    ...detail.events.map((event) => ({
+      kind: 'event' as const,
+      id: event.id,
+      createdAt: event.createdAt,
+      title: event.title || eventTitle(event.type),
+      detail: event.detail,
+      type: event.type,
+      data: event.data,
+    })),
+  ];
+  return items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
 function App() {
+  const { route, navigate } = useWorkspaceRoute();
+  const isEnhancedRoute = route.kind === 'design-system' || route.kind === 'visual-reference';
+  const isMobileLayout = useMediaQuery('(max-width: 767px)');
+  const previewConfirmDebug = new URLSearchParams(window.location.search).get('confirmPublish') === '1';
   const [projects, setProjects] = useState<ProjectView[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [detail, setDetail] = useState<ProjectDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
-  const [taskLogs, setTaskLogs] = useState<string>('');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [actionBusy, setActionBusy] = useState<string | null>(null);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteConfirmName, setDeleteConfirmName] = useState('');
-  const [createForm, setCreateForm] = useState({
-    name: '',
-    title: '',
-    prompt: '',
-  });
-  const [changePrompt, setChangePrompt] = useState('');
-
+  const [composerPrompt, setComposerPrompt] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const conversationRef = useRef<HTMLDivElement | null>(null);
+  const routeProjectId =
+    route.kind === 'project' || route.kind === 'project-preview' || route.kind === 'publish-success' || route.kind === 'publish-failure'
+      ? route.projectId
+      : null;
   const currentProject = useMemo(
-    () => detail?.project ?? projects.find((project) => project.name === selectedProject) ?? null,
-    [detail, projects, selectedProject]
+    () => (routeProjectId ? detail?.project ?? projects.find((project) => project.projectId === routeProjectId) ?? null : null),
+    [detail, projects, routeProjectId]
   );
 
-  async function refreshProjects(nextSelected?: string | null): Promise<void> {
+  const timelineItems = useMemo(() => buildConversationItems(detail), [detail]);
+
+  const activeTasks = projects.filter((project) => ['generating', 'publishing'].includes(project.status)).length;
+  const publishedProjects = projects.filter((project) => project.status === 'published').length;
+  const failedProjects = projects.filter((project) => ['build_failed', 'publish_failed'].includes(project.status)).length;
+
+  async function refreshProjects(): Promise<void> {
+    if (isEnhancedRoute) {
+      return;
+    }
     try {
       const response = await listProjects();
       setProjects(response.projects);
-      const next = nextSelected !== undefined ? nextSelected : selectedProject ?? response.projects[0]?.name ?? null;
-      setSelectedProject(next);
       setError(null);
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
     } finally {
-      setLoading(false);
+      setProjectsLoading(false);
     }
   }
 
-  async function refreshDetail(projectName: string): Promise<void> {
-    try {
-      const response = await getProject(projectName);
-      setDetail(response);
-      const latestTask = response.tasks[0];
-      if (latestTask) {
-        try {
-          setTaskLogs(await getTaskLogs(latestTask.id));
-        } catch {
-          setTaskLogs('');
-        }
-      } else {
-        setTaskLogs('');
-      }
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
-      setDetail(null);
-      setTaskLogs('');
-    }
-  }
-
-  useEffect(() => {
-    void refreshProjects();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedProject) {
-      setDetail(null);
-      setTaskLogs('');
+  async function refreshDetail(projectId: string): Promise<void> {
+    if (isEnhancedRoute) {
       return;
     }
-    void refreshDetail(selectedProject);
-  }, [selectedProject]);
+    setDetailLoading(true);
+    try {
+      const response = await getProject(projectId);
+      setDetail(response);
+      setRenameDraft(response.project.displayName);
+      setRenameError(null);
+      setError(null);
+    } catch (refreshError) {
+      setDetail(null);
+      setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   useEffect(() => {
-    if (!selectedProject) {
+    if (isEnhancedRoute) {
+      return;
+    }
+    void refreshProjects();
+  }, [isEnhancedRoute]);
+
+  useEffect(() => {
+    if (isEnhancedRoute) {
+      return;
+    }
+    if (routeProjectId) {
+      void refreshDetail(routeProjectId);
+    } else {
+      setDetail(null);
+    }
+  }, [isEnhancedRoute, route.kind, routeProjectId]);
+
+  useEffect(() => {
+    if (isEnhancedRoute) {
       return;
     }
     const timer = window.setInterval(() => {
-      void refreshProjects(selectedProject);
-      void refreshDetail(selectedProject);
-    }, 2500);
-    return () => window.clearInterval(timer);
-  }, [selectedProject]);
-
-  async function handleCreateProject(): Promise<void> {
-    const nameError = validateProjectName(createForm.name);
-    const title = createForm.title.trim();
-    const prompt = createForm.prompt.trim();
-    if (nameError || !title || !prompt) {
-      setCreateError(nameError ?? 'Project title and prompt are required.');
-      return;
-    }
-
-    setActionBusy('create');
-    setCreateError(null);
-    try {
-      const response = await createProject({
-        ...createForm,
-        name: createForm.name.trim(),
-        title,
-        prompt,
-      });
-      setCreateOpen(false);
-      setCreateError(null);
-      setCreateForm({ name: '', title: '', prompt: '' });
-      await refreshProjects(response.project.name);
-      await refreshDetail(response.project.name);
-      setDetailTab('overview');
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : String(createError));
-    } finally {
-      setActionBusy(null);
-    }
-  }
-
-  async function handleProjectAction(action: 'rebuild' | 'publish' | 'change'): Promise<void> {
-    if (!currentProject) {
-      return;
-    }
-    setActionBusy(action);
-    try {
-      let result;
-      if (action === 'rebuild') {
-        result = await rebuildProject(currentProject.name);
-      } else if (action === 'publish') {
-        result = await publishProject(currentProject.name);
-      } else {
-        if (!changePrompt.trim()) {
-          throw new Error('Enter a change request first.');
-        }
-        result = await applyChange(currentProject.name, changePrompt.trim());
-        setChangePrompt('');
+      void refreshProjects();
+      if (routeProjectId) {
+        void refreshDetail(routeProjectId);
       }
-      await refreshProjects(result.project.name);
-      await refreshDetail(result.project.name);
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : String(actionError));
-    } finally {
-      setActionBusy(null);
-    }
-  }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [isEnhancedRoute, route.kind, routeProjectId]);
 
-  async function handleDeleteProject(): Promise<void> {
+  useEffect(() => {
+    if (isEnhancedRoute) {
+      return;
+    }
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      return;
+    }
+    if (conversationRef.current) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    }
+  }, [isEnhancedRoute, timelineItems.length, route.kind, routeProjectId]);
+
+  const createFromComposer = route.kind === 'home';
+  const canSubmitComposer = composerPrompt.trim().length > 0 && activeAction === null;
+  const canPublish = Boolean(currentProject && ['preview_ready', 'published', 'publish_failed'].includes(currentProject.status));
+  const canAutoFix = Boolean(currentProject && detail && ['build_failed', 'publish_failed', 'failed'].includes(currentProject.status));
+  const renameNormalized = slugifyHandle(renameDraft);
+  const renameValidation = renameDraft.trim().length > 0 ? validateHandle(renameNormalized) : '名称不能为空。';
+  const renameDirty = Boolean(currentProject && renameNormalized !== currentProject.publicHandle);
+
+  async function handleComposerSubmit(): Promise<void> {
+    const prompt = composerPrompt.trim();
+    if (!prompt) {
+      setError('请输入一句话描述。');
+      return;
+    }
+
+    if (createFromComposer) {
+      setActiveAction('create');
+      try {
+        const result = await createProject({ prompt });
+        await refreshProjects();
+        navigate(`/project/${result.project.projectId}`);
+        setComposerPrompt('');
+        setSidebarOpen(false);
+      } catch (createError) {
+        setError(createError instanceof Error ? createError.message : String(createError));
+      } finally {
+        setActiveAction(null);
+      }
+      return;
+    }
+
     if (!currentProject) {
       return;
     }
-    if (deleteConfirmName.trim() !== currentProject.name) {
-      setError('Type the project name to confirm deletion.');
+
+    setActiveAction('change');
+    try {
+      const result = await applyChange(currentProject.projectId, prompt);
+      await refreshProjects();
+      await refreshDetail(result.project.projectId);
+      setComposerPrompt('');
+      setError(null);
+    } catch (changeError) {
+      setError(changeError instanceof Error ? changeError.message : String(changeError));
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleRebuild(): Promise<void> {
+    if (!currentProject) {
       return;
     }
-    setActionBusy('delete');
+    setActiveAction('rebuild');
     try {
-      await deleteProject(currentProject.name);
-      setDeleteOpen(false);
-      setDeleteConfirmName('');
-      await refreshProjects(null);
-      setDetailTab('overview');
+      const result = await rebuildProject(currentProject.projectId);
+      await refreshProjects();
+      await refreshDetail(result.project.projectId);
+    } catch (rebuildError) {
+      setError(rebuildError instanceof Error ? rebuildError.message : String(rebuildError));
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handlePublish(): Promise<void> {
+    if (!currentProject) {
+      return;
+    }
+    setActiveAction('publish');
+    try {
+      const result = await publishProject(currentProject.projectId);
+      setPublishConfirmOpen(false);
+      await refreshProjects();
+      await refreshDetail(result.project.projectId);
+      navigate(`/project/${result.project.projectId}/publish-success`);
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : String(publishError));
+      if (currentProject) {
+        navigate(`/project/${currentProject.projectId}/publish-failure`);
+      }
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleAutoFix(): Promise<void> {
+    if (!currentProject) {
+      return;
+    }
+    setActiveAction('auto-fix');
+    try {
+      const result = await applyChange(currentProject.projectId, buildAutoFixPrompt(detail));
+      await refreshProjects();
+      await refreshDetail(result.project.projectId);
+      setComposerPrompt('');
+    } catch (autoFixError) {
+      setError(autoFixError instanceof Error ? autoFixError.message : String(autoFixError));
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleRename(): Promise<void> {
+    if (!currentProject) {
+      return;
+    }
+    if (!renameDirty) {
+      return;
+    }
+    if (renameValidation) {
+      setRenameError(renameValidation);
+      return;
+    }
+    setActiveAction('rename');
+    try {
+      await renameProject(currentProject.projectId, renameNormalized);
+      await refreshProjects();
+      await refreshDetail(currentProject.projectId);
+      setRenameError(null);
+    } catch (renameActionError) {
+      setRenameError(renameActionError instanceof Error ? renameActionError.message : String(renameActionError));
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    if (!currentProject) {
+      return;
+    }
+    setActiveAction('delete');
+    try {
+      await deleteProject(currentProject.projectId);
+      setDeleteConfirmOpen(false);
+      navigate('/');
+      await refreshProjects();
+      setDetail(null);
+      setComposerPrompt('');
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : String(deleteError));
     } finally {
-      setActionBusy(null);
+      setActiveAction(null);
     }
   }
 
-  const activeTasks = projects.filter((project) =>
-    ['generating', 'publishing'].includes(project.status)
-  ).length;
-  const publishedProjects = projects.filter((project) => project.status === 'published').length;
-  const failedProjects = projects.filter((project) =>
-    ['build_failed', 'publish_failed'].includes(project.status)
-  ).length;
+  const homeRecentProjects = projects.slice(0, 4);
+  const currentTasks = detail?.tasks ?? [];
+  const latestTask = currentTasks[0] ?? null;
 
-  const currentTask = detail?.tasks[0] ?? null;
-  const createNameError = validateProjectName(createForm.name);
-  const createCanSubmit = !createNameError && createForm.title.trim().length > 0 && createForm.prompt.trim().length > 0;
-  const deleteNameMatches = currentProject !== null && deleteConfirmName.trim() === currentProject.name;
+  if (route.kind === 'design-system') {
+    return <ShipNowDesignSystemPage />;
+  }
+
+  if (route.kind === 'visual-reference') {
+    return <ShipNowVisualReferencePage />;
+  }
+
+  let page: ReactElement;
+
+  if (route.kind === 'project-preview' && currentProject) {
+    page = isMobileLayout ? (
+      <MobilePreviewPage
+        projectName={currentProject.displayName}
+        onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
+        onPublish={() => setPublishConfirmOpen(true)}
+      />
+    ) : (
+      <ProjectPreviewWorkspace
+        project={currentProject}
+        onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
+        onPublish={() => setPublishConfirmOpen(true)}
+      />
+    );
+  } else if ((route.kind === 'publish-success' || route.kind === 'publish-failure') && currentProject) {
+    page = isMobileLayout ? (
+      <MobilePublishResultPage
+        success={route.kind === 'publish-success'}
+        publicUrl={currentProject.publicUrl}
+        onOpenWebsite={() => window.open(currentProject.publicUrl, '_blank', 'noopener,noreferrer')}
+        onCopyLink={() => navigator.clipboard.writeText(currentProject.publicUrl).catch(() => undefined)}
+        onContinueEditing={() => navigate(`/project/${currentProject.projectId}`)}
+        onAutoFix={handleAutoFix}
+        onViewLogs={() => setStatusOpen(true)}
+      />
+    ) : (
+      <PublishResultWorkspace
+        project={currentProject}
+        success={route.kind === 'publish-success'}
+        onOpenWebsite={() => window.open(currentProject.publicUrl, '_blank', 'noopener,noreferrer')}
+        onCopyLink={() => navigator.clipboard.writeText(currentProject.publicUrl).catch(() => undefined)}
+        onContinueEditing={() => navigate(`/project/${currentProject.projectId}`)}
+        onAutoFix={handleAutoFix}
+        onViewLogs={() => setStatusOpen(true)}
+      />
+    );
+  } else if (route.kind === 'templates') {
+    page = <TemplatesWorkspace onBackHome={() => navigate('/')} onSelectTemplate={(prompt) => setComposerPrompt(prompt)} projectsLoading={projectsLoading} />;
+  } else if (route.kind === 'projects') {
+    page = <ProjectsWorkspace projects={projects} projectsLoading={projectsLoading} onOpenProject={(projectId) => navigate(`/project/${projectId}`)} onBackHome={() => navigate('/')} />;
+  } else if (route.kind === 'home') {
+    page = (
+      <HomeWorkspace
+        composerPrompt={composerPrompt}
+        setComposerPrompt={setComposerPrompt}
+        onSubmit={handleComposerSubmit}
+        canSubmit={canSubmitComposer}
+        activeAction={activeAction}
+        recentProjects={homeRecentProjects}
+        apiBase={getApiBase()}
+        projectsLoading={projectsLoading}
+        homeRecentProjects={homeRecentProjects}
+        route={route}
+        navigate={navigate}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
+    );
+  } else if (detailLoading && !detail) {
+    page = (
+      <div className="sn-page">
+        <div className="sn-page-backdrop" />
+        <div className="sn-page-shell">
+          <EmptyState title="正在读取项目详情…" description="稍等一下，ShipNow 正在把当前项目和最近任务加载出来。" icon={<Sparkles className="size-6" />} />
+        </div>
+      </div>
+    );
+  } else if (currentProject) {
+    page = (
+      <ProjectWorkspace
+        project={currentProject}
+        detail={detail}
+        timelineItems={timelineItems}
+        composerPrompt={composerPrompt}
+        setComposerPrompt={setComposerPrompt}
+        onSubmit={handleComposerSubmit}
+        canSubmit={canSubmitComposer}
+        canPublish={canPublish}
+        canAutoFix={canAutoFix}
+        activeAction={activeAction}
+        onRebuild={handleRebuild}
+        onPublish={() => setPublishConfirmOpen(true)}
+        onAutoFix={handleAutoFix}
+        latestTask={latestTask}
+        conversationRef={conversationRef}
+        onOpenStatus={() => setStatusOpen(true)}
+        onOpenPreview={() => navigate(`/project/${currentProject.projectId}/preview`)}
+        sidebarOpen={sidebarOpen}
+        statusOpen={statusOpen}
+        setSidebarOpen={setSidebarOpen}
+        setStatusOpen={setStatusOpen}
+        recentProjects={homeRecentProjects}
+        navigate={navigate}
+      />
+    );
+  } else {
+    page = (
+      <div className="sn-page">
+        <div className="sn-page-backdrop" />
+        <div className="sn-page-shell">
+          <EmptyState title="选择一个项目" description="或者先在左侧创建一个新的。所有项目都会以卡片形式展示。" icon={<Folder className="size-6" />} />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen px-4 py-6 text-[rgb(var(--ink))] md:px-6 xl:px-8">
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-5">
-        <header className="shell-panel flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgb(var(--ink))] text-base font-bold text-white shadow-lg shadow-black/10">
-              SN
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight">ShipNow</h1>
-                <span className="chip border-[rgba(21,128,110,0.22)] bg-[rgb(var(--teal-soft))] text-[rgb(var(--teal))]">
-                  Local-first workbench
-                </span>
-              </div>
-              <p className="mt-1 max-w-2xl text-sm text-[rgb(var(--muted))]">
-                Build, preview, modify, and publish small static sites from a single host-native workflow.
-              </p>
-            </div>
-          </div>
+    <div className="shipnow-app">
+      <div className="sn-app-backdrop" />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="chip border-[rgb(var(--line))] bg-white text-[rgb(var(--muted))]">
-              Workspace: {readWorkspaceHint()}
-            </span>
-            <span className="chip border-[rgba(21,128,110,0.22)] bg-[rgb(var(--teal-soft))] text-[rgb(var(--teal))]">
-              API: {getApiBase()}
-            </span>
-            <button
-              className="primary-button"
-              onClick={() => {
-                setCreateError(null);
-                setCreateOpen(true);
+      {error ? <div className="error-banner shell-panel">{error}</div> : null}
+
+      {!isMobileLayout ? (
+        <>
+          {route.kind === 'home' ? (
+            <ReferenceHomeDrawer
+              open={sidebarOpen}
+              projectsLoading={projectsLoading}
+              recentProjects={homeRecentProjects}
+              navigate={navigate}
+              onClose={() => setSidebarOpen(false)}
+              onCreateProject={() => {
+                navigate('/');
+                setSidebarOpen(false);
               }}
+              onOpenTemplates={() => {
+                navigate('/templates');
+                setSidebarOpen(false);
+              }}
+              onOpenProjects={() => {
+                navigate('/projects');
+                setSidebarOpen(false);
+              }}
+              onSelectTemplate={(prompt) => {
+                setComposerPrompt(prompt);
+                setSidebarOpen(false);
+              }}
+            />
+          ) : currentProject ? (
+            <ReferenceWorkspaceDrawer
+              open={sidebarOpen}
+              currentProject={currentProject}
+              recentProjects={homeRecentProjects}
+              navigate={navigate}
+              onClose={() => setSidebarOpen(false)}
+              onCreateProject={() => {
+                navigate('/');
+                setSidebarOpen(false);
+                setStatusOpen(false);
+              }}
+              onOpenTemplates={() => {
+                navigate('/templates');
+                setSidebarOpen(false);
+              }}
+              onOpenProjects={() => {
+                navigate('/projects');
+                setSidebarOpen(false);
+              }}
+              onOpenReleases={() => {
+                setStatusOpen(true);
+              }}
+              onOpenSettings={() => {
+                setStatusOpen(true);
+              }}
+              onSelectTemplate={(prompt) => {
+                navigate('/');
+                setSidebarOpen(false);
+                setStatusOpen(false);
+                setComposerPrompt(prompt);
+              }}
+            />
+          ) : null}
+
+          {currentProject ? (
+            <ReferenceWorkspaceStatusDrawer
+              open={statusOpen}
+              project={currentProject}
+              detail={detail}
+              latestTask={latestTask}
+              canPublish={canPublish}
+              activeAction={activeAction}
+              onClose={() => setStatusOpen(false)}
+              onOpenPreview={() => navigate(`/project/${currentProject.projectId}/preview`)}
+              onPublish={() => setPublishConfirmOpen(true)}
+              onContinueEditing={() => document.querySelector('.sn-reference-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              onAutoFix={handleAutoFix}
+              onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      <div className="shipnow-app-content">{page}</div>
+
+      {currentProject ? (
+        <ReferencePublishConfirmSurface
+          open={publishConfirmOpen || previewConfirmDebug}
+          project={currentProject}
+          canPublish={canPublish && activeAction === null}
+          isMobileLayout={isMobileLayout}
+          onCancel={() => setPublishConfirmOpen(false)}
+          onConfirm={handlePublish}
+        />
+      ) : null}
+
+      {currentProject ? (
+        <ReferenceConfirmModal
+          open={deleteConfirmOpen}
+          destructive
+          title="删除这个项目吗？"
+          description="删除后会清理工作区、发布目录和任务入口。这个操作不可恢复。"
+          details={[
+            { label: '项目', value: currentProject.displayName },
+            { label: '公开句柄', value: currentProject.publicHandle },
+            { label: '状态', value: statusLabel(currentProject.status) },
+          ]}
+          cancelLabel="取消"
+          confirmLabel="确认删除"
+          confirmDisabled={activeAction !== null}
+          onCancel={() => setDeleteConfirmOpen(false)}
+          onConfirm={handleDelete}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function HomeWorkspace({
+  composerPrompt,
+  setComposerPrompt,
+  onSubmit,
+  canSubmit,
+  activeAction,
+  recentProjects,
+  apiBase,
+  projectsLoading,
+  homeRecentProjects,
+  route,
+  navigate,
+  sidebarOpen,
+  setSidebarOpen,
+}: {
+  composerPrompt: string;
+  setComposerPrompt: (value: string) => void;
+  onSubmit: () => void;
+  canSubmit: boolean;
+  activeAction: string | null;
+  recentProjects: ProjectView[];
+  apiBase: string;
+  projectsLoading: boolean;
+  homeRecentProjects: ProjectView[];
+  route: RouteState;
+  navigate: (path: string) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (value: boolean) => void;
+}) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
+
+  if (isMobile) {
+    return (
+      <ReferencePhoneShell className="is-compact">
+        <ReferencePhoneTopBar
+          left={
+            <button className="sn-reference-phone-icon-button" type="button" aria-label="菜单" onClick={() => setSidebarOpen(true)}>
+              <Menu className="size-4" />
+            </button>
+          }
+          title={<div className="sn-reference-phone-brand">ShipNow</div>}
+          right={
+            <div className="sn-reference-phone-topbar-actions">
+              <button className="sn-reference-phone-pill is-status" type="button">
+                <span className="sn-reference-dot" />
+                Preview ready
+              </button>
+              <button
+                className="sn-reference-phone-plus"
+                type="button"
+                aria-label="新建项目"
+                onClick={() => {
+                  navigate('/');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Plus className="size-4" />
+              </button>
+            </div>
+          }
+        />
+
+        <div className="sn-reference-phone-body sn-reference-entry-welcome">
+          <div className="sn-reference-welcome-title">你好！👋</div>
+          <div className="sn-reference-welcome-copy">告诉我你想做什么，我来帮你快速实现。</div>
+
+          <div className="sn-reference-entry-list">
+            <button
+              type="button"
+              className="sn-reference-entry-card"
+              onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}
             >
-              New Project
+              <div className="sn-reference-entry-icon">✦</div>
+              <div>
+                <div className="sn-reference-entry-title">创建产品官网</div>
+                <div className="sn-reference-entry-desc">展示产品与核心卖点</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              className="sn-reference-entry-card"
+              onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}
+            >
+              <div className="sn-reference-entry-icon">◌</div>
+              <div>
+                <div className="sn-reference-entry-title">做一个小游戏</div>
+                <div className="sn-reference-entry-desc">轻松有趣的互动体验</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              className="sn-reference-entry-card"
+              onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}
+            >
+              <div className="sn-reference-entry-icon">☺</div>
+              <div>
+                <div className="sn-reference-entry-title">创建个人主页</div>
+                <div className="sn-reference-entry-desc">展示自己与作品集</div>
+              </div>
             </button>
           </div>
+
+          <div className="sn-reference-composer-card is-bottom">
+            <div className="sn-reference-composer-rail">
+              <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+                <Paperclip className="size-4" />
+              </button>
+              <textarea
+                className="sn-reference-composer-input"
+                placeholder="告诉 ShipNow 你想做什么..."
+                value={composerPrompt}
+                onChange={(event) => setComposerPrompt(event.target.value)}
+              />
+              <button
+                className="sn-reference-send-button"
+                type="button"
+                aria-label="发送"
+                onClick={onSubmit}
+                disabled={!canSubmit || activeAction !== null}
+              >
+                <Send className="size-4" />
+              </button>
+            </div>
+            <div className="sn-reference-footer-actions">
+              <ReferencePhoneActionButton variant="secondary" onClick={() => navigate('/templates')}>
+                <Sparkles className="size-4" /> 模板中心
+              </ReferencePhoneActionButton>
+              <ReferencePhoneActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
+                <Upload className="size-4" /> 开始创建
+              </ReferencePhoneActionButton>
+            </div>
+          </div>
+
+          <div className="sn-reference-quick-chip-row">
+            {HOME_QUICK_PROMPTS.map(({ label, prompt }) => (
+              <QuickActionChip key={label} icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt(prompt)}>
+                {label}
+              </QuickActionChip>
+            ))}
+          </div>
+
+          <div className="sn-reference-section-copy">最近项目</div>
+          <div className="sn-reference-project-list">
+            {projectsLoading ? (
+              <div className="sn-reference-drawer-empty">正在加载项目列表…</div>
+            ) : homeRecentProjects.length === 0 ? (
+              <div className="sn-reference-drawer-empty">还没有项目，先用一句话创建一个。</div>
+            ) : (
+              homeRecentProjects.map((project) => (
+                <button
+                  key={project.projectId}
+                  type="button"
+                  className="sn-reference-project-card"
+                  onClick={() => navigate(`/project/${project.projectId}`)}
+                >
+                  <div className="sn-reference-project-thumb" />
+                  <div className="sn-reference-project-copy">
+                    <div className="sn-reference-project-head">
+                      <div>
+                        <div className="sn-reference-project-name">{project.displayName}</div>
+                        <div className="sn-reference-project-desc">{project.publicHandle}</div>
+                      </div>
+                      <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                        {statusLabel(project.status)}
+                      </StatusChip>
+                    </div>
+                    <div className="sn-reference-project-meta">
+                      <span>{formatTime(project.updatedAt)}</span>
+                      <span>{project.type}</span>
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        <ReferenceHomeDrawer
+          open={sidebarOpen}
+          projectsLoading={projectsLoading}
+          recentProjects={homeRecentProjects}
+          navigate={navigate}
+          onClose={() => setSidebarOpen(false)}
+          onCreateProject={() => {
+            navigate('/');
+            setSidebarOpen(false);
+          }}
+          onOpenTemplates={() => {
+            navigate('/templates');
+            setSidebarOpen(false);
+          }}
+          onOpenProjects={() => {
+            navigate('/projects');
+            setSidebarOpen(false);
+          }}
+          onSelectTemplate={(prompt) => {
+            setComposerPrompt(prompt);
+            setSidebarOpen(false);
+          }}
+        />
+      </ReferencePhoneShell>
+    );
+  }
+
+  return (
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <header className="sn-ds-header">
+          <div className="sn-ds-brand">
+            <div className="sn-ds-logo">
+              <Zap className="size-5" />
+            </div>
+            <div className="sn-ds-title-wrap">
+              <div className="sn-ds-brand-name">ShipNow</div>
+              <div className="sn-ds-brand-sub">
+                <span>AI 创作工作台</span>
+                <span className="sn-ds-pill">chat-first</span>
+              </div>
+            </div>
+          </div>
+          <p className="sn-ds-description">
+            用一句话创建、修改、预览并发布一个小网站。
+            <br />
+            Tell ShipNow what you want to build.
+          </p>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Projects" value={projects.length.toString()} hint="Total managed projects" />
-          <StatCard label="Active" value={activeTasks.toString()} hint="Generating or publishing now" />
-          <StatCard label="Published" value={publishedProjects.toString()} hint="Live public releases" />
-          <StatCard label="Failed" value={failedProjects.toString()} hint="Build or publish failures" />
-        </section>
+        <div className="sn-reference-workspace-grid">
+          <section className="sn-panel sn-reference-entry-welcome">
+            <div className="sn-reference-welcome-title">你好！👋</div>
+            <div className="sn-reference-welcome-copy">告诉我你想做什么，我来帮你快速实现。</div>
 
-        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <main className="shell-panel overflow-hidden">
-            <div className="flex items-center justify-between border-b border-[rgb(var(--line))] px-5 py-4">
-              <div>
-                <p className="label">Projects</p>
-                <h2 className="mt-1 text-lg font-semibold">Managed Sites</h2>
-              </div>
-              <button className="soft-button" onClick={() => void refreshProjects()}>
-                Refresh
+            <div className="sn-reference-entry-list">
+              <button type="button" className="sn-reference-entry-card" onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}>
+                <div className="sn-reference-entry-icon">✦</div>
+                <div>
+                  <div className="sn-reference-entry-title">创建产品官网</div>
+                  <div className="sn-reference-entry-desc">展示产品与核心卖点</div>
+                </div>
+              </button>
+              <button type="button" className="sn-reference-entry-card" onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}>
+                <div className="sn-reference-entry-icon">◌</div>
+                <div>
+                  <div className="sn-reference-entry-title">做一个小游戏</div>
+                  <div className="sn-reference-entry-desc">轻松有趣的互动体验</div>
+                </div>
+              </button>
+              <button type="button" className="sn-reference-entry-card" onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}>
+                <div className="sn-reference-entry-icon">☺</div>
+                <div>
+                  <div className="sn-reference-entry-title">创建个人主页</div>
+                  <div className="sn-reference-entry-desc">展示自己与作品集</div>
+                </div>
               </button>
             </div>
 
-            {loading ? (
-              <div className="p-6 text-sm text-[rgb(var(--muted))]">Loading projects...</div>
-            ) : error ? (
-              <div className="p-6 text-sm text-rose-700">{error}</div>
-            ) : projects.length === 0 ? (
-              <div className="p-6">
-                <EmptyState onCreate={() => setCreateOpen(true)} />
+            <div className="sn-reference-composer-card is-bottom">
+              <div className="sn-reference-composer-rail">
+                <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+                  <Paperclip className="size-4" />
+                </button>
+                <textarea
+                  className="sn-reference-composer-input"
+                  placeholder="告诉 ShipNow 你想做什么..."
+                  value={composerPrompt}
+                  onChange={(event) => setComposerPrompt(event.target.value)}
+                />
+                <button className="sn-reference-send-button" type="button" aria-label="发送" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
+                  <Send className="size-4" />
+                </button>
               </div>
-            ) : (
-              <div className="overflow-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead className="sticky top-0 bg-[rgba(255,252,248,0.96)] text-xs uppercase tracking-[0.18em] text-[rgb(var(--muted))]">
-                    <tr>
-                      <th className="px-5 py-3 font-semibold">Name</th>
-                      <th className="px-5 py-3 font-semibold">Status</th>
-                      <th className="px-5 py-3 font-semibold">Preview</th>
-                      <th className="px-5 py-3 font-semibold">Public</th>
-                      <th className="px-5 py-3 font-semibold">Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projects.map((project) => (
-                      <tr
-                        key={project.name}
-                        className={`cursor-pointer border-t border-[rgb(var(--line))] transition hover:bg-[rgba(21,128,110,0.04)] ${
-                          selectedProject === project.name ? 'bg-[rgba(21,128,110,0.06)]' : ''
-                        }`}
-                        onClick={() => {
-                          setSelectedProject(project.name);
-                          setDetailTab('overview');
-                        }}
-                      >
-                        <td className="px-5 py-4">
-                          <div className="font-medium">{project.name}</div>
-                          <div className="mt-1 text-xs text-[rgb(var(--muted))]">{project.title}</div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className={`chip ${statusTone(project.status)}`}>{statusLabel(project.status)}</span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <a
-                            href={project.previewUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm font-medium text-[rgb(var(--teal))] hover:underline"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            Open preview
-                          </a>
-                        </td>
-                        <td className="px-5 py-4">
-                          <a
-                            href={project.publicUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm font-medium text-[rgb(var(--ink))] hover:underline"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            Open public
-                          </a>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-[rgb(var(--muted))]">
-                          {formatTime(project.updatedAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="sn-reference-footer-actions">
+                <ReferencePhoneActionButton variant="secondary" onClick={() => navigate('/templates')}>
+                  <Sparkles className="size-4" /> 模板中心
+                </ReferencePhoneActionButton>
+                <ReferencePhoneActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
+                  <Upload className="size-4" /> 开始创建
+                </ReferencePhoneActionButton>
               </div>
-            )}
-          </main>
-
-          <aside className="shell-panel flex min-h-[640px] flex-col overflow-hidden">
-            <div className="border-b border-[rgb(var(--line))] px-5 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="label">Selected project</p>
-                  <h2 className="mt-1 text-lg font-semibold">{currentProject?.name ?? 'No project selected'}</h2>
-                  <p className="mt-1 text-sm text-[rgb(var(--muted))]">{currentProject?.title ?? 'Create a project to begin.'}</p>
-                </div>
-                {currentProject ? (
-                  <span className={`chip ${statusTone(currentProject.status)}`}>{statusLabel(currentProject.status)}</span>
-                ) : null}
-              </div>
-
-              {currentProject ? (
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button className="soft-button" onClick={() => void handleProjectAction('rebuild')} disabled={actionBusy !== null}>
-                    Rebuild
-                  </button>
-                  <button className="soft-button" onClick={() => void handleProjectAction('publish')} disabled={actionBusy !== null}>
-                    Publish
-                  </button>
-                  <button
-                    className="soft-button"
-                    onClick={() => {
-                      setCreateError(null);
-                      setCreateOpen(true);
-                    }}
-                    disabled={actionBusy !== null}
-                  >
-                    New
-                  </button>
-                  <button
-                    className="soft-button text-rose-700 hover:border-rose-300 hover:text-rose-700"
-                    onClick={() => {
-                      setDeleteConfirmName('');
-                      setDeleteOpen(true);
-                    }}
-                    disabled={actionBusy !== null}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : null}
             </div>
+          </section>
 
-            {currentProject ? (
-              <>
-                <div className="flex gap-2 border-b border-[rgb(var(--line))] px-5 py-3 text-sm">
-                  {(['overview', 'tasks', 'releases', 'logs'] as DetailTab[]).map((tab) => (
+          <section className="sn-panel sn-reference-projects">
+            <div className="sn-reference-projects-head">
+              <div>
+                <div className="sn-reference-section-copy">最近项目</div>
+                <div className="sn-reference-note">卡片列表，而不是表格。</div>
+              </div>
+              <div className="sn-reference-projects-toolbar">
+                <ReferencePhoneActionButton variant="secondary" onClick={() => navigate('/projects')}>
+                  <Folder className="size-4" /> 项目管理
+                </ReferencePhoneActionButton>
+              </div>
+            </div>
+            <div className="sn-reference-project-list">
+              {projectsLoading ? (
+                <div className="sn-reference-drawer-empty">正在加载项目列表…</div>
+              ) : homeRecentProjects.length === 0 ? (
+                <EmptyState title="No projects yet" description="Start a conversation to build your first site." icon={<Plus className="size-6" />} />
+              ) : (
+                homeRecentProjects.map((project) => (
+                  <ProjectCard
+                    key={project.projectId}
+                    name={project.displayName}
+                    description={project.title}
+                    status={project.status === 'preview_ready' ? 'preview-ready' : project.status === 'published' ? 'published' : project.status === 'build_failed' || project.status === 'publish_failed' ? 'needs-fix' : 'building'}
+                    updatedAt={formatTime(project.updatedAt)}
+                  />
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TemplatesWorkspace({
+  onBackHome,
+  onSelectTemplate,
+  projectsLoading,
+}: {
+  onBackHome: () => void;
+  onSelectTemplate: (prompt: string) => void;
+  projectsLoading: boolean;
+}) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const templates = [
+    {
+      title: '产品官网',
+      desc: '展示产品与功能亮点',
+      prompt: TEMPLATE_PROMPTS[0],
+      icon: '✦',
+    },
+    {
+      title: 'Landing Page',
+      desc: '快速验证活动与转化',
+      prompt: '做一个活动页，带强视觉冲击和明确的报名 / 购买转化。',
+      icon: '◐',
+    },
+    {
+      title: '个人主页',
+      desc: '展示自己与作品集',
+      prompt: TEMPLATE_PROMPTS[1],
+      icon: '☺',
+    },
+    {
+      title: '小工具',
+      desc: '解决一个小问题',
+      prompt: TEMPLATE_PROMPTS[3],
+      icon: '◌',
+    },
+    {
+      title: '小游戏',
+      desc: '轻松有趣的互动体验',
+      prompt: TEMPLATE_PROMPTS[2],
+      icon: '◎',
+    },
+    {
+      title: '空白项目',
+      desc: '从空白开始，自由发挥',
+      prompt: TEMPLATE_PROMPTS[5],
+      icon: '+',
+    },
+  ];
+
+  if (isMobile) {
+    return (
+      <ReferencePhoneShell className="is-compact">
+        <ReferencePhoneTopBar
+          left={
+            <button className="sn-reference-phone-icon-button" type="button" aria-label="菜单" onClick={onBackHome}>
+              <Menu className="size-4" />
+            </button>
+          }
+          title="模板中心"
+          right={<div />}
+        />
+        <div className="sn-reference-phone-body">
+          <div className="sn-reference-section-copy">选择一个模板开始</div>
+          <div className="sn-reference-template-grid">
+            {templates.map((template) => (
+              <button
+                key={template.title}
+                type="button"
+                className={`sn-reference-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
+                onClick={() => {
+                  onSelectTemplate(template.prompt);
+                  onBackHome();
+                }}
+              >
+                <div className="sn-reference-template-thumb">
+                  <div className="sn-reference-template-thumb-shape" />
+                </div>
+                <div className="sn-reference-template-title">{template.title}</div>
+                <div className="sn-reference-template-desc">{template.desc}</div>
+              </button>
+            ))}
+          </div>
+          <ReferencePhoneActionButton variant="secondary" className="sn-reference-import-btn">
+            <Upload className="size-4" /> 导入现有项目
+          </ReferencePhoneActionButton>
+        </div>
+      </ReferencePhoneShell>
+    );
+  }
+
+  return (
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <header className="sn-ds-header">
+          <div className="sn-ds-brand">
+            <div className="sn-ds-logo">
+              <Zap className="size-5" />
+            </div>
+            <div className="sn-ds-title-wrap">
+              <div className="sn-ds-brand-name">ShipNow</div>
+              <div className="sn-ds-brand-sub">
+                <span>模板中心</span>
+                <span className="sn-ds-pill">starter kits</span>
+              </div>
+            </div>
+          </div>
+          <p className="sn-ds-description">
+            先用合适的起点，再继续对话修改。
+            <br />
+            No tables, only cards.
+          </p>
+        </header>
+
+        <div className="sn-reference-workspace-grid">
+          <section className="sn-panel sn-reference-entry-welcome">
+            <div className="sn-reference-welcome-title">选择一个模板开始。</div>
+            <div className="sn-reference-welcome-copy">先用合适的起点，再继续对话修改。这里用卡片承载模板，不用表格。</div>
+            <div className="sn-reference-template-grid">
+              {projectsLoading
+                ? Array.from({ length: 6 }).map((_, index) => (
+                    <Skeleton key={index} className="h-40 rounded-[24px]" />
+                  ))
+                : templates.map((template) => (
                     <button
-                      key={tab}
-                      className={`rounded-full px-3 py-1.5 transition ${
-                        detailTab === tab
-                          ? 'bg-[rgb(var(--ink))] text-white'
-                          : 'bg-transparent text-[rgb(var(--muted))] hover:bg-[rgba(21,128,110,0.08)] hover:text-[rgb(var(--ink))]'
-                      }`}
-                      onClick={() => setDetailTab(tab)}
+                      key={template.title}
+                      type="button"
+                      className={`sn-reference-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
+                      onClick={() => {
+                        onSelectTemplate(template.prompt);
+                        onBackHome();
+                      }}
                     >
-                      {tab}
+                      <div className="sn-reference-template-thumb">
+                        {template.icon === '+' ? (
+                          <Plus className="size-7 sn-reference-template-empty-plus" />
+                        ) : (
+                          <div className="sn-reference-template-thumb-shape" />
+                        )}
+                      </div>
+                      <div className="sn-reference-template-title">{template.title}</div>
+                      <div className="sn-reference-template-desc">{template.desc}</div>
                     </button>
                   ))}
-                </div>
+            </div>
+          </section>
 
-                <div className="flex-1 overflow-auto p-5">
-                  {detailTab === 'overview' ? (
-                    <OverviewPanel
-                      project={currentProject}
-                      detail={detail}
-                      currentTask={currentTask}
-                      taskLogs={taskLogs}
-                      changePrompt={changePrompt}
-                      setChangePrompt={setChangePrompt}
-                      onApplyChange={() => void handleProjectAction('change')}
-                      actionBusy={actionBusy}
-                    />
-                  ) : null}
-                  {detailTab === 'tasks' ? <TasksPanel tasks={detail?.tasks ?? []} currentTask={currentTask} /> : null}
-                  {detailTab === 'releases' ? <ReleasesPanel project={currentProject} releases={detail?.releases ?? []} /> : null}
-                  {detailTab === 'logs' ? <LogsPanel currentTask={currentTask} logs={taskLogs} /> : null}
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-[rgb(var(--muted))]">
-                Choose a project on the left or create a new one to inspect its tasks, releases, and logs.
+          <section className="sn-panel sn-reference-projects">
+            <div className="sn-reference-projects-head">
+              <div>
+                <div className="sn-reference-section-copy">导入现有项目</div>
+                <div className="sn-reference-note">如果已有站点，直接导入继续改。</div>
               </div>
-            )}
+            </div>
+            <div className="sn-reference-project-list">
+              <div className="sn-reference-drawer-empty">从现有项目导入后，可以继续沿用当前风格与结构。</div>
+              <ReferencePhoneActionButton variant="secondary" onClick={onBackHome}>
+                <Upload className="size-4" /> 导入现有项目
+              </ReferencePhoneActionButton>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectsWorkspace({
+  projects,
+  projectsLoading,
+  onOpenProject,
+  onBackHome,
+}: {
+  projects: ProjectView[];
+  projectsLoading: boolean;
+  onOpenProject: (projectId: string) => void;
+  onBackHome: () => void;
+}) {
+  const isMobile = useMediaQuery('(max-width: 767px)');
+
+  if (isMobile) {
+    return (
+      <ReferencePhoneShell className="is-compact">
+        <ReferencePhoneTopBar
+          left={
+            <button className="sn-reference-phone-icon-button" type="button" aria-label="菜单" onClick={onBackHome}>
+              <Menu className="size-4" />
+            </button>
+          }
+          title="我的项目"
+          right={
+            <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="新建项目" onClick={onBackHome}>
+              <Plus className="size-4" />
+            </button>
+          }
+        />
+
+        <div className="sn-reference-phone-body">
+          <div className="sn-reference-project-filter">
+            全部项目 <ChevronDown className="size-4" />
+          </div>
+
+          {projectsLoading ? (
+            <div className="grid gap-3">
+              <Skeleton className="h-36 rounded-[24px]" />
+              <Skeleton className="h-36 rounded-[24px]" />
+              <Skeleton className="h-36 rounded-[24px]" />
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="sn-reference-drawer-empty">还没有项目。先创建一个再回来这里看列表。</div>
+          ) : (
+            <div className="sn-reference-project-list">
+              {projects.map((project) => (
+                <button
+                  key={project.projectId}
+                  type="button"
+                  className={`sn-reference-project-card ${project.status === 'preview_ready' ? 'is-active' : ''}`}
+                  onClick={() => onOpenProject(project.projectId)}
+                >
+                  <div className="sn-reference-project-thumb" />
+                  <div className="sn-reference-project-copy">
+                    <div className="sn-reference-project-head">
+                      <div>
+                        <div className="sn-reference-project-name">{project.displayName}</div>
+                        <div className="sn-reference-project-desc">{project.title}</div>
+                      </div>
+                      <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                        {statusLabel(project.status)}
+                      </StatusChip>
+                    </div>
+                    <div className="sn-reference-project-meta">
+                      <span>{formatTime(project.updatedAt)}</span>
+                      <span>{project.type}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </ReferencePhoneShell>
+    );
+  }
+
+  return (
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <header className="sn-ds-header">
+          <div className="sn-ds-brand">
+            <div className="sn-ds-logo">
+              <Zap className="size-5" />
+            </div>
+            <div className="sn-ds-title-wrap">
+              <div className="sn-ds-brand-name">ShipNow</div>
+              <div className="sn-ds-brand-sub">
+                <span>项目管理</span>
+                <span className="sn-ds-pill">all projects</span>
+              </div>
+            </div>
+          </div>
+          <p className="sn-ds-description">
+            用卡片列表查看每个项目的状态、更新时间和协作信息。
+            <br />
+            No tables, only cards.
+          </p>
+        </header>
+
+        <section className="sn-panel sn-reference-projects">
+          <div className="sn-reference-projects-head">
+            <div>
+              <div className="sn-reference-section-copy">所有项目</div>
+              <div className="sn-reference-note">卡片列表，而不是表格。</div>
+            </div>
+            <div className="sn-reference-projects-toolbar">
+              <ReferencePhoneActionButton variant="secondary" onClick={onBackHome}>
+                <Plus className="size-4" /> 新建项目
+              </ReferencePhoneActionButton>
+            </div>
+          </div>
+
+          {projectsLoading ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Skeleton className="h-40 rounded-[24px]" />
+              <Skeleton className="h-40 rounded-[24px]" />
+              <Skeleton className="h-40 rounded-[24px]" />
+            </div>
+          ) : projects.length === 0 ? (
+            <EmptyState title="No projects yet" description="Start a conversation to build your first site." icon={<Plus className="size-6" />} />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {projects.map((project) => (
+                <ProjectCard
+                  key={project.projectId}
+                  name={project.displayName}
+                  description={project.title}
+                  status={project.status === 'preview_ready' ? 'preview-ready' : project.status === 'published' ? 'published' : project.status === 'build_failed' || project.status === 'publish_failed' ? 'needs-fix' : 'building'}
+                  updatedAt={formatTime(project.updatedAt)}
+                  onClick={() => onOpenProject(project.projectId)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ProjectPreviewWorkspace({
+  project,
+  onBackEdit,
+  onPublish,
+}: {
+  project: ProjectView;
+  onBackEdit: () => void;
+  onPublish: () => void;
+}) {
+  return (
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <TopBar mode="preview" />
+
+        <div className="sn-reference-workspace-grid">
+          <section className="sn-panel sn-visual-main">
+            <div className="sn-visual-main-head">
+              <div className="sn-visual-project-head">
+                <div className="sn-visual-project-mark" />
+                <div>
+                  <div className="sn-visual-project-name">{project.displayName}</div>
+                  <div className="sn-visual-project-subtitle">{project.publicHandle}</div>
+                </div>
+              </div>
+              <StatusChip tone="published">Preview ready</StatusChip>
+            </div>
+
+            <div className="sn-visual-preview-canvas">
+              <div className="sn-visual-preview-top">
+                <span>v1 · Home</span>
+                <div className="sn-visual-preview-icons">
+                  <span>◌</span>
+                  <span>◌</span>
+                </div>
+              </div>
+              <div className="sn-visual-preview-content">
+                <div className="sn-visual-preview-brand">ShipNow</div>
+                <h3>
+                  Ship faster.
+                  <br />
+                  Ship now.
+                </h3>
+                <p>{project.title || 'ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。'}</p>
+                <div className="sn-visual-preview-actions">
+                  <SnButton variant="primary">Get started</SnButton>
+                  <SnButton variant="secondary">Learn more</SnButton>
+                </div>
+                <div className="sn-visual-preview-features">
+                  <span className="sn-visual-preview-feature">Hero 区域</span>
+                  <span className="sn-visual-preview-feature">核心优势</span>
+                  <span className="sn-visual-preview-feature">操作指引</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside className="sn-panel sn-visual-status">
+            <div className="sn-visual-status-block">
+              <div className="sn-visual-status-title">当前预览已准备好</div>
+              <p>你可以继续修改，或者直接发布到正式地址。</p>
+            </div>
+            <div className="sn-visual-status-block">
+              <div className="sn-visual-status-title">地址</div>
+              <InfoRow label="预览地址" value={project.previewUrl} />
+              <InfoRow label="正式地址" value={project.publicUrl} />
+            </div>
+            <div className="sn-visual-status-block">
+              <div className="sn-visual-status-title">操作</div>
+              <div className="grid gap-2">
+                <SnButton variant="secondary" onClick={onBackEdit}>继续编辑</SnButton>
+                <SnButton variant="primary" onClick={onPublish}>发布</SnButton>
+              </div>
+            </div>
           </aside>
         </div>
       </div>
-
-      {createOpen ? (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-[rgba(17,20,26,0.44)] px-4 backdrop-blur-sm">
-          <div className="shell-panel w-full max-w-2xl p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="label">Create project</p>
-                  <h3 className="mt-1 text-xl font-semibold">New ShipNow project</h3>
-                </div>
-                <button className="soft-button" onClick={() => setCreateOpen(false)}>
-                  Close
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <Field label="Project name">
-                <input
-                  className="w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
-                  placeholder="gongde-basketball"
-                  value={createForm.name}
-                  onChange={(event) => {
-                    setCreateError(null);
-                    setCreateForm((prev) => ({ ...prev, name: event.target.value }));
-                  }}
-                />
-                <p className="mt-2 text-xs text-[rgb(var(--muted))]">
-                  Lowercase letters, numbers, and hyphens only. Reserved names such as `shipnow`, `api`, and `preview` are blocked.
-                </p>
-                {createNameError ? <p className="mt-2 text-xs text-rose-700">{createNameError}</p> : null}
-              </Field>
-              <Field label="Project title">
-                <input
-                  className="w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
-                  placeholder="功德篮球"
-                  value={createForm.title}
-                  onChange={(event) => {
-                    setCreateError(null);
-                    setCreateForm((prev) => ({ ...prev, title: event.target.value }));
-                  }}
-                />
-              </Field>
-              <Field label="Prompt" className="md:col-span-2">
-                <textarea
-                  className="min-h-36 w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
-                  placeholder="做一个反直觉功德篮球小游戏，玩家通过蓄力投篮获取功德值。"
-                  value={createForm.prompt}
-                  onChange={(event) => {
-                    setCreateError(null);
-                    setCreateForm((prev) => ({ ...prev, prompt: event.target.value }));
-                  }}
-                />
-                <p className="mt-2 text-xs text-[rgb(var(--muted))]">
-                  ShipNow uses one default template. If your request is a game, describe it naturally in the prompt and Codex will switch to Phaser when needed.
-                </p>
-              </Field>
-            </div>
-
-            {createError ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{createError}</div> : null}
-
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <button className="soft-button" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </button>
-              <button className="primary-button" onClick={() => void handleCreateProject()} disabled={actionBusy === 'create' || !createCanSubmit}>
-                {actionBusy === 'create' ? 'Creating...' : 'Create project'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {deleteOpen && currentProject ? (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-[rgba(17,20,26,0.44)] px-4 backdrop-blur-sm">
-          <div className="shell-panel w-full max-w-xl p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="label">Delete project</p>
-                <h3 className="mt-1 text-xl font-semibold text-rose-700">This cannot be undone</h3>
-              </div>
-              <button
-                className="soft-button"
-                onClick={() => {
-                  setDeleteOpen(false);
-                  setDeleteConfirmName('');
-                }}
-              >
-                Close
-              </button>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-[rgb(var(--muted))]">
-              Type <span className="font-semibold text-[rgb(var(--ink))]">{currentProject.name}</span> to confirm deletion. The source, preview mapping, public mapping, and release directories for this project will be removed, while logs and database records stay available.
-            </p>
-
-            <div className="mt-5">
-              <Field label="Confirm project name">
-                <input
-                  className="w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
-                  value={deleteConfirmName}
-                  onChange={(event) => setDeleteConfirmName(event.target.value)}
-                  placeholder={currentProject.name}
-                />
-              </Field>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <button
-                className="soft-button"
-                onClick={() => {
-                  setDeleteOpen(false);
-                  setDeleteConfirmName('');
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="primary-button bg-rose-600 hover:bg-rose-700"
-                onClick={() => void handleDeleteProject()}
-                disabled={actionBusy === 'delete' || !deleteNameMatches}
-              >
-                {actionBusy === 'delete' ? 'Deleting...' : 'Delete project'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function MobilePublishConfirmSheet({
+  project,
+  canPublish,
+  onCancel,
+  onConfirm,
+}: {
+  project: ProjectView;
+  canPublish: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
   return (
-    <div className="shell-panel px-5 py-4">
-      <p className="label">{label}</p>
-      <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
-      <p className="mt-1 text-sm text-[rgb(var(--muted))]">{hint}</p>
-    </div>
-  );
-}
-
-function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="label mb-2 block">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function EmptyState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="rounded-[24px] border border-dashed border-[rgb(var(--line))] bg-[rgba(255,255,255,0.6)] p-8 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgb(var(--ink))] text-lg font-bold text-white">
-        +
+    <div className="sn-mobile-confirm-overlay">
+      <div className="sn-reference-phone is-compact">
+      <div className="sn-reference-phone-device">
+        <div className="sn-reference-phone-screen">
+          <div className="sn-reference-phone-statusbar">
+            <span className="sn-reference-phone-time">9:41</span>
+            <div className="sn-reference-phone-indicators" aria-hidden="true">
+              <span className="sn-reference-phone-signal">
+                <span />
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className="sn-reference-phone-wifi" />
+              <span className="sn-reference-phone-battery">
+                <span />
+              </span>
+            </div>
+          </div>
+          <div className="sn-reference-modal-backdrop">
+            <div className="sn-reference-modal-preview is-faint">
+              <div className="sn-reference-version">v1 · Home</div>
+              <h3 className="sn-reference-headline">
+                Ship faster.
+                <br />
+                Ship now.
+              </h3>
+            </div>
+          </div>
+          <div className="sn-reference-phone-overlay" />
+          <div className="sn-reference-phone-sheet is-bottom">
+            <div className="sn-reference-sheet-close">×</div>
+            <div className="sn-reference-sheet-badge">确认发布</div>
+            <div className="sn-reference-sheet-title">确认要把当前版本发布到正式站点吗？</div>
+            <div className="sn-reference-address">
+              <span>{project.publicUrl}</span>
+              <Copy className="size-4" />
+            </div>
+            <div className="sn-reference-checklist">
+              <div>将覆盖当前版本：{project.displayName}</div>
+              <div>构建并发布到线上环境</div>
+              <div>发布后立即可通过该地址访问</div>
+            </div>
+            <div className="sn-reference-confirm-actions is-stacked">
+              <button className="sn-reference-phone-action is-primary" type="button" onClick={onConfirm} disabled={!canPublish}>
+                确认发布
+              </button>
+              <button className="sn-reference-phone-action is-secondary" type="button" onClick={onCancel}>
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <h3 className="mt-4 text-lg font-semibold">No projects yet</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm text-[rgb(var(--muted))]">
-        Create the first ShipNow project to generate a template, run Codex, and start a preview release.
-      </p>
-      <button className="primary-button mt-5" onClick={onCreate}>
-        Create project
-      </button>
+    </div>
     </div>
   );
 }
 
-function OverviewPanel({
+function ReferenceConfirmModal({
+  open,
+  destructive = false,
+  title,
+  description,
+  details,
+  confirmLabel,
+  cancelLabel,
+  confirmDisabled,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  destructive?: boolean;
+  title: string;
+  description: string;
+  details: Array<{ label: string; value: string }>;
+  confirmLabel: string;
+  cancelLabel: string;
+  confirmDisabled?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="sn-reference-confirm-modal">
+      <div className="sn-reference-confirm-backdrop" onClick={onCancel} role="presentation" />
+      <div className="sn-reference-confirm-panel">
+        <div className="sn-confirmation-sheet sn-reference-confirm-sheet">
+          <div className="sn-confirmation-head">
+            <div className={`sn-confirmation-badge ${destructive ? 'is-destructive' : ''}`.trim()}>
+              {destructive ? 'Delete confirmation' : 'Publish confirmation'}
+            </div>
+            <div className="sn-confirmation-title">{title}</div>
+            <p className="sn-confirmation-description">{description}</p>
+          </div>
+          <div className="sn-reference-confirm-details">
+            {details.map((detail) => (
+              <InfoRow key={detail.label} label={detail.label} value={detail.value} />
+            ))}
+          </div>
+          <div className="sn-confirmation-footer sn-reference-confirm-footer">
+            <SnButton variant="secondary" onClick={onCancel} className="rounded-full border-border bg-background shadow-none">
+              {cancelLabel}
+            </SnButton>
+            <SnButton variant={destructive ? 'destructive' : 'primary'} onClick={onConfirm} disabled={confirmDisabled} className="rounded-full">
+              {confirmLabel}
+            </SnButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReferencePublishConfirmSurface({
+  open,
+  project,
+  canPublish,
+  isMobileLayout,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  project: ProjectView;
+  canPublish: boolean;
+  isMobileLayout: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  if (isMobileLayout) {
+    return (
+      <MobilePublishConfirmSheet
+        project={project}
+        canPublish={canPublish}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
+    );
+  }
+
+  return (
+    <ReferenceConfirmModal
+      open={open}
+      title="确认发布到正式站点"
+      description={`ShipNow 会把当前预览复制到正式站点，并使用 ${project.publicUrl} 作为访问地址。`}
+      details={[
+        { label: '项目', value: project.displayName },
+        { label: '公开句柄', value: project.publicHandle },
+        { label: '预览地址', value: project.previewUrl },
+        { label: '正式地址', value: project.publicUrl },
+      ]}
+      confirmLabel="确认发布"
+      cancelLabel="先不发布"
+      confirmDisabled={!canPublish}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+function PublishResultWorkspace({
+  project,
+  success,
+  onOpenWebsite,
+  onCopyLink,
+  onContinueEditing,
+  onAutoFix,
+  onViewLogs,
+}: {
+  project: ProjectView;
+  success: boolean;
+  onOpenWebsite: () => void;
+  onCopyLink: () => void;
+  onContinueEditing: () => void;
+  onAutoFix: () => void;
+  onViewLogs: () => void;
+}) {
+  return (
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <TopBar mode="preview" />
+
+        <div className="sn-reference-workspace-grid">
+          <section className="sn-panel sn-visual-main">
+            <div className="sn-visual-main-head">
+              <div className="sn-visual-project-head">
+                <div className="sn-visual-project-mark" />
+                <div>
+                  <div className="sn-visual-project-name">{project.displayName}</div>
+                  <div className="sn-visual-project-subtitle">{project.publicHandle}</div>
+                </div>
+              </div>
+              <StatusChip tone={success ? 'published' : 'needs-fix'}>{statusLabel(success ? 'published' : 'publish_failed')}</StatusChip>
+            </div>
+
+            <div className="sn-visual-preview-canvas">
+              <div className={`sn-visual-preview-content ${success ? '' : ''}`.trim()}>
+                <div className="sn-visual-preview-brand">{success ? '发布成功' : '发布失败'}</div>
+                <h3 className="!text-[clamp(2.1rem,3vw,3.4rem)]">
+                  {success ? 'Your site is live.' : 'Something needs fixing.'}
+                </h3>
+                <p>
+                  {success
+                    ? '你的网站已上线，全球都可以访问了。'
+                    : '部署过程中遇到了一些问题，但我们可以继续修复。'}
+                </p>
+                <div className="sn-visual-preview-features">
+                  {success ? (
+                    <span className="sn-visual-preview-feature">线上地址可访问</span>
+                  ) : (
+                    <>
+                      <span className="sn-visual-preview-feature">构建错误</span>
+                      <span className="sn-visual-preview-feature">依赖安装失败</span>
+                      <span className="sn-visual-preview-feature">配置文件问题</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside className="sn-panel sn-visual-status">
+            <div className="sn-visual-status-block">
+              <div className="sn-visual-status-title">下一步</div>
+              <div className="grid gap-2">
+                {success ? (
+                  <>
+                    <SnButton variant="primary" onClick={onOpenWebsite}>
+                      <ArrowUpRight className="size-4" />
+                      打开网站
+                    </SnButton>
+                    <SnButton variant="secondary" onClick={onCopyLink}>
+                      <Copy className="size-4" />
+                      复制链接
+                    </SnButton>
+                    <SnButton variant="secondary" onClick={onContinueEditing}>
+                      <Edit2 className="size-4" />
+                      继续编辑
+                    </SnButton>
+                  </>
+                ) : (
+                  <>
+                    <SnButton variant="primary" onClick={onAutoFix}>
+                      <WandSparkles className="size-4" />
+                      ShipNow 自动修复
+                    </SnButton>
+                    <SnButton variant="secondary" onClick={onViewLogs}>
+                      <Info className="size-4" />
+                      查看日志
+                    </SnButton>
+                    <SnButton variant="secondary" onClick={onContinueEditing}>
+                      稍后再试
+                    </SnButton>
+                  </>
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectWorkspace({
   project,
   detail,
-  currentTask,
-  taskLogs,
-  changePrompt,
-  setChangePrompt,
-  onApplyChange,
-  actionBusy,
+  timelineItems,
+  composerPrompt,
+  setComposerPrompt,
+  onSubmit,
+  canSubmit,
+  canPublish,
+  canAutoFix,
+  activeAction,
+  onRebuild,
+  onPublish,
+  onAutoFix,
+  latestTask,
+  conversationRef,
+  onOpenStatus,
+  onOpenPreview,
+  sidebarOpen,
+  statusOpen,
+  setSidebarOpen,
+  setStatusOpen,
+  recentProjects,
+  navigate,
 }: {
   project: ProjectView;
   detail: ProjectDetailResponse | null;
-  currentTask: TaskView | null;
-  taskLogs: string;
-  changePrompt: string;
-  setChangePrompt: (value: string) => void;
-  onApplyChange: () => void;
-  actionBusy: string | null;
+  timelineItems: TimelineItem[];
+  composerPrompt: string;
+  setComposerPrompt: (value: string) => void;
+  onSubmit: () => void;
+  canSubmit: boolean;
+  canPublish: boolean;
+  canAutoFix: boolean;
+  activeAction: string | null;
+  onRebuild: () => void;
+  onPublish: () => void;
+  onAutoFix: () => void;
+  latestTask: TaskView | null;
+  conversationRef: RefObject<HTMLDivElement | null>;
+  onOpenStatus: () => void;
+  onOpenPreview: () => void;
+  sidebarOpen: boolean;
+  statusOpen: boolean;
+  setSidebarOpen: (value: boolean) => void;
+  setStatusOpen: (value: boolean) => void;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
 }) {
-  const isWorkingTask = currentTask && ['pending', 'running', 'publishing'].includes(currentTask.status);
-  const isActionInFlight = actionBusy !== null && actionBusy !== 'delete';
-  const showTaskBanner = Boolean(isWorkingTask || isActionInFlight);
-  const bannerTaskName = isWorkingTask ? currentTask.type : actionLabel(actionBusy);
-  const bannerStatus = isWorkingTask ? statusLabel(currentTask.status) : isActionInFlight ? 'starting' : '';
-  const liveLogLines = taskLogs
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter(Boolean)
-    .slice(-10)
-    .join('\n');
+  const isMobileLayout = useMediaQuery('(max-width: 767px)');
+  const visibleTimelineItems = timelineItems.filter((item) => item.kind === 'message');
+  const renderedTimelineItems = isMobileLayout ? visibleTimelineItems.slice(-2) : visibleTimelineItems;
+
+  if (isMobileLayout) {
+    return (
+      <ReferenceProjectWorkspaceMobile
+        project={project}
+        detail={detail}
+        timelineItems={timelineItems}
+        composerPrompt={composerPrompt}
+        setComposerPrompt={setComposerPrompt}
+        onSubmit={onSubmit}
+        canSubmit={canSubmit}
+        canPublish={canPublish}
+        canAutoFix={canAutoFix}
+        activeAction={activeAction}
+        onRebuild={onRebuild}
+        onPublish={onPublish}
+        onAutoFix={onAutoFix}
+        latestTask={latestTask}
+        conversationRef={conversationRef}
+        onOpenStatus={onOpenStatus}
+        onOpenPreview={onOpenPreview}
+        sidebarOpen={sidebarOpen}
+        statusOpen={statusOpen}
+        setSidebarOpen={setSidebarOpen}
+        setStatusOpen={setStatusOpen}
+        recentProjects={recentProjects}
+        navigate={navigate}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-5">
-      {showTaskBanner ? (
-        <div className="rounded-[24px] border border-[rgba(19,132,111,0.22)] bg-[rgba(19,132,111,0.08)] p-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--teal))]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[rgb(var(--teal))] animate-pulse" />
-            <span>
-              {bannerTaskName} is {bannerStatus} and Codex is working
-            </span>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-[rgb(var(--ink))]">
-            {isWorkingTask
-              ? 'The latest implementation output is streamed below so you can see what is being edited and built right now.'
-              : 'Codex has been asked to start work, and the latest output will appear here as soon as the task begins.'}
-          </p>
-          <pre className="mt-3 max-h-48 overflow-auto rounded-2xl bg-[rgba(255,255,255,0.78)] p-3 text-xs leading-6 text-[rgb(var(--ink))]">
-            {liveLogLines || 'Waiting for Codex output...'}
-          </pre>
-        </div>
-      ) : null}
-
-      <div className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="label">Project summary</p>
-            <h3 className="mt-1 text-xl font-semibold">{project.title}</h3>
-            <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted))]">{project.prompt}</p>
-          </div>
-          <div className="text-right text-xs text-[rgb(var(--muted))]">
-            <div>Source</div>
-            <div className="mt-1 font-mono text-[11px] text-[rgb(var(--ink))]">{project.sourceRoot}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Metric label="Preview" value={project.previewUrl} />
-        <Metric label="Public" value={project.publicUrl} />
-        <Metric label="Last built" value={formatTime(project.lastBuiltAt)} />
-        <Metric label="Last published" value={formatTime(project.lastPublishedAt)} />
-      </div>
-
-      <div className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
-        <p className="label">Apply change</p>
-        <textarea
-          className="mt-3 min-h-32 w-full rounded-2xl border border-[rgb(var(--line))] bg-white px-4 py-3 outline-none transition focus:border-[rgb(var(--teal))]"
-          placeholder="把整体风格改得更高级一点，按钮不要太粉嫩。"
-          value={changePrompt}
-          onChange={(event) => setChangePrompt(event.target.value)}
-        />
-        <div className="mt-3 flex items-center justify-end gap-3">
-          <button className="soft-button" onClick={() => setChangePrompt('')}>
-            Clear
-          </button>
-          <button className="primary-button" onClick={onApplyChange} disabled={actionBusy === 'change'}>
-            {actionBusy === 'change' ? 'Applying...' : 'Apply change'}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Metric label="Latest task" value={detail?.tasks[0]?.type ?? '—'} />
-        <Metric label="Task status" value={detail?.tasks[0] ? statusLabel(detail.tasks[0].status) : '—'} />
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
-      <div className="label">{label}</div>
-      <div className="mt-2 break-all text-sm font-medium text-[rgb(var(--ink))]">{value}</div>
-    </div>
-  );
-}
-
-function TasksPanel({ tasks, currentTask }: { tasks: TaskView[]; currentTask: TaskView | null }) {
-  return (
-    <div className="space-y-3">
-      {tasks.length === 0 ? (
-        <div className="rounded-[24px] border border-dashed border-[rgb(var(--line))] bg-white/70 p-6 text-sm text-[rgb(var(--muted))]">
-          No tasks yet.
-        </div>
-      ) : null}
-      {tasks.map((task) => (
-        <div key={task.id} className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold">{task.type}</div>
-              <div className="mt-1 text-xs text-[rgb(var(--muted))]">Task {task.id}</div>
+    <div className="sn-page">
+      <div className="sn-page-backdrop" />
+      <div className="sn-page-shell">
+        <header className="sn-ds-header">
+          <div className="sn-ds-brand">
+            <div className="sn-ds-logo">
+              <Zap className="size-5" />
             </div>
-            <span className={`chip ${taskBadge(task)}`}>{statusLabel(task.status)}</span>
+            <div className="sn-ds-title-wrap">
+              <div className="sn-ds-brand-name">{project.displayName}</div>
+              <div className="sn-ds-brand-sub">
+                <span>{project.publicHandle}</span>
+                <span className="sn-ds-pill">{statusLabel(project.status)}</span>
+              </div>
+            </div>
           </div>
-          <p className="mt-3 text-sm leading-6 text-[rgb(var(--muted))]">{task.prompt}</p>
-          <div className="mt-3 grid gap-2 text-xs text-[rgb(var(--muted))] md:grid-cols-2">
-            <div>Started: {formatTime(task.startedAt)}</div>
-            <div>Finished: {formatTime(task.finishedAt)}</div>
-          </div>
-          {currentTask?.id === task.id ? <div className="mt-3 text-xs text-[rgb(var(--teal))]">Selected task</div> : null}
+          <p className="sn-ds-description">
+            {project.title}
+            <br />
+            Conversation first, publish when ready.
+          </p>
+        </header>
+
+        <div className="sn-reference-workspace-grid">
+          <section className="sn-panel sn-reference-entry-welcome">
+            <div className="sn-reference-welcome-title">{project.displayName}</div>
+            <div className="sn-reference-welcome-copy">{project.title}</div>
+            <div className="flex flex-wrap gap-2">
+              <Chip tone={statusTone(project.status)}>{statusLabel(project.status)}</Chip>
+              <Chip tone="neutral">{project.publicHandle}</Chip>
+              <Chip tone="neutral">{project.type}</Chip>
+            </div>
+
+            <div className="sn-reference-chat-stack" ref={conversationRef}>
+              {detail ? (
+                renderedTimelineItems.length === 0 ? (
+                  <div className="sn-reference-drawer-empty">刚打开这个项目。先说一句你要改什么。</div>
+                ) : (
+                  renderedTimelineItems.map((item) => (
+                    <div key={item.id}>
+                      {item.role === 'user' ? (
+                        <ChatBubble role="user">{item.content}</ChatBubble>
+                      ) : (
+                        <>
+                          <ChatBubble role="assistant">{item.content}</ChatBubble>
+                          <AssistantActionCard title={`${project.displayName} · Preview`} summary="Hero、核心优势和操作引导先搭起来，整体保持克制与留白。" />
+                        </>
+                      )}
+                    </div>
+                  ))
+                )
+              ) : (
+                <div className="sn-reference-drawer-empty">正在加载项目…</div>
+              )}
+            </div>
+
+            <div className="sn-reference-quick-chip-row">
+              <QuickActionChip icon={<WandSparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
+                优化文案
+              </QuickActionChip>
+              <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把配色再轻一点，偏薄荷绿和更柔和的留白。')}>
+                调整配色
+              </QuickActionChip>
+              <QuickActionChip icon={<Plus className="size-4" />} onClick={() => setComposerPrompt('增加一个独立页面，保留当前风格和层次。')}>
+                增加页面
+              </QuickActionChip>
+              <QuickActionChip icon={<Upload className="size-4" />} onClick={() => setComposerPrompt('帮我替换一张更合适的图片 / 视觉素材。')}>
+                上传图片
+              </QuickActionChip>
+              <QuickActionChip icon={<CircleAlert className="size-4" />} onClick={onAutoFix} className={activeAction !== null || !canAutoFix ? 'opacity-50 pointer-events-none' : ''}>
+                修复问题
+              </QuickActionChip>
+              <button
+                className="sn-reference-phone-icon-button is-soft"
+                type="button"
+                aria-label="刷新"
+                onClick={onRebuild}
+                disabled={activeAction !== null}
+              >
+                <RefreshCcw className="size-4" />
+              </button>
+            </div>
+
+            <div className="sn-reference-composer-card is-bottom">
+              <div className="sn-reference-composer-rail">
+                <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+                  <Paperclip className="size-4" />
+                </button>
+                <textarea
+                  className="sn-reference-composer-input"
+                  placeholder="例如：把首屏的大标题再收一点，按钮更明确，配色更薄荷绿。"
+                  value={composerPrompt}
+                  onChange={(event) => setComposerPrompt(event.target.value)}
+                />
+                <button
+                  className="sn-reference-send-button"
+                  type="button"
+                  aria-label="发送修改"
+                  onClick={onSubmit}
+                  disabled={!canSubmit || activeAction !== null}
+                >
+                  <Send className="size-4" />
+                </button>
+              </div>
+              <div className="sn-reference-composer-actions">
+                <ReferencePhoneActionButton variant="secondary" onClick={onOpenPreview}>
+                  <Eye className="size-4" /> Preview
+                </ReferencePhoneActionButton>
+                <ReferencePhoneActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+                  <Upload className="size-4" /> Publish
+                </ReferencePhoneActionButton>
+              </div>
+            </div>
+          </section>
+
+          <section className="sn-panel sn-reference-projects">
+            <div className="sn-reference-projects-head">
+              <div>
+                <div className="sn-reference-section-copy">项目状态</div>
+                <div className="sn-reference-note">状态、发布和日志都收纳到更清晰的层次里。</div>
+              </div>
+              <div className="sn-reference-projects-toolbar">
+                <ReferencePhoneActionButton variant="secondary" onClick={onOpenStatus}>
+                  <MoreHorizontal className="size-4" /> 更多
+                </ReferencePhoneActionButton>
+              </div>
+            </div>
+
+            <div className="sn-reference-project-list">
+              <div className="sn-reference-project-card is-active">
+                <div className="sn-reference-project-thumb is-mini" />
+                <div className="sn-reference-project-copy">
+                  <div className="sn-reference-project-head">
+                    <div>
+                      <div className="sn-reference-project-name">{project.displayName}</div>
+                      <div className="sn-reference-project-desc">{project.publicHandle}</div>
+                    </div>
+                    <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                      {statusLabel(project.status)}
+                    </StatusChip>
+                  </div>
+                  <div className="sn-reference-project-meta">
+                    <span>{project.title}</span>
+                    <span>{project.type}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="sn-reference-status-row">
+                <div>
+                  <div className="sn-reference-label">预览地址</div>
+                  <div className="sn-reference-address">
+                    <span>{project.previewUrl}</span>
+                    <Copy className="size-4" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="sn-reference-status-row">
+                <div>
+                  <div className="sn-reference-label">上线地址</div>
+                  <div className="sn-reference-address">
+                    <span>{project.publicUrl}</span>
+                    <Copy className="size-4" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="sn-reference-status-block">
+                <div className="sn-reference-label">最近任务</div>
+                {latestTask ? (
+                  <div className="sn-reference-task-item">
+                    <span>{taskTypeLabel(latestTask.type)}</span>
+                    <StatusChip tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}>
+                      {taskStatusLabel(latestTask.status)}
+                    </StatusChip>
+                  </div>
+                ) : (
+                  <div className="sn-reference-drawer-empty">还没有最近任务。</div>
+                )}
+              </div>
+
+              <div className="sn-reference-status-block">
+                <div className="sn-reference-label">最近发布</div>
+                <div className="sn-reference-history-list">
+                  {(detail?.releases ?? []).slice(0, 3).map((release) => (
+                    <div key={release.id} className="sn-reference-history-item">
+                      <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
+                      <small>{formatTime(release.createdAt)}</small>
+                    </div>
+                  ))}
+                  {(detail?.releases ?? []).length === 0 ? <div className="sn-reference-drawer-empty">还没有发布记录。</div> : null}
+                </div>
+              </div>
+
+              <div className="sn-reference-status-block status-logs">
+                <div className="sn-reference-label">技术日志入口</div>
+                <div className="sn-reference-drawer-empty">{latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}</div>
+              </div>
+            </div>
+          </section>
         </div>
-      ))}
+      </div>
     </div>
   );
 }
 
-function ReleasesPanel({
+function ReferenceProjectWorkspaceMobile({
   project,
-  releases,
+  detail,
+  timelineItems,
+  composerPrompt,
+  setComposerPrompt,
+  onSubmit,
+  canSubmit,
+  canPublish,
+  canAutoFix,
+  activeAction,
+  onRebuild,
+  onPublish,
+  onAutoFix,
+  latestTask,
+  conversationRef,
+  onOpenStatus,
+  onOpenPreview,
+  sidebarOpen,
+  statusOpen,
+  setSidebarOpen,
+  setStatusOpen,
+  recentProjects,
+  navigate,
 }: {
   project: ProjectView;
-  releases: Array<{
-    id: string;
-    kind: 'preview' | 'public';
-    source: string;
-    releasePath: string;
-    createdAt: string;
-    publishedAt: string | null;
-    buildTaskId: string | null;
-    isCurrentPreview: boolean;
-    isCurrentPublic: boolean;
-  }>;
+  detail: ProjectDetailResponse | null;
+  timelineItems: TimelineItem[];
+  composerPrompt: string;
+  setComposerPrompt: (value: string) => void;
+  onSubmit: () => void;
+  canSubmit: boolean;
+  canPublish: boolean;
+  canAutoFix: boolean;
+  activeAction: string | null;
+  onRebuild: () => void;
+  onPublish: () => void;
+  onAutoFix: () => void;
+  latestTask: TaskView | null;
+  conversationRef: RefObject<HTMLDivElement | null>;
+  onOpenStatus: () => void;
+  onOpenPreview: () => void;
+  sidebarOpen: boolean;
+  statusOpen: boolean;
+  setSidebarOpen: (value: boolean) => void;
+  setStatusOpen: (value: boolean) => void;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
 }) {
+  const visibleTimelineItems = timelineItems.filter((item) => item.kind === 'message');
+  const userMessages = visibleTimelineItems.filter((item) => item.role === 'user').slice(-2);
+  const assistantMessages = visibleTimelineItems.filter((item) => item.role === 'assistant').slice(-2);
+  const firstAssistant = assistantMessages[0]?.content ?? '好的！我为你生成了一个简洁高级的产品宣传页，突出速度快与一键部署的核心卖点。';
+  const secondAssistant = assistantMessages[1]?.content ?? '已应用薄荷绿主色，并把文案压缩得更直接，让主要价值主张更突出。';
+  const previewRelease = detail?.releases.find((release) => release.kind === 'preview' && release.isCurrentPreview) ?? detail?.releases[0] ?? null;
+
   return (
-    <div className="space-y-3">
-      <div className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
-        <div className="label">Current URLs</div>
-        <div className="mt-3 space-y-2 text-sm">
-          <div>
-            <span className="font-medium">Preview:</span> {project.previewUrl}
+    <ReferencePhoneShell className="is-compact">
+      <ReferencePhoneTopBar
+        left={
+          <button
+            className="sn-reference-phone-icon-button"
+            type="button"
+            aria-label="菜单"
+            onClick={() => {
+              setSidebarOpen(true);
+              setStatusOpen(false);
+            }}
+          >
+            <Menu className="size-4" />
+          </button>
+        }
+        title={<div className="sn-reference-phone-brand">ShipNow</div>}
+        right={
+          <div className="sn-reference-phone-topbar-actions">
+            <button className="sn-reference-phone-pill is-status" type="button">
+              <span className="sn-reference-dot" />
+              {statusTone(project.status) === 'preview-ready' ? 'Preview ready' : statusLabel(project.status)}
+            </button>
+            <button
+              className="sn-reference-phone-plus"
+              type="button"
+              aria-label="新建"
+              onClick={() => {
+                navigate('/');
+                setSidebarOpen(false);
+                setStatusOpen(false);
+              }}
+            >
+              <Plus className="size-4" />
+            </button>
           </div>
-          <div>
-            <span className="font-medium">Public:</span> {project.publicUrl}
+        }
+      />
+
+      <div className="sn-reference-phone-body sn-reference-chat-phone" ref={conversationRef}>
+        <div className="sn-reference-project-card is-compact-header">
+          <div className="sn-reference-project-thumb is-mini" />
+          <div className="sn-reference-project-copy">
+            <div className="sn-reference-project-head">
+              <div>
+                <div className="sn-reference-project-title-row">
+                  <div className="sn-reference-project-name">{project.displayName}</div>
+                  <Edit2 className="size-3 sn-reference-project-edit" />
+                </div>
+                <div className="sn-reference-project-desc">{project.title}</div>
+              </div>
+              <button
+                className="sn-reference-phone-icon-button is-soft"
+                type="button"
+                aria-label="更多"
+                onClick={() => {
+                  setStatusOpen(true);
+                  setSidebarOpen(false);
+                }}
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="sn-reference-chat-stack">
+          {userMessages.map((message) => (
+            <ChatBubble key={message.id} role="user">
+              {message.content}
+            </ChatBubble>
+          ))}
+
+          {assistantMessages[0] ? (
+            <>
+              <ChatBubble role="assistant">{firstAssistant}</ChatBubble>
+              <AssistantActionCard
+                title={`${previewRelease?.kind === 'preview' ? 'v1 · Home' : 'v1 · Home'}`}
+                summary="首个版本先把 Hero、核心优势和操作按钮搭起来，视觉节奏更克制。"
+              />
+            </>
+          ) : null}
+
+          {assistantMessages[1] ? (
+            <>
+              <ChatBubble role="user">把配色换成薄荷绿主色，文案再简洁有力一点。</ChatBubble>
+              <ChatBubble role="assistant">{secondAssistant}</ChatBubble>
+              <AssistantActionCard
+                title="v2 · Home (Updated)"
+                summary="继续压缩内容密度，让主要价值主张和下一步动作更突出。"
+              />
+            </>
+          ) : null}
+        </div>
+
+        <div className="sn-reference-quick-chip-row">
+          <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
+            优化文案
+          </QuickActionChip>
+          <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把配色再轻一点，偏薄荷绿和更柔和的留白。')}>
+            调整配色
+          </QuickActionChip>
+          <QuickActionChip icon={<Plus className="size-4" />} onClick={() => setComposerPrompt('增加一个独立页面，保留当前风格和层次。')}>
+            增加页面
+          </QuickActionChip>
+          <QuickActionChip icon={<Upload className="size-4" />} onClick={() => setComposerPrompt('帮我替换一张更合适的图片 / 视觉素材。')}>
+            上传图片
+          </QuickActionChip>
+          <QuickActionChip icon={<CircleAlert className="size-4" />} onClick={onAutoFix} className={activeAction !== null || !canAutoFix ? 'opacity-50 pointer-events-none' : ''}>
+            修复问题
+          </QuickActionChip>
+          <button
+            className="sn-reference-phone-icon-button is-soft"
+            type="button"
+            aria-label="刷新"
+            onClick={onRebuild}
+            disabled={activeAction !== null}
+          >
+            <RefreshCcw className="size-4" />
+          </button>
+        </div>
+
+        <div className="sn-reference-composer-card is-bottom">
+          <div className="sn-reference-composer-rail">
+            <button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="附件">
+              <Paperclip className="size-4" />
+            </button>
+            <textarea
+              className="sn-reference-composer-input"
+              placeholder="告诉 ShipNow 你想做什么..."
+              value={composerPrompt}
+              onChange={(event) => setComposerPrompt(event.target.value)}
+            />
+            <button
+              className="sn-reference-send-button"
+              type="button"
+              aria-label="发送"
+              onClick={onSubmit}
+              disabled={!canSubmit || activeAction !== null}
+            >
+              <Send className="size-4" />
+            </button>
+          </div>
+          <div className="sn-reference-composer-actions">
+            <ReferencePhoneActionButton variant="secondary" onClick={onOpenPreview}>
+              <Eye className="size-4" /> Preview
+            </ReferencePhoneActionButton>
+            <ReferencePhoneActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+              <Upload className="size-4" /> Publish
+            </ReferencePhoneActionButton>
           </div>
         </div>
       </div>
-      {releases.length === 0 ? (
-        <div className="rounded-[24px] border border-dashed border-[rgb(var(--line))] bg-white/70 p-6 text-sm text-[rgb(var(--muted))]">
-          No releases yet.
-        </div>
-      ) : null}
-      {releases.map((release) => (
-        <div key={release.id} className="rounded-[24px] border border-[rgb(var(--line))] bg-white/80 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="font-medium capitalize">{release.kind}</div>
-            <div className="text-xs text-[rgb(var(--muted))]">{release.isCurrentPreview || release.isCurrentPublic ? 'Current' : 'Archived'}</div>
+
+      <ReferenceWorkspaceDrawer
+        open={sidebarOpen}
+        currentProject={project}
+        recentProjects={recentProjects}
+        navigate={navigate}
+        onClose={() => setSidebarOpen(false)}
+        onCreateProject={() => {
+          navigate('/');
+          setSidebarOpen(false);
+          setStatusOpen(false);
+        }}
+        onOpenTemplates={() => {
+          navigate('/templates');
+          setSidebarOpen(false);
+        }}
+        onOpenProjects={() => {
+          navigate('/projects');
+          setSidebarOpen(false);
+        }}
+        onOpenReleases={() => {
+          setStatusOpen(true);
+        }}
+        onOpenSettings={() => {
+          setStatusOpen(true);
+        }}
+        onSelectTemplate={(prompt) => {
+          navigate('/');
+          setSidebarOpen(false);
+          setStatusOpen(false);
+          setComposerPrompt(prompt);
+        }}
+      />
+
+      <ReferenceWorkspaceStatusDrawer
+        open={statusOpen}
+        project={project}
+        detail={detail}
+        latestTask={latestTask}
+        canPublish={canPublish}
+        activeAction={activeAction}
+        onClose={() => setStatusOpen(false)}
+        onOpenPreview={onOpenPreview}
+        onPublish={onPublish}
+        onContinueEditing={() => document.querySelector('.sn-reference-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+        onAutoFix={onAutoFix}
+        onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+      />
+    </ReferencePhoneShell>
+  );
+}
+
+function ReferenceWorkspaceDrawer({
+  open,
+  currentProject,
+  recentProjects,
+  navigate,
+  onClose,
+  onCreateProject,
+  onOpenTemplates,
+  onOpenProjects,
+  onOpenReleases,
+  onOpenSettings,
+  onSelectTemplate,
+}: {
+  open: boolean;
+  currentProject: ProjectView;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
+  onClose: () => void;
+  onCreateProject: () => void;
+  onOpenTemplates: () => void;
+  onOpenProjects: () => void;
+  onOpenReleases: () => void;
+  onOpenSettings: () => void;
+  onSelectTemplate: (prompt: string) => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="sn-reference-drawer-shell">
+      <div
+        className="sn-reference-modal-backdrop"
+        onClick={onClose}
+        role="presentation"
+      />
+      <div className="sn-reference-drawer-sheet">
+        <button className="sn-reference-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
+          ×
+        </button>
+        <div className="sn-reference-drawer-brand">
+          <div className="sn-reference-mini-brand">
+            <Zap className="size-4" />
+            <span>ShipNow</span>
           </div>
-          <div className="mt-2 text-xs text-[rgb(var(--muted))] break-all">{release.releasePath}</div>
-          <div className="mt-3 grid gap-2 text-xs text-[rgb(var(--muted))] md:grid-cols-2">
-            <div>Created: {formatTime(release.createdAt)}</div>
-            <div>Published: {formatTime(release.publishedAt)}</div>
+        </div>
+        <button className="sn-reference-drawer-item is-highlight" type="button" onClick={onCreateProject}>
+          <Plus className="size-4" />
+          <span>新建项目</span>
+        </button>
+        <div className="sn-reference-drawer-group">
+          <button className="sn-reference-drawer-item" type="button" onClick={onOpenTemplates}>
+            <LayoutGrid className="size-4" />
+            <span>模板中心</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-reference-drawer-item" type="button" onClick={onOpenProjects}>
+            <Folder className="size-4" />
+            <span>项目管理</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-reference-drawer-item" type="button" onClick={onOpenReleases}>
+            <CalendarDays className="size-4" />
+            <span>最近发布</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-reference-drawer-item" type="button" onClick={onOpenSettings}>
+            <Settings2 className="size-4" />
+            <span>设置与偏好</span>
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <div className="sn-reference-drawer-user">
+          <div className="sn-chat-avatar">艾</div>
+          <div>
+            <div className="sn-reference-drawer-user-name">艾米</div>
+            <div className="sn-reference-drawer-user-mail">hello@shipnow.com</div>
           </div>
         </div>
-      ))}
+      </div>
     </div>
   );
 }
 
-function LogsPanel({ currentTask, logs }: { currentTask: TaskView | null; logs: string }) {
+function ReferenceHomeDrawer({
+  open,
+  projectsLoading,
+  recentProjects,
+  navigate,
+  onClose,
+  onCreateProject,
+  onOpenTemplates,
+  onOpenProjects,
+  onSelectTemplate,
+}: {
+  open: boolean;
+  projectsLoading: boolean;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
+  onClose: () => void;
+  onCreateProject: () => void;
+  onOpenTemplates: () => void;
+  onOpenProjects: () => void;
+  onSelectTemplate: (prompt: string) => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="rounded-[24px] border border-[rgb(var(--line))] bg-[rgb(18,23,31)] p-4 text-[rgb(220,225,233)] shadow-inner">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 text-xs text-white/60">
-          <span>{currentTask ? `${currentTask.type} · ${currentTask.status}` : 'No active task'}</span>
-          <span>{currentTask ? currentTask.id : '—'}</span>
+    <div className="sn-reference-drawer-shell">
+      <div className="sn-reference-modal-backdrop" onClick={onClose} role="presentation" />
+      <div className="sn-reference-drawer-sheet">
+        <button className="sn-reference-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
+          ×
+        </button>
+        <div className="sn-reference-drawer-brand">
+          <div className="sn-reference-mini-brand">
+            <Zap className="size-4" />
+            <span>ShipNow</span>
+          </div>
         </div>
-        <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap text-xs leading-6 text-[rgb(220,225,233)]">
-          {logs || 'Logs will appear here once a task starts.'}
-        </pre>
+        <button className="sn-reference-drawer-item is-highlight" type="button" onClick={onCreateProject}>
+          <Plus className="size-4" />
+          <span>新建项目</span>
+        </button>
+        <div className="sn-reference-drawer-group">
+          <button className="sn-reference-drawer-item" type="button" onClick={onOpenTemplates}>
+            <LayoutGrid className="size-4" />
+            <span>模板中心</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-reference-drawer-item" type="button" onClick={onOpenProjects}>
+            <Folder className="size-4" />
+            <span>项目管理</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-reference-drawer-item" type="button" onClick={() => navigate('/projects')}>
+            <CalendarDays className="size-4" />
+            <span>最近发布</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-reference-drawer-item" type="button" onClick={onClose}>
+            <Settings2 className="size-4" />
+            <span>设置与偏好</span>
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <div className="sn-reference-drawer-group">
+          <div className="sn-reference-drawer-item is-static">
+            <span>最近项目</span>
+            <span className="text-xs text-[rgb(var(--muted))]">{projectsLoading ? '加载中' : `${recentProjects.length} 个`}</span>
+          </div>
+          {recentProjects.length === 0 ? (
+            <div className="sn-reference-drawer-empty">还没有项目，先从一句话开始。</div>
+          ) : (
+            recentProjects.map((project) => (
+              <button
+                key={project.projectId}
+                className="sn-reference-drawer-item"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate(`/project/${project.projectId}`);
+                }}
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{project.displayName}</div>
+                  <div className="truncate text-xs text-[rgb(var(--muted))]">{project.publicHandle}</div>
+                </div>
+                <ChevronRight className="size-4" />
+              </button>
+            ))
+          )}
+        </div>
+        <div className="sn-reference-drawer-group">
+          <div className="sn-reference-drawer-item is-static">
+            <span>模板快捷入口</span>
+          </div>
+          {TEMPLATE_PROMPTS.slice(0, 4).map((prompt, index) => (
+            <button
+              key={prompt}
+              type="button"
+              className="sn-reference-drawer-item"
+              onClick={() => {
+                onClose();
+                onSelectTemplate(prompt);
+              }}
+            >
+              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(183,241,223,0.22)] text-xs font-semibold text-[rgb(var(--teal))]">
+                {index + 1}
+              </span>
+              <span className="line-clamp-2 text-left">{prompt}</span>
+            </button>
+          ))}
+        </div>
+        <div className="sn-reference-drawer-user">
+          <div className="sn-chat-avatar">艾</div>
+          <div>
+            <div className="sn-reference-drawer-user-name">艾米</div>
+            <div className="sn-reference-drawer-user-mail">hello@shipnow.com</div>
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+function ReferenceWorkspaceStatusDrawer({
+  open,
+  project,
+  detail,
+  latestTask,
+  canPublish,
+  activeAction,
+  onClose,
+  onOpenPreview,
+  onPublish,
+  onContinueEditing,
+  onAutoFix,
+  onViewLogs,
+}: {
+  open: boolean;
+  project: ProjectView;
+  detail: ProjectDetailResponse | null;
+  latestTask: TaskView | null;
+  canPublish: boolean;
+  activeAction: string | null;
+  onClose: () => void;
+  onOpenPreview: () => void;
+  onPublish: () => void;
+  onContinueEditing: () => void;
+  onAutoFix: () => void;
+  onViewLogs: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  const releases = detail?.releases ?? [];
+
+  return (
+    <div className="sn-reference-drawer-shell">
+      <div className="sn-reference-modal-backdrop" onClick={onClose} role="presentation" />
+      <div className="sn-reference-drawer-sheet">
+        <button className="sn-reference-drawer-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
+          ×
+        </button>
+        <div className="sn-reference-drawer-brand">
+          <div className="sn-reference-mini-brand">
+            <Sparkles className="size-4" />
+            <span>ShipNow 状态</span>
+          </div>
+        </div>
+        <div className="sn-reference-status-row">
+          <div>
+            <div className="sn-reference-label">当前项目</div>
+            <div className="sn-reference-sheet-title">{project.displayName}</div>
+            <div className="sn-reference-note">{project.publicHandle}</div>
+          </div>
+          <Chip tone={statusTone(project.status)}>{statusLabel(project.status)}</Chip>
+        </div>
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-label">当前版本</div>
+          <div className="sn-reference-history-list">
+            <div className="sn-reference-history-item">
+              <span>预览地址</span>
+              <small>{project.previewUrl}</small>
+            </div>
+            <div className="sn-reference-history-item">
+              <span>正式地址</span>
+              <small>{project.publicUrl}</small>
+            </div>
+            <div className="sn-reference-history-item">
+              <span>最后构建</span>
+              <small>{project.lastBuiltAt ? formatTime(project.lastBuiltAt) : '暂无'}</small>
+            </div>
+          </div>
+        </div>
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-label">最近任务</div>
+          {latestTask ? (
+            <div className="sn-reference-task-item">
+              <span>{taskTypeLabel(latestTask.type)}</span>
+              <StatusChip tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}>
+                {taskStatusLabel(latestTask.status)}
+              </StatusChip>
+            </div>
+          ) : (
+            <div className="sn-reference-drawer-empty">还没有最近任务。</div>
+          )}
+        </div>
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-label">最近发布</div>
+          <div className="sn-reference-history-list">
+            {releases.length > 0 ? (
+              releases.slice(0, 3).map((release) => (
+                <div key={release.id} className="sn-reference-history-item">
+                  <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
+                  <small>{formatTime(release.createdAt)}</small>
+                </div>
+              ))
+            ) : (
+              <div className="sn-reference-drawer-empty">还没有发布记录。</div>
+            )}
+          </div>
+        </div>
+        <div className="sn-reference-status-block status-logs">
+          <div className="sn-reference-label">技术日志入口</div>
+          <div className="sn-reference-drawer-empty">
+            {latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <ReferencePhoneActionButton variant="secondary" onClick={onViewLogs}>
+              查看日志
+            </ReferencePhoneActionButton>
+            <ReferencePhoneActionButton variant="secondary" onClick={onClose}>
+              收起
+            </ReferencePhoneActionButton>
+          </div>
+        </div>
+        <div className="sn-reference-confirm-actions">
+          <ReferencePhoneActionButton variant="secondary" onClick={onOpenPreview}>
+            打开预览
+          </ReferencePhoneActionButton>
+          <ReferencePhoneActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
+            发布
+          </ReferencePhoneActionButton>
+          <ReferencePhoneActionButton variant="secondary" onClick={onContinueEditing}>
+            继续编辑
+          </ReferencePhoneActionButton>
+          <ReferencePhoneActionButton variant="secondary" onClick={onAutoFix} disabled={activeAction !== null || !latestTask}>
+            ShipNow 自动修复
+          </ReferencePhoneActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div className="sn-reference-info-row">
+      <span>{label}</span>
+      <span className="break-all text-right font-medium text-[rgb(var(--ink))]">{value}</span>
+    </div>
+  );
+}
+
+function Chip({ tone, children }: { tone: string; children: ReactNode }): ReactElement {
+  const variant = tone === 'danger' ? 'destructive' : tone === 'success' ? 'secondary' : tone === 'warm' ? 'outline' : 'outline';
+  return (
+    <Badge variant={variant as 'outline' | 'secondary' | 'destructive' | 'default'} className={tone === 'warm' ? 'border-amber-200 bg-amber-50 text-amber-800' : tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : tone === 'danger' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-border bg-background text-muted-foreground'}>
+      {children}
+    </Badge>
   );
 }
 

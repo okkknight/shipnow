@@ -31,3 +31,24 @@
 - Reworked the layout standard so each site owns its own `source/`, `preview/`, `releases/`, and `logs/` tree under `/opt/boringmax/site/<siteName>`, migrated the live VPS projects into that per-site structure, and removed the shared `.shipnow` asset bucket after verification.
 - Fixed the migrated preview/public pointer chain so each site's `preview/index.html` and `preview/assets` symlinks follow `current-preview`, then rebuilt and republished `test` to verify the final per-site layout end to end.
 - Stabilized the publish/rebuild/delete action path by skipping `Content-Type: application/json` for bodyless requests and preserving Fastify's real 4xx responses instead of converting them into generic 500s.
+
+## 2026-05-27
+
+- Started the reference-component migration for the UI redesign refactor.
+- Exported the ShipNow reference primitives so business pages can reuse the same visual language as the design-system and visual-reference pages.
+- Switched the mobile home, template center, project list, and project workspace routes to the reference phone shell and card system.
+- Reworked the desktop project conversation stream to use the reference `ChatBubble` and `AssistantActionCard` pattern instead of the older dashboard-style avatar panels.
+- Hid the old workspace top bar on mobile routes so the phone pages are rendered as standalone surfaces instead of compressed desktop shells.
+- Verified the refactor with `pnpm build` and fresh mobile/desktop screenshots.
+- Remaining work: continue migrating the desktop home/templates/projects/preview/publish surfaces and then finish the VPS deployment and verification loop.
+- Continued the cleanup toward a no-compat rewrite: converted the desktop templates page and desktop project workspace to the reference-component layout, removed the old `project-workspace-shell` CSS branch, and kept the build green after the rewrite.
+- Remaining cleanup: the obsolete `ProjectWorkspaceMobile` stub is still present in `src/App.tsx` and should be removed or collapsed into the active mobile reference path before the next stage is considered fully clean.
+- Finished the follow-up cleanup pass: removed the obsolete `ProjectWorkspaceMobile` stub, rewrote the mobile project drawer/status surfaces onto the reference drawer language, and gated the old global drawer chrome so it no longer double-renders on mobile project routes.
+- Added a dedicated home mobile reference drawer so the home page no longer depends on the old global drawer chrome on mobile; the remaining old global drawer classes are now desktop-only and can be migrated next.
+- Continued the no-compat cleanup by making the project reference drawers return `null` unless they are actually open, and renamed the project drawer/status helpers to `ReferenceWorkspaceDrawer` and `ReferenceWorkspaceStatusDrawer` so the code no longer carries stale mobile-only names.
+- Removed the last `workspace-empty` fallback from the project route and replaced it with the reference `EmptyState` component so the project flow no longer carries the old empty-shell wording.
+- Finished the naming cleanup for the reference surfaces by renaming `PublishConfirmDialog`, `ProjectWorkspaceMobileReference`, and `HomeMobileWorkspaceDrawer` to reference-prefixed component names, so the code now reads consistently with the rendered UI language.
+- Renamed the top-level `workspace-backdrop` shell class to `sn-app-backdrop` so the app shell no longer carries the old workspace-era naming.
+- Fixed the mobile home crash caused by a missing `sidebarOpen` prop on `HomeWorkspace`, then re-verified the home page in an isolated headless Chrome session to confirm the standalone mobile reference layout renders correctly.
+- Fixed the publish-failure blank page by importing the missing `Info` icon into `src/App.tsx`, then re-verified both mobile and desktop publish-failure routes in the browser so the failure result page now renders in the reference layout.
+- Aligned the mobile publish result pages more closely with the reference flow by removing the extra result header strip and cleaning the unused mobile result props, then re-verified the mobile success/failure routes in the browser.

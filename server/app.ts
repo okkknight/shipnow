@@ -7,7 +7,7 @@ import { ZodError, z } from 'zod';
 import { findIndexFile, findStaticFile, sendFile } from './utils.js';
 import type { ShipNowEnv } from './env.js';
 import { ShipNowManager } from './shipnowManager.js';
-import { projectNameSchema } from './security.js';
+import { publicHandleSchema, projectIdSchema } from './security.js';
 import type { FastifyReply } from 'fastify';
 
 function normalizePrefix(prefix: string): string {
@@ -59,6 +59,11 @@ async function sendIndex(reply: FastifyReply, filePath: string, apiBase: string,
   ].filter(Boolean);
   const rendered = injectHeadContent(normalizedHtml, tags.join('\n  '));
   await reply.send(rendered);
+}
+
+async function maybeRedirect(reply: FastifyReply, to: string): Promise<void> {
+  reply.header('Cache-Control', 'no-store');
+  reply.redirect(to, 301);
 }
 
 export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv) {
@@ -146,8 +151,6 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   app.post(apiRoute('projects'), async (request, reply) => {
     const body = z
       .object({
-        name: projectNameSchema,
-        title: z.string().min(1).max(120),
         prompt: z.string().min(1).max(10_000),
       })
       .parse(request.body);
@@ -156,31 +159,41 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     return result;
   });
 
-  app.get(apiRoute('projects/:projectName'), async (request) => {
-    const projectName = projectNameSchema.parse((request.params as { projectName: string }).projectName);
-    const detail = manager.getProjectDetail(projectName);
+  app.get(apiRoute('projects/:projectId'), async (request) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    const detail = manager.getProjectDetail(projectId);
     return detail;
   });
 
-  app.post(apiRoute('projects/:projectName/changes'), async (request) => {
-    const projectName = projectNameSchema.parse((request.params as { projectName: string }).projectName);
+  app.post(apiRoute('projects/:projectId/changes'), async (request) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
     const body = z.object({ prompt: z.string().min(1).max(10_000) }).parse(request.body);
-    return await manager.applyChange(projectName, body.prompt);
+    return await manager.applyChange(projectId, body.prompt);
   });
 
-  app.post(apiRoute('projects/:projectName/rebuild'), async (request) => {
-    const projectName = projectNameSchema.parse((request.params as { projectName: string }).projectName);
-    return await manager.rebuild(projectName);
+  app.post(apiRoute('projects/:projectId/rebuild'), async (request) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    return await manager.rebuild(projectId);
   });
 
-  app.post(apiRoute('projects/:projectName/publish'), async (request) => {
-    const projectName = projectNameSchema.parse((request.params as { projectName: string }).projectName);
-    return await manager.publish(projectName);
+  app.post(apiRoute('projects/:projectId/publish'), async (request) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    return await manager.publish(projectId);
   });
 
-  app.delete(apiRoute('projects/:projectName'), async (request) => {
-    const projectName = projectNameSchema.parse((request.params as { projectName: string }).projectName);
-    return await manager.deleteProject(projectName);
+  app.post(apiRoute('projects/:projectId/rename'), async (request) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    const body = z
+      .object({
+        displayName: publicHandleSchema,
+      })
+      .parse(request.body);
+    return await manager.renameProject({ projectId, displayName: body.displayName });
+  });
+
+  app.delete(apiRoute('projects/:projectId'), async (request) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    return await manager.deleteProject(projectId);
   });
 
   app.get(apiRoute('tasks/:taskId'), async (request, reply) => {
@@ -204,11 +217,10 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   });
 
   const publicRoot = env.publicStaticRoot;
-  const previewRoot = env.publicStaticRoot;
   const clientDistRoot = resolve(process.cwd(), 'dist/client');
   const shipnowIndexApiBase = env.shipnowApiBaseUrl;
 
-  async function serveRelease(prefix: string, rootDir: string, requestPath: string, reply: any, baseHref?: string): Promise<boolean> {
+  async function serveRelease(prefix: string, rootDir: string, requestPath: string, reply: FastifyReply, baseHref?: string): Promise<boolean> {
     if (!existsSync(rootDir)) {
       return false;
     }
@@ -221,7 +233,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     }
     if (indexFile) {
       if (baseHref) {
-        await sendIndex(reply as any, indexFile, shipnowIndexApiBase, baseHref);
+        await sendIndex(reply, indexFile, shipnowIndexApiBase, baseHref);
       } else {
         await sendFile(reply, indexFile);
       }
@@ -230,7 +242,58 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     return false;
   }
 
-  async function serveShipNowApp(requestPath: string, reply: any): Promise<boolean> {
+  async function servePreviewRoute(requestPath: string, reply: FastifyReply): Promise<boolean> {
+    const previewPrefix = '/preview/';
+    if (!requestPath.startsWith(previewPrefix)) {
+      return false;
+    }
+    const remainder = requestPath.slice(previewPrefix.length);
+    const [handle] = remainder.split('/');
+    const resolution = manager.resolveProjectHandle(handle);
+    if (!resolution) {
+      reply.code(404).send('Preview not found.');
+      return true;
+    }
+    if (resolution.redirected) {
+      const redirectedPath = requestPath.replace(`/preview/${handle}`, `/preview/${resolution.project.publicHandle}`);
+      await maybeRedirect(reply, redirectedPath);
+      return true;
+    }
+    const projectRoot = resolve(publicRoot, resolution.project.projectId, 'preview');
+    const rest = requestPath.slice((previewPrefix + handle).length);
+    if (!(await serveRelease(`/preview/${handle}`, projectRoot, rest, reply, `/preview/${resolution.project.publicHandle}/`))) {
+      reply.code(404).send('Preview not found.');
+    }
+    return true;
+  }
+
+  async function servePublicRoute(requestPath: string, reply: FastifyReply): Promise<boolean> {
+    const rootSegments = requestPath.replace(/^\/+/, '').split('/').filter(Boolean);
+    if (rootSegments.length === 0) {
+      return false;
+    }
+    const handle = rootSegments[0];
+    if (handle === 'shipnow' || handle === 'api' || handle === 'preview') {
+      return false;
+    }
+    const resolution = manager.resolveProjectHandle(handle);
+    if (!resolution) {
+      return false;
+    }
+    if (resolution.redirected) {
+      const redirectedPath = requestPath.replace(`/${handle}`, `/${resolution.project.publicHandle}`);
+      await maybeRedirect(reply, redirectedPath);
+      return true;
+    }
+    const projectRoot = resolve(publicRoot, resolution.project.projectId);
+    const rest = requestPath.slice(1 + handle.length);
+    if (!(await serveRelease(`/${handle}`, projectRoot, rest, reply, `/${resolution.project.publicHandle}/`))) {
+      reply.code(404).send('Site not found.');
+    }
+    return true;
+  }
+
+  async function serveShipNowApp(requestPath: string, reply: FastifyReply): Promise<boolean> {
     if (!existsSync(clientDistRoot)) {
       return false;
     }
@@ -240,7 +303,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     }
 
     const prefixMatch = isAppPrefixRoot
-      ? !requestPath.startsWith('/preview/') && !requestPath.startsWith('/site/') && !requestPath.startsWith(apiRoutePrefix)
+      ? !requestPath.startsWith('/preview/') && !requestPath.startsWith('/api/')
       : requestPath === appRootRoute || requestPath.startsWith(`${appRootRoute}/`);
 
     if (!prefixMatch) {
@@ -257,85 +320,27 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
       return true;
     }
     if (indexFile) {
-      await sendIndex(reply as any, indexFile, shipnowIndexApiBase);
+      await sendIndex(reply, indexFile, shipnowIndexApiBase);
       return true;
     }
     return false;
   }
 
-  async function servePreviewOrPublic(requestPath: string, reply: any): Promise<boolean> {
-    const previewPrefix = '/preview/';
-    const sitePrefix = '/site/';
-    if (requestPath.startsWith(previewPrefix)) {
-      const projectName = requestPath.slice(previewPrefix.length).split('/')[0];
-      const projectRoot = resolve(previewRoot, projectName, 'preview');
-      const rest = requestPath.slice((previewPrefix + projectName).length);
-      return await serveRelease(`/preview/${projectName}`, projectRoot, rest, reply, `/preview/${projectName}/`);
-    }
-    if (requestPath.startsWith(sitePrefix)) {
-      const projectName = requestPath.slice(sitePrefix.length).split('/')[0];
-      const projectRoot = resolve(publicRoot, projectName);
-      const rest = requestPath.slice((sitePrefix + projectName).length);
-      return await serveRelease(`/site/${projectName}`, projectRoot, rest, reply, `/site/${projectName}/`);
-    }
-
-    const rootSegments = requestPath.replace(/^\/+/, '').split('/').filter(Boolean);
-    if (rootSegments.length > 0) {
-      const projectName = rootSegments[0];
-      const parsed = projectNameSchema.safeParse(projectName);
-      if (parsed.success) {
-        const projectRoot = resolve(publicRoot, parsed.data);
-        const baseHref = `/${parsed.data}/`;
-        if (await serveRelease(`/${parsed.data}`, projectRoot, requestPath, reply, baseHref)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  app.get('/preview/:projectName/*', async (request, reply) => {
-    const { projectName } = request.params as { projectName: string };
-    const safeName = projectNameSchema.parse(projectName);
-    const projectRoot = resolve(previewRoot, safeName, 'preview');
-    const rest = request.url.slice(`/preview/${safeName}`.length);
-    if (!(await serveRelease(`/preview/${safeName}`, projectRoot, rest, reply, `/preview/${safeName}/`))) {
-      reply.code(404).send('Preview not found.');
-    }
+  app.get('/preview/:projectHandle', async (request, reply) => {
+    const { projectHandle } = request.params as { projectHandle: string };
+    await servePreviewRoute(`/preview/${projectHandle}`, reply);
   });
 
-  app.get('/preview/:projectName', async (request, reply) => {
-    const { projectName } = request.params as { projectName: string };
-    const safeName = projectNameSchema.parse(projectName);
-    const projectRoot = resolve(previewRoot, safeName, 'preview');
-    if (!(await serveRelease(`/preview/${safeName}`, projectRoot, '', reply, `/preview/${safeName}/`))) {
-      reply.code(404).send('Preview not found.');
-    }
-  });
-
-  app.get('/site/:projectName/*', async (request, reply) => {
-    const { projectName } = request.params as { projectName: string };
-    const safeName = projectNameSchema.parse(projectName);
-    const projectRoot = resolve(publicRoot, safeName);
-    const rest = request.url.slice(`/site/${safeName}`.length);
-    if (!(await serveRelease(`/site/${safeName}`, projectRoot, rest, reply, `/site/${safeName}/`))) {
-      reply.code(404).send('Site not found.');
-    }
-  });
-
-  app.get('/site/:projectName', async (request, reply) => {
-    const { projectName } = request.params as { projectName: string };
-    const safeName = projectNameSchema.parse(projectName);
-    const projectRoot = resolve(publicRoot, safeName);
-    if (!(await serveRelease(`/site/${safeName}`, projectRoot, '', reply, `/site/${safeName}/`))) {
-      reply.code(404).send('Site not found.');
-    }
+  app.get('/preview/:projectHandle/*', async (request, reply) => {
+    const { projectHandle } = request.params as { projectHandle: string };
+    const requestPath = request.url.split('?')[0];
+    await servePreviewRoute(requestPath, reply);
   });
 
   app.get(appRootRoute, async (_request, reply) => {
     const indexFile = await findIndexFile(clientDistRoot);
     if (indexFile) {
-      await sendIndex(reply as any, indexFile, shipnowIndexApiBase);
+      await sendIndex(reply, indexFile, shipnowIndexApiBase);
       return;
     }
     reply.type('text/html').send(`<!doctype html>
@@ -369,7 +374,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
 
   app.setNotFoundHandler(async (request, reply) => {
     const requestPath = request.url.split('?')[0];
-    if (await servePreviewOrPublic(requestPath, reply)) {
+    if (await servePreviewRoute(requestPath, reply)) {
       return;
     }
     if (requestPath.startsWith(apiRoutePrefix)) {
@@ -377,6 +382,9 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
       return;
     }
     if (await serveShipNowApp(requestPath, reply)) {
+      return;
+    }
+    if (await servePublicRoute(requestPath, reply)) {
       return;
     }
     reply.code(404).send({ error: 'Not found' });

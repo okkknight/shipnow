@@ -1,11 +1,27 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { mkdir, rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import type { ShipNowEnv } from './env.js';
 import { ShipNowStore } from './db.js';
-import type { ProjectRecord, ProjectStatus, ProjectType, ProjectView, ReleaseKind, TaskRecord, TaskType, TaskView } from './types.js';
-import { validateProjectName } from './security.js';
+import type {
+  ProjectEventRecord,
+  ProjectMessageRecord,
+  ProjectRecord,
+  ProjectStatus,
+  ProjectType,
+  ProjectView,
+  ReleaseKind,
+  ReleaseRecord,
+  TaskRecord,
+  TaskType,
+  TaskView,
+} from './types.js';
+import {
+  projectIdSchema,
+  slugifyProjectName,
+  validateProjectHandle,
+} from './security.js';
 import {
   copyDefaultTemplate,
   ensureWorkspaceRoots,
@@ -19,15 +35,18 @@ import {
 import { runCommand } from './process.js';
 
 interface EnqueueInput {
-  projectName: string;
+  projectId: string;
   type: TaskType;
   prompt: string;
 }
 
 interface CreateProjectInput {
-  name: string;
-  title: string;
   prompt: string;
+}
+
+interface RenameProjectInput {
+  projectId: string;
+  displayName: string;
 }
 
 function nowIso(): string {
@@ -42,16 +61,17 @@ function statusText(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
-function inferProjectType(title: string, prompt: string): ProjectType {
-  const haystack = `${title} ${prompt}`.toLowerCase();
-  return /(\bgame\b|\bphaser\b|小游戏|游戏|功德篮球|投篮|arcade|puzzle|platformer|runner|shoot|basketball|pong|snake|flappy)/i.test(haystack)
+function inferProjectType(prompt: string): ProjectType {
+  return /(\bgame\b|\bphaser\b|小游戏|游戏|功德篮球|投篮|arcade|puzzle|platformer|runner|shoot|basketball|pong|snake|flappy)/i.test(prompt)
     ? 'game'
     : 'landing';
 }
 
 function buildCodexPrompt(project: ProjectRecord, changePrompt: string): string {
   const lines = [
-    `Current project name: ${project.name}`,
+    `Project id: ${project.project_id}`,
+    `Project handle: ${project.public_handle}`,
+    `Project display name: ${project.display_name}`,
     `Template mode: ${project.type}`,
     `User request: ${changePrompt}`,
     'This is a ShipNow-managed pure front-end static project.',
@@ -75,17 +95,12 @@ function buildCodexPrompt(project: ProjectRecord, changePrompt: string): string 
   return lines.join('\n');
 }
 
-function projectRouteName(projectName: string): string {
-  return encodeURIComponent(projectName);
-}
-
-async function readMaybeJson(path: string): Promise<unknown | null> {
-  try {
-    const text = await readFile(path, 'utf8');
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
+function randomHandleSuffix(): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = randomBytes(4);
+  return Array.from(bytes)
+    .map((byte) => alphabet[byte % alphabet.length])
+    .join('');
 }
 
 export class ShipNowManager {
@@ -115,13 +130,24 @@ export class ShipNowManager {
     return this.store.listProjects().map((project) => this.toProjectView(project));
   }
 
-  getProject(projectName: string): ProjectView | null {
-    const project = this.store.getProject(projectName);
+  getProject(projectId: string): ProjectView | null {
+    const project = this.store.getProjectById(projectIdSchema.parse(projectId));
     return project ? this.toProjectView(project) : null;
   }
 
-  listTasks(projectName: string): TaskView[] {
-    return this.store.listTasksForProject(projectName).map((task) => this.toTaskView(task));
+  resolveProjectHandle(handle: string): { project: ProjectView; redirected: boolean } | null {
+    const resolution = this.store.resolveProjectHandle(handle);
+    if (!resolution || resolution.project.status === 'deleted') {
+      return null;
+    }
+    return {
+      project: this.toProjectView(resolution.project),
+      redirected: resolution.redirected,
+    };
+  }
+
+  listTasks(projectId: string): TaskView[] {
+    return this.store.listTasksForProject(projectIdSchema.parse(projectId)).map((task) => this.toTaskView(task));
   }
 
   getTask(taskId: string): TaskView | null {
@@ -129,9 +155,27 @@ export class ShipNowManager {
     return task ? this.toTaskView(task) : null;
   }
 
-  getProjectDetail(projectName: string): {
+  getProjectDetail(projectId: string): {
     project: ProjectView;
     tasks: TaskView[];
+    messages: Array<{
+      id: string;
+      projectId: string;
+      taskId: string | null;
+      role: ProjectMessageRecord['role'];
+      content: string;
+      createdAt: string;
+    }>;
+    events: Array<{
+      id: string;
+      projectId: string;
+      taskId: string | null;
+      type: string;
+      title: string;
+      detail: string | null;
+      data: Record<string, unknown> | null;
+      createdAt: string;
+    }>;
     releases: Array<{
       id: string;
       kind: ReleaseKind;
@@ -144,22 +188,23 @@ export class ShipNowManager {
       isCurrentPublic: boolean;
     }>;
   } {
-    const project = this.requireProject(projectName);
-    const releases = this.store.listReleases(project.name).map((release) => ({
-      id: release.id,
-      kind: release.kind,
-      source: release.source,
-      releasePath: release.release_path,
-      createdAt: release.created_at,
-      publishedAt: release.published_at,
-      buildTaskId: release.build_task_id,
-      isCurrentPreview: release.is_current_preview === 1,
-      isCurrentPublic: release.is_current_public === 1,
-    }));
+    const project = this.requireProject(projectId);
     return {
       project: this.toProjectView(project),
-      tasks: this.listTasks(project.name),
-      releases,
+      tasks: this.listTasks(project.project_id),
+      messages: this.store.listMessages(project.project_id).map((message) => this.toMessageView(message)),
+      events: this.store.listEvents(project.project_id).map((event) => this.toEventView(event)),
+      releases: this.store.listReleases(project.project_id).map((release) => ({
+        id: release.id,
+        kind: release.kind,
+        source: release.source,
+        releasePath: release.release_path,
+        createdAt: release.created_at,
+        publishedAt: release.published_at,
+        buildTaskId: release.build_task_id,
+        isCurrentPreview: release.is_current_preview === 1,
+        isCurrentPublic: release.is_current_public === 1,
+      })),
     };
   }
 
@@ -168,81 +213,228 @@ export class ShipNowManager {
   }
 
   async createProject(input: CreateProjectInput): Promise<{ project: ProjectView; taskId: string }> {
-    const name = validateProjectName(input.name);
-    if (this.store.getProject(name)) {
-      throw new Error(`Project ${name} already exists.`);
+    const prompt = input.prompt.trim();
+    if (!prompt) {
+      throw new Error('Project prompt is required.');
     }
 
-    const paths = await prepareProjectWorkspace(this.env, name);
-    const type = inferProjectType(input.title, input.prompt);
+    const projectId = this.generateProjectId();
+    const displayName = await this.generateProjectHandle();
+    const title = prompt;
+    const type = inferProjectType(prompt);
+    const paths = await prepareProjectWorkspace(this.env, projectId);
+
     const project = this.store.createProject({
-      name,
+      projectId,
+      displayName,
+      publicHandle: displayName,
       type,
-      title: input.title,
-      prompt: input.prompt,
+      title,
+      prompt,
       sourceRoot: paths.sourceRoot,
       status: 'generating',
     });
-    const task = await this.enqueueTask({ projectName: name, type: 'create_project', prompt: input.prompt });
-    this.store.updateProjectStatus(name, 'generating');
-    this.store.updateProjectTaskLink(name, task.id);
-    return { project: this.toProjectView(this.store.getProject(name) ?? project), taskId: task.id };
+
+    this.store.createMessage({
+      projectId,
+      role: 'user',
+      content: prompt,
+    });
+    this.store.createMessage({
+      projectId,
+      role: 'assistant',
+      content: `已为你生成项目 ${displayName}，正在创建工作区并开始构建。`,
+    });
+    this.store.createEvent({
+      projectId,
+      type: 'project_created',
+      title: '项目已创建',
+      detail: `已生成公开句柄 ${displayName}。`,
+      data: { projectId, displayName, publicHandle: displayName, type },
+    });
+
+    const task = await this.enqueueTask({ projectId, type: 'create_project', prompt });
+    this.store.updateProjectStatus(projectId, 'generating');
+    this.store.updateProjectTaskLink(projectId, task.id);
+    this.store.createEvent({
+      projectId,
+      taskId: task.id,
+      type: 'task_queued',
+      title: '创建任务已排队',
+      detail: 'ShipNow 会先安装依赖，再开始执行 Codex 修改。',
+      data: { taskId: task.id, taskType: task.type },
+    });
+    return { project: this.toProjectView(this.store.getProjectById(projectId) ?? project), taskId: task.id };
   }
 
-  async applyChange(projectName: string, prompt: string): Promise<{ project: ProjectView; taskId: string }> {
-    const project = this.requireActiveProject(projectName);
-    const task = await this.enqueueTask({ projectName: project.name, type: 'apply_change', prompt });
-    this.store.updateProjectStatus(project.name, 'generating');
-    return { project: this.toProjectView(this.requireProject(project.name)), taskId: task.id };
+  async applyChange(projectId: string, prompt: string): Promise<{ project: ProjectView; taskId: string }> {
+    const project = this.requireActiveProject(projectId);
+    const normalizedPrompt = prompt.trim();
+    if (!normalizedPrompt) {
+      throw new Error('Enter a change request first.');
+    }
+    this.store.createMessage({
+      projectId: project.project_id,
+      role: 'user',
+      content: normalizedPrompt,
+    });
+    this.store.createMessage({
+      projectId: project.project_id,
+      role: 'assistant',
+      content: '收到，我会直接修改当前项目并重新构建预览。',
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      type: 'change_requested',
+      title: '收到修改请求',
+      detail: normalizedPrompt,
+    });
+    const task = await this.enqueueTask({ projectId: project.project_id, type: 'apply_change', prompt: normalizedPrompt });
+    this.store.updateProjectStatus(project.project_id, 'generating');
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'task_queued',
+      title: '修改任务已排队',
+      detail: 'ShipNow 会在当前工作区中执行修改。',
+      data: { taskId: task.id, taskType: task.type },
+    });
+    return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
-  async rebuild(projectName: string): Promise<{ project: ProjectView; taskId: string }> {
-    const project = this.requireActiveProject(projectName);
-    const task = await this.enqueueTask({ projectName: project.name, type: 'rebuild', prompt: 'Rebuild the current project without changing the intended product direction.' });
-    this.store.updateProjectStatus(project.name, 'generating');
-    return { project: this.toProjectView(this.requireProject(project.name)), taskId: task.id };
+  async rebuild(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
+    const project = this.requireActiveProject(projectId);
+    this.store.createMessage({
+      projectId: project.project_id,
+      role: 'assistant',
+      content: '我会直接重新构建当前项目，保持现有方向不变。',
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      type: 'rebuild_requested',
+      title: '开始重新构建',
+      detail: 'ShipNow 将不修改内容，只重新执行构建链路。',
+    });
+    const task = await this.enqueueTask({
+      projectId: project.project_id,
+      type: 'rebuild',
+      prompt: 'Rebuild the current project without changing the intended product direction.',
+    });
+    this.store.updateProjectStatus(project.project_id, 'generating');
+    return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
-  async publish(projectName: string): Promise<{ project: ProjectView; taskId: string }> {
-    const project = this.requireActiveProject(projectName);
-    const task = await this.enqueueTask({ projectName: project.name, type: 'publish', prompt: 'Publish the latest successful preview release to the public release.' });
-    this.store.updateProjectStatus(project.name, 'publishing');
-    return { project: this.toProjectView(this.requireProject(project.name)), taskId: task.id };
+  async publish(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
+    const project = this.requireActiveProject(projectId);
+    this.store.createMessage({
+      projectId: project.project_id,
+      role: 'assistant',
+      content: `正在发布 ${project.display_name}，请确认公开地址。`,
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      type: 'publish_requested',
+      title: '开始发布',
+      detail: `公开地址将切换到 ${project.public_handle}。`,
+      data: { publicHandle: project.public_handle },
+    });
+    const task = await this.enqueueTask({
+      projectId: project.project_id,
+      type: 'publish',
+      prompt: 'Publish the latest successful preview release to the public release.',
+    });
+    this.store.updateProjectStatus(project.project_id, 'publishing');
+    return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
-  async deleteProject(projectName: string): Promise<{ project: ProjectView; taskId: string }> {
-    const project = this.requireProject(projectName);
-    const task = await this.enqueueTask({ projectName: project.name, type: 'delete_project', prompt: 'Delete the project and remove its workspace artifacts.' });
+  async renameProject(input: RenameProjectInput): Promise<ProjectView> {
+    const projectId = projectIdSchema.parse(input.projectId);
+    const project = this.requireProject(projectId);
+    const normalized = validateProjectHandle(slugifyProjectName(input.displayName));
+    if (normalized === project.public_handle && normalized === project.display_name) {
+      return this.toProjectView(project);
+    }
+    if (normalized !== project.public_handle && this.store.handleExists(normalized)) {
+      throw new Error(`Project handle ${normalized} already exists.`);
+    }
+    const next = this.store.renameProject(projectId, normalized, normalized);
+    if (!next) {
+      throw new Error(`Project ${projectId} not found.`);
+    }
+    this.store.createMessage({
+      projectId,
+      role: 'assistant',
+      content: `项目名称已更新为 ${normalized}。`,
+    });
+    this.store.createEvent({
+      projectId,
+      type: 'project_renamed',
+      title: '项目名称已更新',
+      detail: `公开地址改为 ${normalized}。`,
+      data: { displayName: normalized, publicHandle: normalized },
+    });
+    return this.toProjectView(next);
+  }
+
+  async deleteProject(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
+    const project = this.requireProject(projectId);
+    const task = await this.enqueueTask({
+      projectId: project.project_id,
+      type: 'delete_project',
+      prompt: 'Delete the project and remove its workspace artifacts.',
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      type: 'delete_requested',
+      title: '请求删除项目',
+      detail: 'ShipNow 会在任务执行后移除工作区。',
+    });
     return { project: this.toProjectView(project), taskId: task.id };
   }
 
-  private requireProject(projectName: string): ProjectRecord {
-    const project = this.store.getProject(validateProjectName(projectName));
+  private generateProjectId(): string {
+    return `proj_${randomBytes(6).toString('hex')}`;
+  }
+
+  private async generateProjectHandle(): Promise<string> {
+    for (let i = 0; i < 256; i += 1) {
+      const candidate = `untitle-${randomHandleSuffix()}`;
+      if (!this.store.handleExists(candidate)) {
+        return candidate;
+      }
+    }
+    throw new Error('Unable to generate a unique project handle.');
+  }
+
+  private requireProject(projectId: string): ProjectRecord {
+    const project = this.store.getProjectById(projectIdSchema.parse(projectId));
     if (!project) {
-      throw new Error(`Project ${projectName} not found.`);
+      throw new Error(`Project ${projectId} not found.`);
     }
     return project;
   }
 
-  private requireActiveProject(projectName: string): ProjectRecord {
-    const project = this.requireProject(projectName);
+  private requireActiveProject(projectId: string): ProjectRecord {
+    const project = this.requireProject(projectId);
     if (project.status === 'deleted') {
-      throw new Error(`Project ${projectName} has been deleted.`);
+      throw new Error(`Project ${projectId} has been deleted.`);
     }
     return project;
   }
 
   private toProjectView(project: ProjectRecord): ProjectView {
     return {
-      name: project.name,
+      projectId: project.project_id,
+      displayName: project.display_name,
+      publicHandle: project.public_handle,
       type: project.type,
       title: project.title,
       prompt: project.prompt,
       status: project.status,
-      previewUrl: displayUrl(this.env.previewBaseUrl, projectRouteName(project.name)),
-      publicUrl: displayUrl(this.env.publicBaseUrl, projectRouteName(project.name)),
-      previewRoute: displayUrl(this.env.previewBaseUrl, projectRouteName(project.name)),
-      publicRoute: displayUrl(this.env.publicBaseUrl, projectRouteName(project.name)),
+      previewUrl: displayUrl(this.env.previewBaseUrl, project.public_handle),
+      publicUrl: displayUrl(this.env.publicBaseUrl, project.public_handle),
+      previewRoute: displayUrl(this.env.previewBaseUrl, project.public_handle),
+      publicRoute: displayUrl(this.env.publicBaseUrl, project.public_handle),
       createdAt: project.created_at,
       updatedAt: project.updated_at,
       lastBuiltAt: project.last_built_at,
@@ -258,7 +450,7 @@ export class ShipNowManager {
   private toTaskView(task: TaskRecord): TaskView {
     return {
       id: task.id,
-      projectName: task.project_name,
+      projectId: task.project_id,
       type: task.type,
       status: task.status,
       prompt: task.prompt,
@@ -271,19 +463,59 @@ export class ShipNowManager {
     };
   }
 
+  private toMessageView(message: ProjectMessageRecord): {
+    id: string;
+    projectId: string;
+    taskId: string | null;
+    role: ProjectMessageRecord['role'];
+    content: string;
+    createdAt: string;
+  } {
+    return {
+      id: message.id,
+      projectId: message.project_id,
+      taskId: message.task_id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.created_at,
+    };
+  }
+
+  private toEventView(event: ProjectEventRecord & { data: Record<string, unknown> | null }): {
+    id: string;
+    projectId: string;
+    taskId: string | null;
+    type: string;
+    title: string;
+    detail: string | null;
+    data: Record<string, unknown> | null;
+    createdAt: string;
+  } {
+    return {
+      id: event.id,
+      projectId: event.project_id,
+      taskId: event.task_id,
+      type: event.type,
+      title: event.title,
+      detail: event.detail,
+      data: event.data,
+      createdAt: event.created_at,
+    };
+  }
+
   private async enqueueTask(input: EnqueueInput): Promise<TaskRecord> {
-    const project = this.requireProject(input.projectName);
-    if (this.store.activeTaskForProject(project.name)) {
-      throw new Error(`Project ${project.name} already has a running or pending task.`);
+    const project = this.requireProject(input.projectId);
+    if (this.store.activeTaskForProject(project.project_id)) {
+      throw new Error(`Project ${project.display_name} already has a running or pending task.`);
     }
     const task = this.store.createTask({
-      projectName: project.name,
+      projectId: project.project_id,
       type: input.type,
       prompt: input.prompt,
-      logPath: projectPaths(this.env, project.name).logPath,
+      logPath: projectPaths(this.env, project.project_id).logPath,
     });
-    this.store.updateProjectTaskLink(project.name, task.id);
-    await this.store.appendTaskLogAsync(task.id, `Queued task ${task.type} for project ${project.name}.`);
+    this.store.updateProjectTaskLink(project.project_id, task.id);
+    await this.store.appendTaskLogAsync(task.id, `Queued task ${task.type} for project ${project.display_name}.`);
     this.scheduleDrain();
     return task;
   }
@@ -329,10 +561,18 @@ export class ShipNowManager {
   }
 
   private async executeTask(task: TaskRecord): Promise<void> {
-    const project = this.requireProject(task.project_name);
+    const project = this.requireProject(task.project_id);
     const startedAt = nowIso();
     this.store.setTaskStatus(task.id, 'running', { started_at: startedAt });
-    await this.store.appendTaskLogAsync(task.id, `Starting ${task.type} for ${project.name}.`);
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'task_started',
+      title: '任务开始执行',
+      detail: statusText(task.type),
+      data: { taskId: task.id, taskType: task.type },
+    });
+    await this.store.appendTaskLogAsync(task.id, `Starting ${task.type} for ${project.display_name}.`);
 
     const timeoutMs = this.env.taskTimeoutSeconds * 1000;
 
@@ -357,24 +597,48 @@ export class ShipNowManager {
           throw new Error(`Unsupported task type ${task.type}`);
       }
       this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
+      this.store.createEvent({
+        projectId: project.project_id,
+        taskId: task.id,
+        type: 'task_completed',
+        title: '任务执行完成',
+        detail: `任务 ${task.id} 已成功完成。`,
+        data: { taskId: task.id, taskType: task.type },
+      });
       await this.store.appendTaskLogAsync(task.id, `Task ${task.id} completed successfully.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.store.appendTaskLogAsync(task.id, `Task ${task.id} failed: ${message}`);
       this.store.setTaskStatus(task.id, 'failed', { finished_at: nowIso(), error_message: message });
+      this.store.createEvent({
+        projectId: project.project_id,
+        taskId: task.id,
+        type: 'task_failed',
+        title: '任务执行失败',
+        detail: message,
+        data: { taskId: task.id, taskType: task.type, error: message },
+      });
+      this.store.createMessage({
+        projectId: project.project_id,
+        taskId: task.id,
+        role: 'assistant',
+        content: `这次操作失败了：${message}`,
+      });
       if (task.type === 'publish') {
-        this.store.updateProjectStatus(project.name, 'publish_failed');
+        this.store.updateProjectStatus(project.project_id, 'publish_failed');
       } else if (task.type !== 'delete_project') {
-        this.store.updateProjectStatus(project.name, 'build_failed');
+        this.store.updateProjectStatus(project.project_id, 'build_failed');
       }
     }
   }
 
   private async executeCreateProject(project: ProjectRecord, task: TaskRecord, timeoutMs: number): Promise<void> {
-    const paths = await prepareProjectWorkspace(this.env, project.name);
+    const paths = await prepareProjectWorkspace(this.env, project.project_id);
     await copyDefaultTemplate(this.env, paths);
     await writeProjectConfig(paths, {
-      name: project.name,
+      projectId: project.project_id,
+      displayName: project.display_name,
+      publicHandle: project.public_handle,
       type: project.type,
       title: project.title,
       prompt: project.prompt,
@@ -403,52 +667,94 @@ export class ShipNowManager {
 
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
-    const release = await this.publishPreviewRelease(project.name, task.id, paths.sourceRoot);
-    this.store.updateProjectBuildState(project.name, release.release_path, 'preview_ready');
-    this.store.updateProjectTaskLink(project.name, task.id);
+    const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
+    this.store.updateProjectBuildState(project.project_id, release.release_path, 'preview_ready');
+    this.store.updateProjectTaskLink(project.project_id, task.id);
+    this.store.createMessage({
+      projectId: project.project_id,
+      taskId: task.id,
+      role: 'assistant',
+      content: '预览已经准备好了，你可以继续修改或直接发布。',
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'preview_ready',
+      title: '预览已就绪',
+      detail: '最新构建已发布到预览目录。',
+      data: { previewReleasePath: release.release_path },
+    });
   }
 
   private async executeApplyChange(project: ProjectRecord, task: TaskRecord, timeoutMs: number): Promise<void> {
-    const paths = projectPaths(this.env, project.name);
+    const paths = projectPaths(this.env, project.project_id);
     if (!existsSync(paths.sourceRoot)) {
       throw new Error(`Project source directory missing: ${paths.sourceRoot}`);
     }
-    this.store.updateProjectStatus(project.name, 'generating');
+    this.store.updateProjectStatus(project.project_id, 'generating');
     await this.ensureGitRepository(paths.sourceRoot, task.id);
     await this.store.appendTaskLogAsync(task.id, `Applying Codex changes in ${paths.sourceRoot}.`);
     await this.runCodex(project, task, buildCodexPrompt(project, task.prompt), paths.sourceRoot, timeoutMs);
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
-    const release = await this.publishPreviewRelease(project.name, task.id, paths.sourceRoot);
-    this.store.updateProjectBuildState(project.name, release.release_path, 'preview_ready');
+    const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
+    this.store.updateProjectBuildState(project.project_id, release.release_path, 'preview_ready');
+    this.store.createMessage({
+      projectId: project.project_id,
+      taskId: task.id,
+      role: 'assistant',
+      content: '修改完成，新的预览已经更新。',
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'preview_refreshed',
+      title: '预览已更新',
+      detail: '修改结果已经发布到预览目录。',
+      data: { previewReleasePath: release.release_path },
+    });
   }
 
   private async executeRebuild(project: ProjectRecord, task: TaskRecord, timeoutMs: number): Promise<void> {
-    const paths = projectPaths(this.env, project.name);
+    const paths = projectPaths(this.env, project.project_id);
     if (!existsSync(paths.sourceRoot)) {
       throw new Error(`Project source directory missing: ${paths.sourceRoot}`);
     }
-    this.store.updateProjectStatus(project.name, 'generating');
+    this.store.updateProjectStatus(project.project_id, 'generating');
     await this.ensureGitRepository(paths.sourceRoot, task.id);
     await this.store.appendTaskLogAsync(task.id, `Rebuilding project in ${paths.sourceRoot}.`);
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
-    const release = await this.publishPreviewRelease(project.name, task.id, paths.sourceRoot);
-    this.store.updateProjectBuildState(project.name, release.release_path, 'preview_ready');
+    const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
+    this.store.updateProjectBuildState(project.project_id, release.release_path, 'preview_ready');
+    this.store.createMessage({
+      projectId: project.project_id,
+      taskId: task.id,
+      role: 'assistant',
+      content: '重新构建完成，预览保持最新。',
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'preview_refreshed',
+      title: '重新构建完成',
+      detail: '最新构建已发布到预览目录。',
+      data: { previewReleasePath: release.release_path },
+    });
   }
 
   private async executePublish(project: ProjectRecord, task: TaskRecord): Promise<void> {
-    const previewRelease = this.store.getCurrentRelease(project.name, 'preview') ?? this.store.getLatestRelease(project.name, 'preview');
+    const previewRelease = this.store.getCurrentRelease(project.project_id, 'preview') ?? this.store.getLatestRelease(project.project_id, 'preview');
     if (!previewRelease) {
-      throw new Error(`No successful preview release found for ${project.name}.`);
+      throw new Error(`No successful preview release found for ${project.display_name}.`);
     }
-    const paths = projectPaths(this.env, project.name);
+    const paths = projectPaths(this.env, project.project_id);
     await mkdir(paths.publicReleasesRoot, { recursive: true });
-    const releasePath = resolve(paths.publicReleasesRoot, `${previewRelease.id}-${randomUUID().slice(0, 8)}`);
+    const releasePath = resolve(paths.publicReleasesRoot, `${previewRelease.id}-${randomBytes(4).toString('hex')}`);
     await this.copyDirectory(previewRelease.release_path, releasePath);
-    await injectBaseHref(resolve(releasePath, 'index.html'), `/${project.name}/`);
+    await injectBaseHref(resolve(releasePath, 'index.html'), `/${project.public_handle}/`);
     await updateCurrentReleaseLink(releasePath, paths.publicCurrentRoot);
     const publicRelease = this.store.createRelease({
-      projectName: project.name,
+      projectId: project.project_id,
       kind: 'public',
       source: previewRelease.release_path,
       releasePath,
@@ -456,30 +762,57 @@ export class ShipNowManager {
       publishedAt: nowIso(),
       current: true,
     });
-    this.store.updateProjectPublishState(project.name, publicRelease.release_path, 'published');
+    this.store.updateProjectPublishState(project.project_id, publicRelease.release_path, 'published');
     this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
-    await this.store.appendTaskLogAsync(task.id, `Published ${project.name} to ${releasePath}.`);
+    this.store.createMessage({
+      projectId: project.project_id,
+      taskId: task.id,
+      role: 'assistant',
+      content: `已经发布完成，公开地址是 ${project.public_handle}。`,
+    });
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'published',
+      title: '发布成功',
+      detail: `公开地址已切换到 ${project.public_handle}。`,
+      data: { publicHandle: project.public_handle, publicReleasePath: publicRelease.release_path },
+    });
+    await this.store.appendTaskLogAsync(task.id, `Published ${project.display_name} to ${releasePath}.`);
   }
 
   private async executeDelete(project: ProjectRecord, task: TaskRecord): Promise<void> {
-    const paths = projectPaths(this.env, project.name);
+    const paths = projectPaths(this.env, project.project_id);
     await removeProjectWorkspace(paths);
-    this.store.markProjectDeleted(project.name);
-    await this.store.appendTaskLogAsync(task.id, `Deleted workspace for ${project.name}.`);
+    this.store.markProjectDeleted(project.project_id);
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'deleted',
+      title: '项目已删除',
+      detail: '工作区和发布目录已清理。',
+    });
+    this.store.createMessage({
+      projectId: project.project_id,
+      taskId: task.id,
+      role: 'assistant',
+      content: '项目已经删除，相关工作区也已清理。',
+    });
+    await this.store.appendTaskLogAsync(task.id, `Deleted workspace for ${project.display_name}.`);
   }
 
-  private async publishPreviewRelease(projectName: string, taskId: string, sourceRoot: string): Promise<{ id: string; release_path: string }> {
-    const paths = projectPaths(this.env, projectName);
+  private async publishPreviewRelease(project: ProjectRecord, taskId: string, sourceRoot: string): Promise<{ id: string; release_path: string }> {
+    const paths = projectPaths(this.env, project.project_id);
     const distPath = resolve(sourceRoot, 'dist');
     if (!existsSync(distPath)) {
       throw new Error(`Missing dist directory after build: ${distPath}`);
     }
-    const releasePath = resolve(paths.previewReleasesRoot, `${taskId}-${randomUUID().slice(0, 8)}`);
+    const releasePath = resolve(paths.previewReleasesRoot, `${taskId}-${randomBytes(4).toString('hex')}`);
     await this.copyDirectory(distPath, releasePath);
-    await injectBaseHref(resolve(releasePath, 'index.html'), `/${projectName}/preview/`);
+    await injectBaseHref(resolve(releasePath, 'index.html'), `/preview/${project.public_handle}/`);
     await updateCurrentReleaseLink(releasePath, paths.previewCurrentRoot);
     const release = this.store.createRelease({
-      projectName,
+      projectId: project.project_id,
       kind: 'preview',
       source: sourceRoot,
       releasePath,
@@ -490,7 +823,7 @@ export class ShipNowManager {
   }
 
   private async runBuild(task: TaskRecord, cwd: string, timeoutMs: number): Promise<void> {
-    const installResult = await runCommand({
+    const buildResult = await runCommand({
       command: 'pnpm',
       args: ['build'],
       cwd,
@@ -498,8 +831,8 @@ export class ShipNowManager {
       onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
       onStderr: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
     });
-    if (installResult.code !== 0) {
-      throw new Error(`pnpm build failed with exit code ${installResult.code}.`);
+    if (buildResult.code !== 0) {
+      throw new Error(`pnpm build failed with exit code ${buildResult.code}.`);
     }
   }
 
@@ -525,7 +858,9 @@ export class ShipNowManager {
 
   private async runCodex(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
     const structuredPrompt = [
-      `Project name: ${project.name}`,
+      `Project id: ${project.project_id}`,
+      `Project handle: ${project.public_handle}`,
+      `Project display name: ${project.display_name}`,
       `Template mode: ${project.type}`,
       'This is a ShipNow-managed static site project.',
       'Use only the files in the current working directory.',

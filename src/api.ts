@@ -36,8 +36,6 @@ export function listProjects(): Promise<ProjectListResponse> {
 }
 
 export function createProject(payload: {
-  name: string;
-  title: string;
   prompt: string;
 }): Promise<ProjectActionResponse> {
   return request('/projects', {
@@ -46,31 +44,38 @@ export function createProject(payload: {
   });
 }
 
-export function getProject(projectName: string): Promise<ProjectDetailResponse> {
-  return request(`/projects/${encodeURIComponent(projectName)}`);
+export function getProject(projectId: string): Promise<ProjectDetailResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}`);
 }
 
-export function applyChange(projectName: string, prompt: string): Promise<ProjectActionResponse> {
-  return request(`/projects/${encodeURIComponent(projectName)}/changes`, {
+export function applyChange(projectId: string, prompt: string): Promise<ProjectActionResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}/changes`, {
     method: 'POST',
     body: JSON.stringify({ prompt }),
   });
 }
 
-export function rebuildProject(projectName: string): Promise<ProjectActionResponse> {
-  return request(`/projects/${encodeURIComponent(projectName)}/rebuild`, {
+export function rebuildProject(projectId: string): Promise<ProjectActionResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}/rebuild`, {
     method: 'POST',
   });
 }
 
-export function publishProject(projectName: string): Promise<ProjectActionResponse> {
-  return request(`/projects/${encodeURIComponent(projectName)}/publish`, {
+export function publishProject(projectId: string): Promise<ProjectActionResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}/publish`, {
     method: 'POST',
   });
 }
 
-export function deleteProject(projectName: string): Promise<ProjectActionResponse> {
-  return request(`/projects/${encodeURIComponent(projectName)}`, {
+export function renameProject(projectId: string, displayName: string): Promise<ProjectView> {
+  return request(`/projects/${encodeURIComponent(projectId)}/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ displayName }),
+  });
+}
+
+export function deleteProject(projectId: string): Promise<ProjectActionResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}`, {
     method: 'DELETE',
   });
 }

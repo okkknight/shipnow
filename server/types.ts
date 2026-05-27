@@ -17,7 +17,9 @@ export type TaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancell
 export type ReleaseKind = 'preview' | 'public';
 
 export interface ProjectRecord {
-  name: string;
+  project_id: string;
+  display_name: string;
+  public_handle: string;
   type: ProjectType;
   title: string;
   prompt: string;
@@ -35,7 +37,7 @@ export interface ProjectRecord {
 
 export interface TaskRecord {
   id: string;
-  project_name: string;
+  project_id: string;
   type: TaskType;
   status: TaskStatus;
   prompt: string;
@@ -49,7 +51,7 @@ export interface TaskRecord {
 
 export interface ReleaseRecord {
   id: string;
-  project_name: string;
+  project_id: string;
   kind: ReleaseKind;
   source: string;
   release_path: string;
@@ -61,7 +63,9 @@ export interface ReleaseRecord {
 }
 
 export interface ProjectView {
-  name: string;
+  projectId: string;
+  displayName: string;
+  publicHandle: string;
   type: ProjectType;
   title: string;
   prompt: string;
@@ -83,7 +87,7 @@ export interface ProjectView {
 
 export interface TaskView {
   id: string;
-  projectName: string;
+  projectId: string;
   type: TaskType;
   status: TaskStatus;
   prompt: string;
@@ -95,3 +99,28 @@ export interface TaskView {
   logPath: string;
 }
 
+export interface ProjectMessageRecord {
+  id: string;
+  project_id: string;
+  task_id: string | null;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  created_at: string;
+}
+
+export interface ProjectEventRecord {
+  id: string;
+  project_id: string;
+  task_id: string | null;
+  type: string;
+  title: string;
+  detail: string | null;
+  data_json: string | null;
+  created_at: string;
+}
+
+export interface ProjectAliasRecord {
+  alias_handle: string;
+  project_id: string;
+  created_at: string;
+}
