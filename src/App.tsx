@@ -2568,7 +2568,6 @@ function WorkspaceStatusDrawer({
               {statusLabel(project.status)}
             </StatusChip>
           </div>
-          <div className="sn-reference-note">{project.publicHandle}</div>
         </div>
 
         <div className="sn-reference-status-block">

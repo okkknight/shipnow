@@ -9,6 +9,7 @@
 - Removed the "最近任务" section from the project details drawer so the drawer keeps only the remaining live project metadata and release history.
 - Switched the recent-project status in the project drawer from a pill chip to plain status text so it reads lighter while keeping the same status color language.
 - Tightened the spacing between the drawer's create-project button and the user card so the button sits closer to the bottom information area.
+- Removed the project handle line from the project details drawer header so the title area only shows the project name and status.
 
 ## 2026-05-25
 
