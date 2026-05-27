@@ -2369,17 +2369,12 @@ function ProjectWorkspaceMobile({
         </div>
       </div>
 
-      <WorkspaceDrawer
+      <HomeWorkspaceDrawer
         open={sidebarOpen}
-        currentProject={project}
+        projectsLoading={false}
         recentProjects={recentProjects}
         navigate={navigate}
         onClose={() => setSidebarOpen(false)}
-        onCreateProject={() => {
-          navigate('/');
-          setSidebarOpen(false);
-          setStatusOpen(false);
-        }}
         onOpenTemplates={() => {
           navigate('/templates');
           setSidebarOpen(false);
@@ -2388,19 +2383,10 @@ function ProjectWorkspaceMobile({
           navigate('/projects');
           setSidebarOpen(false);
         }}
-              onOpenReleases={() => {
-                setStatusOpen(true);
-              }}
-              onOpenSettings={() => {
-                navigate('/settings');
-                setSidebarOpen(false);
-                setStatusOpen(false);
-              }}
-        onSelectTemplate={(prompt) => {
-          navigate('/');
+        onOpenSettings={() => {
+          navigate('/settings');
           setSidebarOpen(false);
           setStatusOpen(false);
-          setComposerPrompt(prompt);
         }}
       />
 
@@ -2419,99 +2405,6 @@ function ProjectWorkspaceMobile({
         onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
       />
     </MobilePageSurface>
-  );
-}
-
-function WorkspaceDrawer({
-  open,
-  currentProject,
-  recentProjects,
-  navigate,
-  onClose,
-  onCreateProject,
-  onOpenTemplates,
-  onOpenProjects,
-  onOpenReleases,
-  onOpenSettings,
-  onSelectTemplate,
-}: {
-  open: boolean;
-  currentProject: ProjectView;
-  recentProjects: ProjectView[];
-  navigate: (path: string) => void;
-  onClose: () => void;
-  onCreateProject: () => void;
-  onOpenTemplates: () => void;
-  onOpenProjects: () => void;
-  onOpenReleases: () => void;
-  onOpenSettings: () => void;
-  onSelectTemplate: (prompt: string) => void;
-}) {
-  const { shouldRender, isOpen } = useDrawerTransition(open);
-  const sheetRef = useRef<HTMLDivElement | null>(null);
-  const [recentTasksOpen, setRecentTasksOpen] = useState(true);
-  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
-
-  if (!shouldRender) {
-    return null;
-  }
-
-  return (
-    <div
-      className={`sn-mobile-drawer-shell ${isOpen ? 'is-open' : ''}`.trim()}
-      role="presentation"
-    >
-      <button
-        className="sn-mobile-drawer-backdrop"
-        type="button"
-        aria-label="关闭抽屉"
-        onClick={onClose}
-      />
-      <div ref={sheetRef} className="sn-mobile-drawer-sheet" onClick={(event) => event.stopPropagation()}>
-        <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
-          ×
-        </button>
-        <div className="sn-mobile-drawer-brand">
-          <div className="sn-mobile-mini-brand">
-            <Zap className="size-4" />
-            <span>ShipNow</span>
-          </div>
-        </div>
-        <button className="sn-mobile-drawer-item is-highlight" type="button" onClick={onCreateProject}>
-          <Plus className="size-4" />
-          <span>新建项目</span>
-        </button>
-        <div className="sn-mobile-drawer-group">
-          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenTemplates}>
-            <LayoutGrid className="size-4" />
-            <span>模板中心</span>
-            <ChevronRight className="size-4" />
-          </button>
-          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenProjects}>
-            <Folder className="size-4" />
-            <span>项目管理</span>
-            <ChevronRight className="size-4" />
-          </button>
-          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenReleases}>
-            <CalendarDays className="size-4" />
-            <span>最近发布</span>
-            <ChevronRight className="size-4" />
-          </button>
-          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenSettings}>
-            <Settings2 className="size-4" />
-            <span>设置与偏好</span>
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-        <div className="sn-mobile-drawer-user">
-          <div className="sn-chat-avatar">艾</div>
-          <div>
-            <div className="sn-mobile-drawer-user-name">艾米</div>
-            <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
