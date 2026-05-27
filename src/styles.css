@@ -3002,6 +3002,72 @@
     }
   }
 
+  @media (min-width: 1024px) {
+    .sn-home-entry-list,
+    .sn-template-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sn-home-entry-card,
+    .sn-template-card,
+    .sn-project-workspace-card {
+      align-items: center;
+      padding: 16px;
+      border-radius: 22px;
+      text-align: left;
+      justify-items: start;
+    }
+
+    .sn-home-entry-card > div,
+    .sn-template-card > div,
+    .sn-project-workspace-card > div {
+      text-align: left;
+      justify-items: start;
+    }
+
+    .sn-home-entry-title,
+    .sn-template-title,
+    .sn-project-workspace-title {
+      font-size: 1rem;
+    }
+
+    .sn-home-entry-desc,
+    .sn-template-desc,
+    .sn-project-workspace-desc {
+      font-size: 0.8rem;
+    }
+
+    .sn-home-footer-actions {
+      grid-template-columns: repeat(2, max-content);
+      justify-content: start;
+    }
+
+    .sn-home-footer-actions .sn-mobile-action-button {
+      width: auto;
+      min-width: 164px;
+      padding-inline: 18px;
+    }
+
+    .sn-home-quick-chip-row .sn-quick-chip {
+      width: auto;
+      min-width: 160px;
+    }
+
+    .sn-template-projects-head,
+    .sn-home-projects-head,
+    .sn-projects-head,
+    .sn-project-workspace-status-head {
+      align-items: center;
+    }
+
+  .sn-reference-import-btn,
+  .sn-mobile-import-btn {
+    width: auto;
+    min-width: 220px;
+  }
+}
+
   .sn-empty-state {
     display: grid;
     gap: 10px;
@@ -5594,10 +5660,142 @@
       justify-self: start;
     }
 
+  .sn-reference-import-btn,
+  .sn-mobile-import-btn {
+    width: min(100%, 240px);
+    justify-self: center;
+  }
+  }
+
+  @media (min-width: 1024px) {
+    .sn-template-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sn-reference-template-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sn-template-card,
+    .sn-reference-template-card {
+      align-items: center;
+      padding: 16px;
+      border-radius: 22px;
+      text-align: left;
+      justify-items: start;
+    }
+
+    .sn-template-card > div,
+    .sn-reference-template-card > div {
+      text-align: left;
+      justify-items: start;
+    }
+
+    .sn-template-thumb,
+    .sn-reference-template-thumb {
+      min-height: 96px;
+    }
+
+    .sn-template-title,
+    .sn-reference-template-title {
+      font-size: 1rem;
+    }
+
+    .sn-template-desc,
+    .sn-reference-template-desc {
+      font-size: 0.8rem;
+    }
+
+    .sn-template-project-list .sn-action-button {
+      width: auto;
+      min-width: 220px;
+      justify-self: start;
+    }
+
     .sn-reference-import-btn,
     .sn-mobile-import-btn {
-      width: min(100%, 240px);
-      justify-self: center;
+      width: auto;
+      min-width: 220px;
+      justify-self: start;
+    }
+
+    .sn-project-workspace-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .sn-project-workspace-actions .sn-action-button {
+      width: auto;
+      min-width: 164px;
+    }
+
+    .sn-visual-status .grid.gap-2 {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .sn-visual-status .grid.gap-2 .sn-button {
+      width: auto;
+      min-width: 168px;
+    }
+
+    .sn-visual-open-btn,
+    .sn-visual-publish-btn {
+      width: auto;
+      min-width: 168px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .sn-home-entry-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .sn-home-entry-card {
+      padding: 12px;
+      grid-template-columns: 36px minmax(0, 1fr);
+    }
+
+    .sn-home-entry-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+    }
+
+    .sn-home-entry-title {
+      font-size: 0.94rem;
+    }
+
+    .sn-home-entry-desc {
+      font-size: 0.76rem;
+    }
+
+    .sn-template-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sn-template-card {
+      padding: 14px;
+    }
+
+    .sn-template-thumb {
+      min-height: 88px;
+    }
+
+    .sn-template-title {
+      font-size: 0.96rem;
+    }
+
+    .sn-template-desc {
+      font-size: 0.78rem;
     }
   }
 }
