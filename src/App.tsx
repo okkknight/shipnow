@@ -2537,6 +2537,8 @@ function WorkspaceStatusDrawer({
 }) {
   const { shouldRender, isOpen } = useDrawerTransition(open);
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const [recentTasksOpen, setRecentTasksOpen] = useState(true);
+  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
 
   if (!shouldRender) {
     return null;
