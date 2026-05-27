@@ -4,6 +4,7 @@
 
 - Removed the hardcoded assistant sample action card from the project workspace conversation stream so the page now shows only real project messages and events.
 - Fixed the project status drawer white-screen crash by restoring the collapsible task/history open-state hooks that the drawer body still depends on.
+- Added a primary "新建项目" button above the drawer user card and wired it to return to the home route.
 
 ## 2026-05-25
 

@@ -5071,6 +5071,12 @@
     min-width: 0;
   }
 
+  .sn-mobile-drawer-create-btn {
+    width: 100%;
+    margin-top: 18px;
+    margin-bottom: 94px;
+  }
+
   .sn-reference-drawer-user,
   .sn-mobile-drawer-user {
     display: flex;

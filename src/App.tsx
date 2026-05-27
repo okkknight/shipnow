@@ -2496,6 +2496,17 @@ function HomeWorkspaceDrawer({
             ))
           )}
         </div>
+        <SnActionButton
+          variant="primary"
+          className="sn-mobile-drawer-create-btn"
+          onClick={() => {
+            navigate('/');
+            onClose();
+          }}
+        >
+          <Plus className="size-4" />
+          新建项目
+        </SnActionButton>
         <div className="sn-mobile-drawer-user">
           <div className="sn-chat-avatar">艾</div>
           <div>
