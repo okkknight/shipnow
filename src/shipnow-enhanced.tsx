@@ -614,7 +614,7 @@ export function MobilePublishResultPage({
   );
 }
 
-export function ReferencePhoneShell({
+export function ReferenceVisualPhoneShell({
   children,
   className,
 }: {
@@ -647,7 +647,7 @@ export function ReferencePhoneShell({
   );
 }
 
-export function ReferencePhoneTopBar({
+export function ReferenceVisualPhoneTopBar({
   left,
   title,
   right,
@@ -748,8 +748,8 @@ export function MobileActionButton({
 
 function ReferencePreviewPhone() {
   return (
-    <ReferencePhoneShell className="is-hero">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-hero">
+      <ReferenceVisualPhoneTopBar
         left={<button className="sn-reference-phone-icon-button" type="button" aria-label="返回"><ChevronLeft className="size-5" /></button>}
         title="bannercheck"
         right={<button className="sn-reference-phone-pill" type="button">Publish</button>}
@@ -808,14 +808,14 @@ function ReferencePreviewPhone() {
           <SnActionButton className="with-icon" variant="primary"><Upload className="size-4" /> Publish</SnActionButton>
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
 function ReferenceStatusPhone() {
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-compact">
+      <ReferenceVisualPhoneTopBar
         left={<button className="sn-reference-phone-icon-button" type="button" aria-label="返回"><ChevronLeft className="size-5" /></button>}
         title="bannercheck"
         right={<div />}
@@ -880,14 +880,14 @@ function ReferenceStatusPhone() {
           </div>
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
 function ReferenceConfirmPhone() {
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-compact">
+      <ReferenceVisualPhoneTopBar
         left={<button className="sn-reference-phone-icon-button" type="button" aria-label="返回"><ChevronLeft className="size-5" /></button>}
         title="bannercheck"
         right={<div />}
@@ -928,13 +928,13 @@ function ReferenceConfirmPhone() {
           <SnActionButton variant="secondary">取消</SnActionButton>
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
 function ReferenceResultPhone({ success }: { success: boolean }) {
   return (
-    <ReferencePhoneShell className="is-compact">
+    <ReferenceVisualPhoneShell className="is-compact">
       <div className="sn-reference-phone-result">
         <div className={`sn-reference-result-figure ${success ? 'is-success' : 'is-failure'}`}>
           <div className="sn-reference-result-cloud is-left" />
@@ -979,14 +979,14 @@ function ReferenceResultPhone({ success }: { success: boolean }) {
           )}
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
 function ReferenceEntryWelcomePhone() {
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-compact">
+      <ReferenceVisualPhoneTopBar
         left={<div className="sn-reference-mini-brand"><Zap className="size-4" /><span>ShipNow</span></div>}
         title={<div />}
         right={<button className="sn-reference-phone-icon-button" type="button" aria-label="新建项目"><Plus className="size-4" /></button>}
@@ -1031,13 +1031,13 @@ function ReferenceEntryWelcomePhone() {
           </div>
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
 function ReferenceDrawerPhone() {
   return (
-    <ReferencePhoneShell className="is-compact">
+    <ReferenceVisualPhoneShell className="is-compact">
       <div className="sn-reference-drawer-shell">
         <div className="sn-reference-modal-backdrop">
           <div className="sn-reference-modal-preview is-faint">
@@ -1070,7 +1070,7 @@ function ReferenceDrawerPhone() {
           </div>
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
@@ -1085,8 +1085,8 @@ function ReferenceTemplatePhone() {
   ] as const;
 
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-compact">
+      <ReferenceVisualPhoneTopBar
         left={<button className="sn-reference-phone-icon-button" type="button" aria-label="菜单"><Menu className="size-4" /></button>}
         title="模板中心"
         right={<div />}
@@ -1106,7 +1106,7 @@ function ReferenceTemplatePhone() {
         </div>
         <SnActionButton variant="secondary" className="sn-reference-import-btn"><Upload className="size-4" /> 导入现有项目</SnActionButton>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
@@ -1120,8 +1120,8 @@ function ReferenceProjectsPhone() {
   ] as const;
 
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-compact">
+      <ReferenceVisualPhoneTopBar
         left={<button className="sn-reference-phone-icon-button" type="button" aria-label="菜单"><Menu className="size-4" /></button>}
         title="我的项目"
         right={<button className="sn-reference-phone-icon-button is-soft" type="button" aria-label="新建"><Plus className="size-4" /></button>}
@@ -1162,14 +1162,14 @@ function ReferenceProjectsPhone() {
           ))}
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
 function ReferenceChatWorkspacePhone() {
   return (
-    <ReferencePhoneShell className="is-compact">
-      <ReferencePhoneTopBar
+    <ReferenceVisualPhoneShell className="is-compact">
+      <ReferenceVisualPhoneTopBar
         left={<button className="sn-reference-phone-icon-button" type="button" aria-label="菜单"><Menu className="size-4" /></button>}
         title={<div className="sn-reference-phone-brand">ShipNow</div>}
         right={
@@ -1240,7 +1240,7 @@ function ReferenceChatWorkspacePhone() {
           </div>
         </div>
       </div>
-    </ReferencePhoneShell>
+    </ReferenceVisualPhoneShell>
   );
 }
 
