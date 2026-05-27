@@ -56,8 +56,7 @@ import {
   MobileActionButton,
   ProjectCard,
   QuickActionChip,
-  ReferencePhoneActionButton,
-  ReferencePhoneTopBar,
+  SnActionButton,
   ShipNowDesignSystemPage,
   ShipNowVisualReferencePage,
   SnButton,
@@ -1202,9 +1201,9 @@ function HomeWorkspace({
                 <div className="sn-reference-note">卡片列表，而不是表格。</div>
               </div>
               <div className="sn-reference-projects-toolbar">
-                <ReferencePhoneActionButton variant="secondary" onClick={() => navigate('/projects')}>
+                <SnActionButton variant="secondary" onClick={() => navigate('/projects')}>
                   <Folder className="size-4" /> 项目管理
-                </ReferencePhoneActionButton>
+                </SnActionButton>
               </div>
             </div>
             <div className="sn-reference-project-list">
@@ -1387,9 +1386,9 @@ function TemplatesWorkspace({
             </div>
             <div className="sn-reference-project-list">
               <div className="sn-reference-drawer-empty">从现有项目导入后，可以继续沿用当前风格与结构。</div>
-              <ReferencePhoneActionButton variant="secondary" onClick={onBackHome}>
+              <SnActionButton variant="secondary" onClick={onBackHome}>
                 <Upload className="size-4" /> 导入现有项目
-              </ReferencePhoneActionButton>
+              </SnActionButton>
             </div>
           </section>
         </div>
@@ -1506,9 +1505,9 @@ function ProjectsWorkspace({
               <div className="sn-reference-note">卡片列表，而不是表格。</div>
             </div>
             <div className="sn-reference-projects-toolbar">
-              <ReferencePhoneActionButton variant="secondary" onClick={onBackHome}>
+              <SnActionButton variant="secondary" onClick={onBackHome}>
                 <Plus className="size-4" /> 新建项目
-              </ReferencePhoneActionButton>
+              </SnActionButton>
             </div>
           </div>
 

@@ -667,7 +667,7 @@ export function ReferencePhoneTopBar({
   );
 }
 
-export function ReferencePhoneActionButton({
+export function SnActionButton({
   children,
   variant = 'secondary',
   className,
@@ -678,7 +678,7 @@ export function ReferencePhoneActionButton({
   className?: string;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const variantClass = variant === 'primary' ? 'is-primary' : variant === 'ghost' ? 'is-ghost' : 'is-secondary';
-  return <button className={`sn-reference-phone-action ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
+  return <button className={`sn-action-button ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
 }
 
 export function MobilePageSurface({
@@ -765,8 +765,8 @@ function ReferencePreviewPhone() {
           ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。
         </p>
         <div className="sn-reference-preview-actions">
-          <ReferencePhoneActionButton variant="primary">Get started</ReferencePhoneActionButton>
-          <ReferencePhoneActionButton>Learn more</ReferencePhoneActionButton>
+          <SnActionButton variant="primary">Get started</SnActionButton>
+          <SnActionButton>Learn more</SnActionButton>
         </div>
         <div className="sn-reference-illustration">
           <div className="sn-reference-illustration-backdrop" />
@@ -804,8 +804,8 @@ function ReferencePreviewPhone() {
           </div>
         </div>
         <div className="sn-reference-footer-actions">
-          <ReferencePhoneActionButton className="with-icon" variant="secondary"><Edit2 className="size-4" /> Continue editing</ReferencePhoneActionButton>
-          <ReferencePhoneActionButton className="with-icon" variant="primary"><Upload className="size-4" /> Publish</ReferencePhoneActionButton>
+          <SnActionButton className="with-icon" variant="secondary"><Edit2 className="size-4" /> Continue editing</SnActionButton>
+          <SnActionButton className="with-icon" variant="primary"><Upload className="size-4" /> Publish</SnActionButton>
         </div>
       </div>
     </ReferencePhoneShell>
@@ -832,8 +832,8 @@ function ReferenceStatusPhone() {
             ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。
           </p>
           <div className="sn-reference-preview-actions">
-            <ReferencePhoneActionButton variant="primary">Get started</ReferencePhoneActionButton>
-            <ReferencePhoneActionButton>Learn more</ReferencePhoneActionButton>
+            <SnActionButton variant="primary">Get started</SnActionButton>
+            <SnActionButton>Learn more</SnActionButton>
           </div>
         </div>
       </div>
@@ -904,8 +904,8 @@ function ReferenceConfirmPhone() {
             ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。
           </p>
           <div className="sn-reference-preview-actions">
-            <ReferencePhoneActionButton variant="primary">Get started</ReferencePhoneActionButton>
-            <ReferencePhoneActionButton>Learn more</ReferencePhoneActionButton>
+            <SnActionButton variant="primary">Get started</SnActionButton>
+            <SnActionButton>Learn more</SnActionButton>
           </div>
         </div>
       </div>
@@ -924,8 +924,8 @@ function ReferenceConfirmPhone() {
           <div>发布后立即可通过该地址访问</div>
         </div>
         <div className="sn-reference-confirm-actions is-stacked">
-          <ReferencePhoneActionButton variant="primary">确认发布</ReferencePhoneActionButton>
-          <ReferencePhoneActionButton variant="secondary">取消</ReferencePhoneActionButton>
+          <SnActionButton variant="primary">确认发布</SnActionButton>
+          <SnActionButton variant="secondary">取消</SnActionButton>
         </div>
       </div>
     </ReferencePhoneShell>
@@ -966,15 +966,15 @@ function ReferenceResultPhone({ success }: { success: boolean }) {
         <div className="sn-reference-result-actions is-stacked">
           {success ? (
             <>
-              <ReferencePhoneActionButton variant="primary"><ArrowUpRight className="size-4" /> 打开网站</ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary"><Copy className="size-4" /> 复制链接</ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary"><Edit2 className="size-4" /> 继续编辑</ReferencePhoneActionButton>
+              <SnActionButton variant="primary"><ArrowUpRight className="size-4" /> 打开网站</SnActionButton>
+              <SnActionButton variant="secondary"><Copy className="size-4" /> 复制链接</SnActionButton>
+              <SnActionButton variant="secondary"><Edit2 className="size-4" /> 继续编辑</SnActionButton>
             </>
           ) : (
             <>
-              <ReferencePhoneActionButton variant="primary"><Zap className="size-4" /> ShipNow 自动修复</ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary"><Info className="size-4" /> 查看日志</ReferencePhoneActionButton>
-              <ReferencePhoneActionButton variant="secondary">稍后再试</ReferencePhoneActionButton>
+              <SnActionButton variant="primary"><Zap className="size-4" /> ShipNow 自动修复</SnActionButton>
+              <SnActionButton variant="secondary"><Info className="size-4" /> 查看日志</SnActionButton>
+              <SnActionButton variant="secondary">稍后再试</SnActionButton>
             </>
           )}
         </div>
@@ -1104,7 +1104,7 @@ function ReferenceTemplatePhone() {
             </div>
           ))}
         </div>
-        <ReferencePhoneActionButton variant="secondary" className="sn-reference-import-btn"><Upload className="size-4" /> 导入现有项目</ReferencePhoneActionButton>
+        <SnActionButton variant="secondary" className="sn-reference-import-btn"><Upload className="size-4" /> 导入现有项目</SnActionButton>
       </div>
     </ReferencePhoneShell>
   );
@@ -1235,8 +1235,8 @@ function ReferenceChatWorkspacePhone() {
             <button className="sn-reference-send-button" type="button" aria-label="发送"><Send className="size-4" /></button>
           </div>
           <div className="sn-reference-composer-actions">
-            <ReferencePhoneActionButton variant="secondary"><Eye className="size-4" /> Preview</ReferencePhoneActionButton>
-            <ReferencePhoneActionButton variant="primary"><Upload className="size-4" /> Publish</ReferencePhoneActionButton>
+            <SnActionButton variant="secondary"><Eye className="size-4" /> Preview</SnActionButton>
+            <SnActionButton variant="primary"><Upload className="size-4" /> Publish</SnActionButton>
           </div>
         </div>
       </div>

@@ -2972,7 +2972,7 @@
     }
 
     .sn-reference-confirm-footer .sn-button,
-    .sn-reference-confirm-footer .sn-reference-phone-action {
+    .sn-reference-confirm-footer .sn-action-button {
       width: 100%;
       justify-content: center;
     }
@@ -3706,18 +3706,18 @@
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .sn-reference-preview-actions .sn-reference-phone-action,
+    .sn-reference-preview-actions .sn-action-button,
     .sn-mobile-preview-actions .sn-mobile-action-button,
-    .sn-reference-composer-actions .sn-reference-phone-action,
+    .sn-reference-composer-actions .sn-action-button,
     .sn-mobile-composer-actions .sn-mobile-action-button,
-    .sn-reference-result-actions .sn-reference-phone-action,
+    .sn-reference-result-actions .sn-action-button,
     .sn-mobile-result-actions .sn-mobile-action-button,
-    .sn-reference-confirm-actions .sn-reference-phone-action,
+    .sn-reference-confirm-actions .sn-action-button,
     .sn-mobile-home-footer-actions .sn-mobile-action-button {
       width: 100%;
     }
 
-    .sn-reference-phone-action {
+    .sn-action-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3749,7 +3749,7 @@
       box-shadow: var(--sn-shadow-soft);
     }
 
-    .sn-reference-phone-action.is-primary {
+    .sn-action-button.is-primary {
       background: var(--sn-color-ink);
       color: #fff;
       border-color: transparent;
@@ -3763,7 +3763,7 @@
       box-shadow: 0 14px 28px rgba(15, 17, 21, 0.16);
     }
 
-    .sn-reference-phone-action.is-secondary {
+    .sn-action-button.is-secondary {
       background: rgba(255, 255, 252, 0.94);
     }
 
@@ -3771,7 +3771,7 @@
       background: rgba(255, 255, 252, 0.94);
     }
 
-    .sn-reference-phone-action.is-ghost {
+    .sn-action-button.is-ghost {
       background: transparent;
       box-shadow: none;
     }
@@ -3781,7 +3781,7 @@
       box-shadow: none;
     }
 
-  .sn-reference-phone-action.with-icon {
+  .sn-action-button.with-icon {
     justify-content: center;
   }
 
@@ -3919,7 +3919,7 @@
       gap: 10px;
     }
 
-    .sn-reference-footer-actions .sn-reference-phone-action,
+    .sn-reference-footer-actions .sn-action-button,
     .sn-mobile-home-footer-actions .sn-mobile-action-button {
       min-height: 46px;
     }
