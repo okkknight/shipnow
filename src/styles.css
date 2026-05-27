@@ -5416,6 +5416,12 @@
       gap: 10px;
     }
 
+    .sn-reference-project-head {
+      justify-content: flex-start;
+      width: fit-content;
+      max-width: 100%;
+    }
+
     .sn-mobile-project-head {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
