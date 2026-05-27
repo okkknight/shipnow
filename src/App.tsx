@@ -2029,7 +2029,7 @@ function ProjectWorkspace({
                 修复问题
               </QuickActionChip>
               <button
-                className="sn-mobile-icon-button is-soft"
+                className="icon-button h-10 w-10"
                 type="button"
                 aria-label="刷新"
                 onClick={onRebuild}
@@ -2041,7 +2041,7 @@ function ProjectWorkspace({
 
             <div className="sn-project-workspace-composer is-bottom">
               <div className="sn-project-workspace-composer-rail">
-                <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
+                <button className="icon-button h-10 w-10" type="button" aria-label="附件">
                   <Paperclip className="size-4" />
                 </button>
                 <textarea
