@@ -1415,6 +1415,7 @@
     .sn-visual-mobile-actions .sn-button,
     .sn-mobile-preview-actions .sn-mobile-action-button {
       width: 100%;
+      min-width: 0;
       justify-content: center;
     }
 
@@ -1532,6 +1533,7 @@
     .sn-visual-mobile-feature-card,
     .sn-mobile-preview-feature-card {
       display: grid;
+      min-width: 0;
       justify-items: center;
       gap: 6px;
       align-content: start;
@@ -1593,9 +1595,10 @@
     .sn-mobile-preview-footer-primary,
     .sn-mobile-action-button {
       min-height: 46px;
+      padding-inline: 12px;
       justify-content: center;
       border-radius: 16px;
-      font-size: 0.88rem;
+      font-size: 0.84rem;
     }
 
     .sn-mobile-preview-visual {
@@ -2629,6 +2632,7 @@
     grid-template-columns: 60px minmax(0, 1fr);
     gap: 14px;
     width: 100%;
+    min-width: 0;
     padding: 16px;
     border: 1px solid var(--sn-color-border);
     border-radius: 24px;
@@ -4652,6 +4656,7 @@
     .sn-mobile-template-card {
       display: grid;
       gap: 8px;
+      min-width: 0;
       padding: 10px;
     border: 1px solid var(--sn-color-border);
     border-radius: 18px;
@@ -4860,6 +4865,7 @@
       display: grid;
       grid-template-columns: 52px minmax(0, 1fr);
       gap: 12px;
+      min-width: 0;
     padding: 12px;
     border: 1px solid var(--sn-color-border);
     border-radius: 20px;
