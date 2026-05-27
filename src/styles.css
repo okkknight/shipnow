@@ -3957,6 +3957,7 @@
 
     .sn-reference-section-copy,
     .sn-home-section-copy,
+    .sn-project-workspace-section-copy,
     .sn-mobile-section-copy {
       color: var(--sn-color-ink);
       font-size: 0.92rem;
@@ -3965,6 +3966,7 @@
     }
 
     .sn-reference-label,
+    .sn-project-workspace-label,
     .sn-home-note,
     .sn-mobile-result-label {
       color: var(--sn-color-muted);
@@ -3975,15 +3977,18 @@
       margin-bottom: 8px;
     }
 
-    .sn-reference-note {
+    .sn-reference-note,
+    .sn-project-workspace-note {
       color: var(--sn-color-muted);
       font-size: 0.84rem;
       line-height: 1.55;
     }
 
   .sn-reference-status-row,
+  .sn-project-workspace-row,
   .sn-mobile-status-row,
   .sn-reference-status-block,
+  .sn-project-workspace-block,
   .sn-mobile-status-block {
     display: grid;
     gap: 8px;
@@ -3991,6 +3996,7 @@
   }
 
     .sn-reference-drawer-empty,
+    .sn-project-workspace-empty,
     .sn-mobile-drawer-empty,
     .sn-mobile-empty {
       @apply rounded-[18px] border border-dashed border-[rgb(var(--line))] bg-[rgba(255,255,255,0.7)] px-4 py-4 text-sm text-[rgb(var(--muted))];
@@ -4001,6 +4007,7 @@
   }
 
     .sn-reference-address,
+    .sn-project-workspace-address,
     .sn-mobile-confirm-address,
     .sn-mobile-result-address {
       display: flex;
@@ -4015,6 +4022,7 @@
   }
 
   .sn-reference-task-list,
+  .sn-project-workspace-history,
   .sn-mobile-task-list,
   .sn-reference-history-list,
   .sn-mobile-history-list {
@@ -4023,8 +4031,10 @@
   }
 
   .sn-reference-task-item,
+  .sn-project-workspace-task,
   .sn-mobile-task-item,
   .sn-reference-history-item,
+  .sn-project-workspace-history-item,
   .sn-mobile-history-item {
     display: grid;
     gap: 4px;
@@ -4036,6 +4046,7 @@
   }
 
   .sn-reference-task-item,
+  .sn-project-workspace-task,
   .sn-mobile-task-item {
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
@@ -4351,6 +4362,7 @@
     .sn-reference-entry-welcome,
     .sn-home-entry-welcome,
     .sn-template-entry-welcome,
+    .sn-project-workspace-entry,
     .sn-mobile-entry-welcome {
       gap: 14px;
     }
@@ -4358,6 +4370,7 @@
     .sn-reference-welcome-title,
     .sn-home-welcome-title,
     .sn-template-welcome-title,
+    .sn-project-workspace-title,
     .sn-mobile-home-title {
       font-family: 'Plus Jakarta Sans', Inter, ui-sans-serif, system-ui, sans-serif;
       font-size: 1.9rem;
@@ -4368,6 +4381,7 @@
     .sn-reference-welcome-copy,
     .sn-home-welcome-copy,
     .sn-template-welcome-copy,
+    .sn-project-workspace-copy,
     .sn-mobile-home-copy {
       color: var(--sn-color-ink);
       font-size: 0.98rem;
@@ -4377,6 +4391,7 @@
     .sn-reference-entry-list,
     .sn-home-entry-list,
     .sn-template-grid,
+    .sn-project-workspace-chips,
     .sn-mobile-home-entry-list {
       display: grid;
       gap: 10px;
@@ -4384,6 +4399,7 @@
 
     .sn-reference-entry-card,
     .sn-home-entry-card,
+    .sn-project-workspace-card,
     .sn-mobile-home-entry-card {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -4397,6 +4413,7 @@
 
     .sn-reference-entry-icon,
     .sn-home-entry-icon,
+    .sn-project-workspace-icon,
     .sn-mobile-home-entry-icon {
       display: inline-flex;
       align-items: center;
@@ -4410,6 +4427,7 @@
 
     .sn-reference-entry-title,
     .sn-home-entry-title,
+    .sn-project-workspace-title,
     .sn-mobile-home-entry-title {
       font-weight: 700;
       letter-spacing: -0.03em;
@@ -4417,6 +4435,7 @@
 
     .sn-reference-entry-desc,
     .sn-home-entry-desc,
+    .sn-project-workspace-desc,
     .sn-mobile-home-entry-desc {
       color: var(--sn-color-muted);
       font-size: 0.82rem;
@@ -4425,6 +4444,7 @@
 
     .sn-reference-composer-card,
     .sn-home-composer-card,
+    .sn-project-workspace-composer,
     .sn-mobile-home-composer-card,
     .sn-mobile-composer-card {
       display: grid;
@@ -4438,6 +4458,7 @@
 
     .sn-reference-composer-rail,
     .sn-home-composer-rail,
+    .sn-project-workspace-composer-rail,
     .sn-mobile-home-composer-rail,
     .sn-mobile-composer-rail {
       display: grid;
@@ -4452,6 +4473,7 @@
 
     .sn-reference-composer-input,
     .sn-home-composer-input,
+    .sn-project-workspace-composer-input,
     .sn-mobile-home-composer-input,
     .sn-mobile-composer-input {
       width: 100%;
@@ -4465,6 +4487,7 @@
 
     .sn-reference-send-button,
     .sn-home-send-button,
+    .sn-project-workspace-send-button,
     .sn-mobile-home-send-button,
     .sn-mobile-send-button {
       display: inline-flex;
@@ -4482,6 +4505,7 @@
     .sn-reference-sample-row,
     .sn-reference-quick-chip-row,
     .sn-home-quick-chip-row,
+    .sn-project-workspace-chips,
     .sn-mobile-home-quick-chip-row,
     .sn-mobile-quick-chip-row {
       display: flex;
@@ -4750,9 +4774,24 @@
     .sn-reference-project-list,
     .sn-home-project-list,
     .sn-template-project-list,
+    .sn-project-workspace-list,
+    .sn-project-workspace-status-list,
     .sn-mobile-project-list {
       display: grid;
       gap: 10px;
+    }
+
+    .sn-project-workspace-status-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .sn-project-workspace-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
     }
 
     .sn-home-projects-head,
@@ -4816,6 +4855,7 @@
     }
 
     .sn-reference-project-card,
+    .sn-project-workspace-card,
     .sn-mobile-project-card {
       display: grid;
       grid-template-columns: 52px minmax(0, 1fr);
@@ -4828,6 +4868,7 @@
   }
 
     .sn-reference-project-card.is-active,
+    .sn-project-workspace-card.is-active,
     .sn-mobile-project-card.is-active {
       background: rgba(183, 241, 223, 0.18);
       border-color: rgba(97, 206, 180, 0.26);
@@ -4835,6 +4876,8 @@
 
     .sn-reference-project-thumb,
     .sn-reference-project-thumb.is-mini,
+    .sn-project-workspace-thumb,
+    .sn-project-workspace-thumb.is-mini,
     .sn-mobile-project-thumb,
     .sn-mobile-project-thumb.is-mini {
       width: 52px;
@@ -4847,6 +4890,7 @@
   }
 
     .sn-reference-project-head,
+    .sn-project-workspace-head,
     .sn-mobile-project-head {
       display: flex;
       justify-content: space-between;
@@ -4854,6 +4898,7 @@
     }
 
     .sn-reference-project-title-row,
+    .sn-project-workspace-title-row,
     .sn-mobile-project-title-row {
       display: inline-flex;
       align-items: center;
@@ -4861,18 +4906,21 @@
     }
 
     .sn-reference-project-edit,
+    .sn-project-workspace-edit,
     .sn-mobile-project-edit {
       color: var(--sn-color-muted);
       flex-shrink: 0;
     }
 
     .sn-reference-project-copy,
+    .sn-project-workspace-copy,
     .sn-mobile-project-copy {
       display: grid;
       gap: 8px;
     }
 
     .sn-reference-project-meta,
+    .sn-project-workspace-meta,
     .sn-mobile-project-meta {
       display: flex;
       flex-wrap: wrap;
@@ -4909,11 +4957,13 @@
   }
 
     .sn-reference-chat-phone,
+    .sn-project-workspace-chat,
     .sn-mobile-chat-page {
       gap: 12px;
     }
 
     .sn-reference-chat-stack,
+    .sn-project-workspace-chat,
     .sn-mobile-chat-stack {
       display: grid;
       gap: 10px;

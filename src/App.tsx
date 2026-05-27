@@ -1980,19 +1980,19 @@ function ProjectWorkspace({
         </header>
 
         <div className="sn-project-workspace-grid">
-          <section className="sn-panel sn-reference-entry-welcome">
-            <div className="sn-reference-welcome-title">{project.displayName}</div>
-            <div className="sn-reference-welcome-copy">{project.title}</div>
+          <section className="sn-panel sn-project-workspace-entry">
+            <div className="sn-project-workspace-title">{project.displayName}</div>
+            <div className="sn-project-workspace-copy">{project.title}</div>
             <div className="flex flex-wrap gap-2">
               <Chip tone={statusTone(project.status)}>{statusLabel(project.status)}</Chip>
               <Chip tone="neutral">{project.publicHandle}</Chip>
               <Chip tone="neutral">{project.type}</Chip>
             </div>
 
-            <div className="sn-reference-chat-stack" ref={conversationRef}>
+            <div className="sn-project-workspace-chat" ref={conversationRef}>
               {detail ? (
                 renderedTimelineItems.length === 0 ? (
-                  <div className="sn-reference-drawer-empty">刚打开这个项目。先说一句你要改什么。</div>
+                  <div className="sn-project-workspace-empty">刚打开这个项目。先说一句你要改什么。</div>
                 ) : (
                   renderedTimelineItems.map((item) => (
                     <div key={item.id}>
@@ -2008,11 +2008,11 @@ function ProjectWorkspace({
                   ))
                 )
               ) : (
-                <div className="sn-reference-drawer-empty">正在加载项目…</div>
+                <div className="sn-project-workspace-empty">正在加载项目…</div>
               )}
             </div>
 
-            <div className="sn-reference-quick-chip-row">
+            <div className="sn-project-workspace-chips">
               <QuickActionChip icon={<WandSparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
                 优化文案
               </QuickActionChip>
@@ -2039,19 +2039,19 @@ function ProjectWorkspace({
               </button>
             </div>
 
-            <div className="sn-mobile-composer-card is-bottom">
-              <div className="sn-mobile-composer-rail">
+            <div className="sn-project-workspace-composer is-bottom">
+              <div className="sn-project-workspace-composer-rail">
                 <button className="sn-mobile-icon-button is-soft" type="button" aria-label="附件">
                   <Paperclip className="size-4" />
                 </button>
                 <textarea
-                  className="sn-mobile-composer-input"
+                  className="sn-project-workspace-composer-input"
                   placeholder="例如：把首屏的大标题再收一点，按钮更明确，配色更薄荷绿。"
                   value={composerPrompt}
                   onChange={(event) => setComposerPrompt(event.target.value)}
                 />
                 <button
-                  className="sn-mobile-send-button"
+                  className="sn-project-workspace-send-button"
                   type="button"
                   aria-label="发送修改"
                   onClick={onSubmit}
@@ -2060,7 +2060,7 @@ function ProjectWorkspace({
                   <Send className="size-4" />
                 </button>
               </div>
-              <div className="sn-mobile-composer-actions">
+              <div className="sn-project-workspace-actions">
                 <MobileActionButton variant="secondary" onClick={onOpenPreview}>
                   <Eye className="size-4" /> Preview
                 </MobileActionButton>
@@ -2071,89 +2071,89 @@ function ProjectWorkspace({
             </div>
           </section>
 
-          <section className="sn-panel sn-reference-projects">
-            <div className="sn-reference-projects-head">
+          <section className="sn-panel sn-project-workspace-status">
+            <div className="sn-project-workspace-status-head">
               <div>
-                <div className="sn-reference-section-copy">项目状态</div>
-                <div className="sn-reference-note">状态、发布和日志都收纳到更清晰的层次里。</div>
+                <div className="sn-project-workspace-section-copy">项目状态</div>
+                <div className="sn-project-workspace-note">状态、发布和日志都收纳到更清晰的层次里。</div>
               </div>
-              <div className="sn-reference-projects-toolbar">
+              <div className="sn-project-workspace-toolbar">
               <MobileActionButton variant="secondary" onClick={onOpenStatus}>
                 <MoreHorizontal className="size-4" /> 更多
               </MobileActionButton>
               </div>
             </div>
 
-            <div className="sn-reference-project-list">
-              <div className="sn-reference-project-card is-active">
-                <div className="sn-reference-project-thumb is-mini" />
-                <div className="sn-reference-project-copy">
-                  <div className="sn-reference-project-head">
+            <div className="sn-project-workspace-list">
+              <div className="sn-project-workspace-card is-active">
+                <div className="sn-project-workspace-thumb is-mini" />
+                <div className="sn-project-workspace-copy">
+                  <div className="sn-project-workspace-head">
                     <div>
-                      <div className="sn-reference-project-name">{project.displayName}</div>
-                      <div className="sn-reference-project-desc">{project.publicHandle}</div>
+                      <div className="sn-project-workspace-name">{project.displayName}</div>
+                      <div className="sn-project-workspace-desc">{project.publicHandle}</div>
                     </div>
                     <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
                       {statusLabel(project.status)}
                     </StatusChip>
                   </div>
-                  <div className="sn-reference-project-meta">
+                  <div className="sn-project-workspace-meta">
                     <span>{project.title}</span>
                     <span>{project.type}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="sn-reference-status-row">
+              <div className="sn-project-workspace-row">
                 <div>
-                  <div className="sn-reference-label">预览地址</div>
-                  <div className="sn-reference-address">
+                  <div className="sn-project-workspace-label">预览地址</div>
+                  <div className="sn-project-workspace-address">
                     <span>{project.previewUrl}</span>
                     <Copy className="size-4" />
                   </div>
                 </div>
               </div>
 
-              <div className="sn-reference-status-row">
+              <div className="sn-project-workspace-row">
                 <div>
-                  <div className="sn-reference-label">上线地址</div>
-                  <div className="sn-reference-address">
+                  <div className="sn-project-workspace-label">上线地址</div>
+                  <div className="sn-project-workspace-address">
                     <span>{project.publicUrl}</span>
                     <Copy className="size-4" />
                   </div>
                 </div>
               </div>
 
-              <div className="sn-reference-status-block">
-                <div className="sn-reference-label">最近任务</div>
+              <div className="sn-project-workspace-block">
+                <div className="sn-project-workspace-label">最近任务</div>
                 {latestTask ? (
-                  <div className="sn-reference-task-item">
+                  <div className="sn-project-workspace-task">
                     <span>{taskTypeLabel(latestTask.type)}</span>
                     <StatusChip tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}>
                       {taskStatusLabel(latestTask.status)}
                     </StatusChip>
                   </div>
                 ) : (
-                  <div className="sn-reference-drawer-empty">还没有最近任务。</div>
+                  <div className="sn-project-workspace-empty">还没有最近任务。</div>
                 )}
               </div>
 
-              <div className="sn-reference-status-block">
-                <div className="sn-reference-label">最近发布</div>
-                <div className="sn-reference-history-list">
+              <div className="sn-project-workspace-block">
+                <div className="sn-project-workspace-label">最近发布</div>
+                <div className="sn-project-workspace-history">
                   {(detail?.releases ?? []).slice(0, 3).map((release) => (
-                    <div key={release.id} className="sn-reference-history-item">
+                    <div key={release.id} className="sn-project-workspace-history-item">
                       <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
                       <small>{formatTime(release.createdAt)}</small>
                     </div>
                   ))}
-                  {(detail?.releases ?? []).length === 0 ? <div className="sn-reference-drawer-empty">还没有发布记录。</div> : null}
+                  {(detail?.releases ?? []).length === 0 ? <div className="sn-project-workspace-empty">还没有发布记录。</div> : null}
                 </div>
               </div>
 
-              <div className="sn-reference-status-block status-logs">
-                <div className="sn-reference-label">技术日志入口</div>
-                <div className="sn-reference-drawer-empty">{latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}</div>
+              <div className="sn-project-workspace-block status-logs">
+                <div className="sn-project-workspace-label">技术日志入口</div>
+                <div className="sn-project-workspace-empty">{latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}</div>
               </div>
             </div>
           </section>
