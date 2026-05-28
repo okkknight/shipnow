@@ -2,6 +2,9 @@
 
 ## 2026-05-28
 
+- Simplified the generation prompt path so ShipNow now sends only a short current-project line plus the raw user prompt into the runner instead of the previous long instruction block.
+- Reduced the `codex exec` and `claude-code` task prompts to the bare minimum so the generator sees the project context and the request itself, which should keep operational retry text out of generated page copy.
+
 - Unified the mobile publish confirmation and project-details overlays with a shared slide-in / slide-out transition so both panels no longer flash in or out when opened and closed.
 - Aligned the mobile publish-failure result page to the publish-success page's spacing, card layout, and typography so the two result states now feel like one component family.
 - Left-aligned the project status chip in the mobile project details drawer so it sits immediately after the "当前状态" label instead of floating to the right.

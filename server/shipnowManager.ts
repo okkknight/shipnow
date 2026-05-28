@@ -22,6 +22,7 @@ import {
   slugifyProjectName,
   validateProjectHandle,
 } from './security.js';
+import { taskRunnerBackend, taskRunnerSummary } from './runners.js';
 import {
   copyDefaultTemplate,
   ensureWorkspaceRoots,
@@ -33,6 +34,7 @@ import {
   writeProjectConfig,
 } from './storage.js';
 import { runCommand } from './process.js';
+import type { AppSettingsView, ProjectSettingsView, TaskRunnerName } from './types.js';
 
 interface EnqueueInput {
   projectId: string;
@@ -68,31 +70,7 @@ function inferProjectType(prompt: string): ProjectType {
 }
 
 function buildCodexPrompt(project: ProjectRecord, changePrompt: string): string {
-  const lines = [
-    `Project id: ${project.project_id}`,
-    `Project handle: ${project.public_handle}`,
-    `Project display name: ${project.display_name}`,
-    `Template mode: ${project.type}`,
-    `User request: ${changePrompt}`,
-    'This is a ShipNow-managed pure front-end static project.',
-    'Use the default-static-site template structure already present in the repository.',
-    'Do not add dependencies.',
-    'Do not introduce a backend service.',
-    'Do not change the build command.',
-    'Do not assume deployment at the root path /.',
-    'Do not start dev servers, preview servers, browser sessions, or other long-running processes.',
-    'Only edit files in the current working directory and finish by running pnpm build.',
-    'You must keep pnpm build passing.',
-    project.type === 'game' ? 'If you need a game experience, use the Phaser assets and game shell already provided by the template.' : '',
-    'Prefer the template components, hooks, and utility files that already exist.',
-    '',
-    'Required outputs:',
-    '- Update src/project.config.ts if the content or metadata changes.',
-    '- Update title, description, and visual hierarchy to fit the request.',
-    '- Keep the app fully responsive.',
-    '- Keep the existing architecture stable.',
-  ].filter(Boolean);
-  return lines.join('\n');
+  return [`当前项目为 ${project.display_name}。`, changePrompt].join('\n\n');
 }
 
 function randomHandleSuffix(): string {
@@ -101,6 +79,10 @@ function randomHandleSuffix(): string {
   return Array.from(bytes)
     .map((byte) => alphabet[byte % alphabet.length])
     .join('');
+}
+
+function isCodeTask(type: TaskType): boolean {
+  return type === 'create_project' || type === 'apply_change';
 }
 
 export class ShipNowManager {
@@ -119,6 +101,7 @@ export class ShipNowManager {
 
   async initialize(): Promise<void> {
     await ensureWorkspaceRoots(this.env);
+    await this.recoverInterruptedDeleteTasks();
     await this.resumePendingTasks();
   }
 
@@ -153,6 +136,23 @@ export class ShipNowManager {
   getTask(taskId: string): TaskView | null {
     const task = this.store.getTask(taskId);
     return task ? this.toTaskView(task) : null;
+  }
+
+  getAppSettings(): AppSettingsView {
+    return this.store.getAppSettings();
+  }
+
+  updateAppSettings(defaultRunner: TaskRunnerName): AppSettingsView {
+    return this.store.setDefaultRunnerPreference(defaultRunner);
+  }
+
+  getProjectSettings(projectId: string): ProjectSettingsView | null {
+    return this.store.getProjectRunnerSettings(projectId);
+  }
+
+  updateProjectSettings(projectId: string, preferredRunner: TaskRunnerName | null): ProjectSettingsView | null {
+    const next = this.store.setProjectRunnerPreference(projectId, preferredRunner);
+    return next ? this.store.getProjectRunnerSettings(projectId) : null;
   }
 
   getProjectDetail(projectId: string): {
@@ -212,6 +212,10 @@ export class ShipNowManager {
     return this.store.getTaskLogText(taskId);
   }
 
+  private resolveEffectiveRunner(project: ProjectRecord): TaskRunnerName {
+    return project.preferred_runner ?? this.store.getAppSettings().defaultRunner;
+  }
+
   async createProject(input: CreateProjectInput): Promise<{ project: ProjectView; taskId: string }> {
     const prompt = input.prompt.trim();
     if (!prompt) {
@@ -234,6 +238,7 @@ export class ShipNowManager {
       sourceRoot: paths.sourceRoot,
       status: 'generating',
     });
+    const runnerName = this.resolveEffectiveRunner(project);
 
     this.store.createMessage({
       projectId,
@@ -253,7 +258,7 @@ export class ShipNowManager {
       data: { projectId, displayName, publicHandle: displayName, type },
     });
 
-    const task = await this.enqueueTask({ projectId, type: 'create_project', prompt });
+    const task = await this.enqueueTask({ projectId, type: 'create_project', prompt, runnerName });
     this.store.updateProjectStatus(projectId, 'generating');
     this.store.updateProjectTaskLink(projectId, task.id);
     this.store.createEvent({
@@ -261,8 +266,8 @@ export class ShipNowManager {
       taskId: task.id,
       type: 'task_queued',
       title: '创建任务已排队',
-      detail: 'ShipNow 会先安装依赖，再开始执行 Codex 修改。',
-      data: { taskId: task.id, taskType: task.type },
+      detail: 'ShipNow 会先安装依赖，再开始执行选定的任务执行器。',
+      data: { taskId: task.id, taskType: task.type, runnerName, runnerSummary: taskRunnerSummary(runnerName) },
     });
     return { project: this.toProjectView(this.store.getProjectById(projectId) ?? project), taskId: task.id };
   }
@@ -289,7 +294,8 @@ export class ShipNowManager {
       title: '收到修改请求',
       detail: normalizedPrompt,
     });
-    const task = await this.enqueueTask({ projectId: project.project_id, type: 'apply_change', prompt: normalizedPrompt });
+    const runnerName = this.resolveEffectiveRunner(project);
+    const task = await this.enqueueTask({ projectId: project.project_id, type: 'apply_change', prompt: normalizedPrompt, runnerName });
     this.store.updateProjectStatus(project.project_id, 'generating');
     this.store.createEvent({
       projectId: project.project_id,
@@ -297,7 +303,7 @@ export class ShipNowManager {
       type: 'task_queued',
       title: '修改任务已排队',
       detail: 'ShipNow 会在当前工作区中执行修改。',
-      data: { taskId: task.id, taskType: task.type },
+      data: { taskId: task.id, taskType: task.type, runnerName, runnerSummary: taskRunnerSummary(runnerName) },
     });
     return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
@@ -423,6 +429,7 @@ export class ShipNowManager {
   }
 
   private toProjectView(project: ProjectRecord): ProjectView {
+    const effectiveRunner = this.resolveEffectiveRunner(project);
     return {
       projectId: project.project_id,
       displayName: project.display_name,
@@ -431,6 +438,10 @@ export class ShipNowManager {
       title: project.title,
       prompt: project.prompt,
       status: project.status,
+      preferredRunner: project.preferred_runner,
+      effectiveRunner,
+      effectiveRunnerBackend: taskRunnerBackend(effectiveRunner),
+      runnerSource: project.preferred_runner ? 'project' : 'global',
       previewUrl: displayUrl(this.env.previewBaseUrl, project.public_handle),
       publicUrl: displayUrl(this.env.publicBaseUrl, project.public_handle),
       previewRoute: displayUrl(this.env.previewBaseUrl, project.public_handle),
@@ -460,6 +471,7 @@ export class ShipNowManager {
       createdAt: task.created_at,
       updatedAt: task.updated_at,
       logPath: task.log_path,
+      runnerName: task.runner_name,
     };
   }
 
@@ -503,7 +515,7 @@ export class ShipNowManager {
     };
   }
 
-  private async enqueueTask(input: EnqueueInput): Promise<TaskRecord> {
+  private async enqueueTask(input: EnqueueInput & { runnerName?: TaskRunnerName | null }): Promise<TaskRecord> {
     const project = this.requireProject(input.projectId);
     if (this.store.activeTaskForProject(project.project_id)) {
       throw new Error(`Project ${project.display_name} already has a running or pending task.`);
@@ -512,10 +524,12 @@ export class ShipNowManager {
       projectId: project.project_id,
       type: input.type,
       prompt: input.prompt,
+      runnerName: input.runnerName ?? null,
       logPath: projectPaths(this.env, project.project_id).logPath,
     });
     this.store.updateProjectTaskLink(project.project_id, task.id);
-    await this.store.appendTaskLogAsync(task.id, `Queued task ${task.type} for project ${project.display_name}.`);
+    const runnerSummary = input.runnerName ? ` using ${taskRunnerSummary(input.runnerName)}` : '';
+    await this.store.appendTaskLogAsync(task.id, `Queued task ${task.type} for project ${project.display_name}${runnerSummary}.`);
     this.scheduleDrain();
     return task;
   }
@@ -536,6 +550,21 @@ export class ShipNowManager {
       return;
     }
     this.scheduleDrain();
+  }
+
+  private async recoverInterruptedDeleteTasks(): Promise<void> {
+    const interruptedDeletes = this.store
+      .listRunningTasks()
+      .filter((task) => task.type === 'delete_project');
+
+    for (const task of interruptedDeletes) {
+      this.store.setTaskStatus(task.id, 'pending', {
+        started_at: null,
+        finished_at: null,
+        error_message: null,
+      });
+      await this.store.appendTaskLogAsync(task.id, 'Recovered interrupted delete task after restart.');
+    }
   }
 
   private async drain(): Promise<void> {
@@ -569,8 +598,8 @@ export class ShipNowManager {
       taskId: task.id,
       type: 'task_started',
       title: '任务开始执行',
-      detail: statusText(task.type),
-      data: { taskId: task.id, taskType: task.type },
+      detail: `${statusText(task.type)}${task.runner_name ? ` · ${taskRunnerSummary(task.runner_name)}` : ''}`,
+      data: { taskId: task.id, taskType: task.type, runnerName: task.runner_name, runnerSummary: task.runner_name ? taskRunnerSummary(task.runner_name) : null },
     });
     await this.store.appendTaskLogAsync(task.id, `Starting ${task.type} for ${project.display_name}.`);
 
@@ -662,8 +691,9 @@ export class ShipNowManager {
       throw new Error(`pnpm install failed with exit code ${install.code}.`);
     }
 
-    await this.store.appendTaskLogAsync(task.id, `Running Codex in ${paths.sourceRoot}.`);
-    await this.runCodex(project, task, project.prompt, paths.sourceRoot, timeoutMs);
+    const runnerName = task.runner_name ?? this.resolveEffectiveRunner(project);
+    await this.store.appendTaskLogAsync(task.id, `Running ${taskRunnerSummary(runnerName)} in ${paths.sourceRoot}.`);
+    await this.runTaskWithRunner(runnerName, project, task, project.prompt, paths.sourceRoot, timeoutMs);
 
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
@@ -693,8 +723,9 @@ export class ShipNowManager {
     }
     this.store.updateProjectStatus(project.project_id, 'generating');
     await this.ensureGitRepository(paths.sourceRoot, task.id);
-    await this.store.appendTaskLogAsync(task.id, `Applying Codex changes in ${paths.sourceRoot}.`);
-    await this.runCodex(project, task, buildCodexPrompt(project, task.prompt), paths.sourceRoot, timeoutMs);
+    const runnerName = task.runner_name ?? this.resolveEffectiveRunner(project);
+    await this.store.appendTaskLogAsync(task.id, `Applying ${taskRunnerSummary(runnerName)} changes in ${paths.sourceRoot}.`);
+    await this.runTaskWithRunner(runnerName, project, task, buildCodexPrompt(project, task.prompt), paths.sourceRoot, timeoutMs);
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
     const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
@@ -856,33 +887,30 @@ export class ShipNowManager {
     }
   }
 
-  private async runCodex(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
-    const structuredPrompt = [
-      `Project id: ${project.project_id}`,
-      `Project handle: ${project.public_handle}`,
-      `Project display name: ${project.display_name}`,
-      `Template mode: ${project.type}`,
-      'This is a ShipNow-managed static site project.',
-      'Use only the files in the current working directory.',
-      'Keep the existing template conventions and maintain pnpm build success.',
-      'Do not start dev servers, preview servers, browser sessions, or other long-running processes.',
-      'Only edit files in the current working directory and finish by running pnpm build.',
-      project.type === 'game'
-        ? 'Treat this as a game project and use Phaser from the template or add Phaser-based gameplay as needed.'
-        : '',
-      '',
-      prompt,
-      '',
-      'Rules:',
-      '- Do not add dependencies.',
-      '- Do not create a backend service.',
-      '- Do not modify ShipNow workspace files.',
-      '- Keep the app responsive and production-ready.',
-    ].join('\n');
+  private async runTaskWithRunner(
+    runnerName: TaskRunnerName,
+    project: ProjectRecord,
+    task: TaskRecord,
+    prompt: string,
+    cwd: string,
+    timeoutMs: number
+  ): Promise<void> {
+    switch (runnerName) {
+      case 'codex':
+        await this.runCodex(project, task, prompt, cwd, timeoutMs);
+        return;
+      case 'claude-code':
+        await this.runClaudeCode(project, task, prompt, cwd, timeoutMs);
+        return;
+      default:
+        throw new Error(`Unsupported task runner ${runnerName}.`);
+    }
+  }
 
+  private async runCodex(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
     const result = await runCommand({
       command: this.env.codexBin,
-      args: ['exec', '--full-auto', '--skip-git-repo-check', '--cd', cwd, structuredPrompt],
+      args: ['exec', '--full-auto', '--skip-git-repo-check', '--cd', cwd, prompt],
       cwd,
       timeoutMs,
       onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
@@ -891,6 +919,40 @@ export class ShipNowManager {
 
     if (result.code !== 0) {
       throw new Error(`Codex failed with exit code ${result.code}.`);
+    }
+  }
+
+  private async runClaudeCode(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
+    if (!this.env.claudeCodeAnthropicApiKey) {
+      throw new Error('Claude Code DeepSeek API key is not configured.');
+    }
+
+    const result = await runCommand({
+      command: this.env.claudeCodeBin,
+      args: [
+        '-p',
+        '--output-format',
+        'text',
+        '--model',
+        this.env.claudeCodeModel,
+        '--max-turns',
+        '8',
+        '--dangerously-skip-permissions',
+        prompt,
+      ],
+      cwd,
+      timeoutMs,
+      env: {
+        ANTHROPIC_BASE_URL: this.env.claudeCodeAnthropicBaseUrl,
+        ANTHROPIC_API_KEY: this.env.claudeCodeAnthropicApiKey,
+        ANTHROPIC_MODEL: this.env.claudeCodeModel,
+      },
+      onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
+      onStderr: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
+    });
+
+    if (result.code !== 0) {
+      throw new Error(`Claude Code failed with exit code ${result.code}.`);
     }
   }
 
