@@ -9,7 +9,6 @@ import type {
   ProjectMessageRecord,
   ProjectRecord,
   ProjectStatus,
-  ProjectType,
   ProjectView,
   ReleaseKind,
   ReleaseRecord,
@@ -61,12 +60,6 @@ function displayUrl(baseUrl: string, pathPart: string): string {
 
 function statusText(status: string): string {
   return status.replace(/_/g, ' ');
-}
-
-function inferProjectType(prompt: string): ProjectType {
-  return /(\bgame\b|\bphaser\b|小游戏|游戏|功德篮球|投篮|arcade|puzzle|platformer|runner|shoot|basketball|pong|snake|flappy)/i.test(prompt)
-    ? 'game'
-    : 'landing';
 }
 
 function buildProjectTaskPrompt(project: ProjectRecord, requestPrompt: string): string {
@@ -237,7 +230,7 @@ export class ShipNowManager {
     const projectId = this.generateProjectId();
     const displayName = await this.generateProjectHandle();
     const title = prompt;
-    const type = inferProjectType(prompt);
+    const type = 'landing';
     const paths = await prepareProjectWorkspace(this.env, projectId);
 
     const project = this.store.createProject({
@@ -690,7 +683,6 @@ export class ShipNowManager {
       projectId: project.project_id,
       displayName: project.display_name,
       publicHandle: project.public_handle,
-      type: project.type,
       title: project.title,
       prompt: project.prompt,
     });

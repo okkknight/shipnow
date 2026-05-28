@@ -1,7 +1,6 @@
 import { join, resolve } from 'node:path';
 import { copyDirectory, ensureDir, atomicSymlink, readText, removePath, writeText } from './utils.js';
 import type { ShipNowEnv } from './env.js';
-import type { ProjectType } from './types.js';
 
 export interface ProjectPaths {
   projectRoot: string;
@@ -75,7 +74,6 @@ export async function writeProjectConfig(
     projectId: string;
     displayName: string;
     publicHandle: string;
-    type: ProjectType;
     title: string;
     prompt: string;
   }
@@ -122,5 +120,18 @@ export async function injectBaseHref(indexPath: string, baseHref: string): Promi
 }
 
 export async function removeProjectWorkspace(paths: ProjectPaths): Promise<void> {
-  await removePath(paths.projectRoot);
+  // Preserve the task log directory so delete jobs can finish writing their final status.
+  await Promise.all([
+    removePath(paths.sourceRoot),
+    removePath(paths.publicIndexPath),
+    removePath(paths.publicAssetsPath),
+    removePath(paths.previewIndexPath),
+    removePath(paths.previewAssetsPath),
+    removePath(paths.previewCurrentRoot),
+    removePath(paths.publicCurrentRoot),
+    removePath(paths.previewReleasesRoot),
+    removePath(paths.publicReleasesRoot),
+    removePath(resolve(paths.projectRoot, 'preview')),
+    removePath(resolve(paths.projectRoot, 'releases')),
+  ]);
 }

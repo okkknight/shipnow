@@ -2,6 +2,7 @@
 
 ## 2026-05-28
 
+- Removed `inferProjectType` and stopped writing template-level `type` metadata into new generated site configs, so the starter stays generic and no longer carries the old landing/game branching baggage.
 - Replaced the default static template with a universal source-first starter that keeps only the minimal React/Vite skeleton and explains that ShipNow owns preview/public release directories.
 - Expanded the runner prompt so ShipNow now spells out the workflow split: the program manages workspace setup, builds, preview/public publishing, and current-release pointers, while Codex stays inside `source/` and builds the site content.
 - Added a minimal safety layer to the generation prompt so ShipNow now says the current project name, limits edits to the current workspace, and still asks the runner to finish with `pnpm build`.
