@@ -70,7 +70,12 @@ function inferProjectType(prompt: string): ProjectType {
 }
 
 function buildCodexPrompt(project: ProjectRecord, changePrompt: string): string {
-  return [`当前项目为 ${project.display_name}。`, changePrompt].join('\n\n');
+  return [
+    `当前项目为 ${project.display_name}。`,
+    '只修改当前项目工作区中的文件，不要改 ShipNow 仓库本体。',
+    '只做与当前请求相关的更改，结束前运行 pnpm build。',
+    changePrompt,
+  ].join('\n\n');
 }
 
 function randomHandleSuffix(): string {

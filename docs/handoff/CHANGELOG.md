@@ -2,6 +2,7 @@
 
 ## 2026-05-28
 
+- Added a minimal safety layer to the generation prompt so ShipNow now says the current project name, limits edits to the current workspace, and still asks the runner to finish with `pnpm build`.
 - Simplified the generation prompt path so ShipNow now sends only a short current-project line plus the raw user prompt into the runner instead of the previous long instruction block.
 - Reduced the `codex exec` and `claude-code` task prompts to the bare minimum so the generator sees the project context and the request itself, which should keep operational retry text out of generated page copy.
 
