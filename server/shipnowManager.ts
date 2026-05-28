@@ -69,12 +69,19 @@ function inferProjectType(prompt: string): ProjectType {
     : 'landing';
 }
 
-function buildCodexPrompt(project: ProjectRecord, changePrompt: string): string {
+function buildProjectTaskPrompt(project: ProjectRecord, requestPrompt: string): string {
   return [
-    `当前项目为 ${project.display_name}。`,
-    '只修改当前项目工作区中的文件，不要改 ShipNow 仓库本体。',
-    '只做与当前请求相关的更改，结束前运行 pnpm build。',
-    changePrompt,
+    `当前项目为 ${project.display_name}（projectId: ${project.project_id}, handle: ${project.public_handle}）。`,
+    '这是 ShipNow 管理的静态站点项目。',
+    '职责分工：ShipNow/程序负责创建工作区、复制模板、安装依赖、运行 pnpm build、生成 dist、把 dist 复制到预览/正式目录、切换 current-preview/current-public、记录日志和发布状态；Codex 负责只在当前项目的 source/ 内实现用户需求。',
+    '请把所有实现限制在当前项目的 source/ 目录内。',
+    '可编辑范围包括 source/src、source/index.html、source/package.json、source/vite.config.ts、source/tsconfig.json，以及 source 里其他你需要的文件。',
+    '不要修改 ShipNow 仓库本体，也不要手工编辑项目根目录下的 preview/、releases/、current-preview/、current-public/、logs/，这些目录由 ShipNow 构建和发布流程管理。',
+    '如果需要新增依赖，只在 source/package.json 中调整，并让 pnpm install / pnpm build 处理锁文件和产物。',
+    '如果需要页面、组件、路由、样式、资源、游戏或其它交互，请在 source 内自行组织实现；先完成一个最小可运行版本，再按需要迭代。',
+    'ShipNow 会在 pnpm build 之后自动把 dist 复制到预览和正式发布目录，你不要直接往 preview/ 或 releases/ 写文件。',
+    '',
+    requestPrompt,
   ].join('\n\n');
 }
 
@@ -263,7 +270,12 @@ export class ShipNowManager {
       data: { projectId, displayName, publicHandle: displayName, type },
     });
 
-    const task = await this.enqueueTask({ projectId, type: 'create_project', prompt, runnerName });
+    const task = await this.enqueueTask({
+      projectId,
+      type: 'create_project',
+      prompt: buildProjectTaskPrompt(project, prompt),
+      runnerName,
+    });
     this.store.updateProjectStatus(projectId, 'generating');
     this.store.updateProjectTaskLink(projectId, task.id);
     this.store.createEvent({
@@ -300,7 +312,12 @@ export class ShipNowManager {
       detail: normalizedPrompt,
     });
     const runnerName = this.resolveEffectiveRunner(project);
-    const task = await this.enqueueTask({ projectId: project.project_id, type: 'apply_change', prompt: normalizedPrompt, runnerName });
+    const task = await this.enqueueTask({
+      projectId: project.project_id,
+      type: 'apply_change',
+      prompt: buildProjectTaskPrompt(project, normalizedPrompt),
+      runnerName,
+    });
     this.store.updateProjectStatus(project.project_id, 'generating');
     this.store.createEvent({
       projectId: project.project_id,
@@ -698,7 +715,7 @@ export class ShipNowManager {
 
     const runnerName = task.runner_name ?? this.resolveEffectiveRunner(project);
     await this.store.appendTaskLogAsync(task.id, `Running ${taskRunnerSummary(runnerName)} in ${paths.sourceRoot}.`);
-    await this.runTaskWithRunner(runnerName, project, task, project.prompt, paths.sourceRoot, timeoutMs);
+    await this.runTaskWithRunner(runnerName, task, project.prompt, paths.sourceRoot, timeoutMs);
 
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
@@ -730,7 +747,7 @@ export class ShipNowManager {
     await this.ensureGitRepository(paths.sourceRoot, task.id);
     const runnerName = task.runner_name ?? this.resolveEffectiveRunner(project);
     await this.store.appendTaskLogAsync(task.id, `Applying ${taskRunnerSummary(runnerName)} changes in ${paths.sourceRoot}.`);
-    await this.runTaskWithRunner(runnerName, project, task, buildCodexPrompt(project, task.prompt), paths.sourceRoot, timeoutMs);
+    await this.runTaskWithRunner(runnerName, task, task.prompt, paths.sourceRoot, timeoutMs);
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
     const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
@@ -894,7 +911,6 @@ export class ShipNowManager {
 
   private async runTaskWithRunner(
     runnerName: TaskRunnerName,
-    project: ProjectRecord,
     task: TaskRecord,
     prompt: string,
     cwd: string,
@@ -902,17 +918,17 @@ export class ShipNowManager {
   ): Promise<void> {
     switch (runnerName) {
       case 'codex':
-        await this.runCodex(project, task, prompt, cwd, timeoutMs);
+        await this.runCodex(task, prompt, cwd, timeoutMs);
         return;
       case 'claude-code':
-        await this.runClaudeCode(project, task, prompt, cwd, timeoutMs);
+        await this.runClaudeCode(task, prompt, cwd, timeoutMs);
         return;
       default:
         throw new Error(`Unsupported task runner ${runnerName}.`);
     }
   }
 
-  private async runCodex(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
+  private async runCodex(task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
     const result = await runCommand({
       command: this.env.codexBin,
       args: ['exec', '--full-auto', '--skip-git-repo-check', '--cd', cwd, prompt],
@@ -927,7 +943,7 @@ export class ShipNowManager {
     }
   }
 
-  private async runClaudeCode(project: ProjectRecord, task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
+  private async runClaudeCode(task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
     if (!this.env.claudeCodeAnthropicApiKey) {
       throw new Error('Claude Code DeepSeek API key is not configured.');
     }
