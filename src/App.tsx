@@ -489,7 +489,12 @@ function App() {
       ? route.projectId
       : null;
   const currentProject = useMemo(
-    () => (routeProjectId ? detail?.project ?? projects.find((project) => project.projectId === routeProjectId) ?? null : null),
+    () =>
+      routeProjectId
+        ? detail?.project?.projectId === routeProjectId
+          ? detail.project
+          : projects.find((project) => project.projectId === routeProjectId) ?? null
+        : null,
     [detail, projects, routeProjectId]
   );
 
@@ -545,6 +550,7 @@ function App() {
       return;
     }
     if (routeProjectId) {
+      setDetail(null);
       void refreshDetail(routeProjectId);
     } else {
       setDetail(null);
@@ -765,6 +771,7 @@ function App() {
     page = isMobileLayout ? (
       <MobilePreviewPage
         projectName={currentProject.displayName}
+        previewUrl={currentProject.previewUrl}
         onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
         onPublish={() => setPublishConfirmOpen(true)}
       />
@@ -1672,32 +1679,19 @@ function ProjectPreviewWorkspace({
               <StatusChip tone="published">Preview ready</StatusChip>
             </div>
 
-            <div className="sn-visual-preview-canvas">
+            <div className="sn-visual-preview-canvas sn-visual-preview-canvas-live">
               <div className="sn-visual-preview-top">
-                <span>v1 · Home</span>
+                <span>实时预览</span>
                 <div className="sn-visual-preview-icons">
-                  <span>◌</span>
-                  <span>◌</span>
+                  <span className="sn-visual-preview-url">{project.previewUrl}</span>
                 </div>
               </div>
-              <div className="sn-visual-preview-content">
-                <div className="sn-visual-preview-brand">ShipNow</div>
-                <h3>
-                  Ship faster.
-                  <br />
-                  Ship now.
-                </h3>
-                <p>{project.title || 'ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。'}</p>
-                <div className="sn-visual-preview-actions">
-                  <SnButton variant="primary">Get started</SnButton>
-                  <SnButton variant="secondary">Learn more</SnButton>
-                </div>
-                <div className="sn-visual-preview-features">
-                  <span className="sn-visual-preview-feature">Hero 区域</span>
-                  <span className="sn-visual-preview-feature">核心优势</span>
-                  <span className="sn-visual-preview-feature">操作指引</span>
-                </div>
-              </div>
+              <iframe
+                className="sn-visual-preview-frame"
+                src={project.previewUrl}
+                title={`${project.displayName} 预览`}
+                loading="eager"
+              />
             </div>
           </section>
 

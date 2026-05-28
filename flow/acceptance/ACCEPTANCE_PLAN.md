@@ -230,7 +230,9 @@
 | 日期 | 阶段 | 页面 | 端 | 结果 | 发现问题数 | 已修复数 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-05-27 | mobile | home | mobile | in_progress | 0 | 0 | 先看入口页 |
-| 2026-05-28 | mobile | project/:projectId/preview | mobile | verified | 0 | 0 | 发布确认层补了滑入滑出动画，关闭不再闪现 |
+| 2026-05-28 | mobile | project/:projectId/preview | mobile | verified | 0 | 0 | 预览页改为嵌入真实 previewUrl，项目内容不再共用 mock 壳 |
+| 2026-05-28 | desktop | project/:projectId/preview | desktop | verified | 0 | 0 | 桌面预览页同步嵌入真实 previewUrl，两个项目预览内容已按各自站点变化 |
+| 2026-05-28 | mobile | project/:projectId/preview | mobile | verified | 0 | 0 | 手机预览页去掉大圆卡，底部按钮贴近页面底部，预览中胶囊复用项目统一状态胶囊 |
 | 2026-05-28 | mobile | project/:projectId/publish-success | mobile | verified | 0 | 0 | 成功页地址卡、复制提示与按钮宽度已统一 |
 | 2026-05-28 | mobile | project/:projectId/publish-failure | mobile | verified | 0 | 0 | 失败页排版和成功页对齐，常见原因卡片已统一样式 |
 
@@ -251,9 +253,9 @@
 
 ## 9. 当前里程碑
 
-- 当前阶段：UI 重构基本落地，手机端验收基本收口，进入提交与最终复核
+- 当前阶段：UI 重构基本落地，预览页已切到真实 previewUrl，手机端验收基本收口，进入提交与最终复核
 - 当前优先级：手机端先行
-- 当前目标：把验收结果、问题和修复状态都收进这份文档里，并保持与已交付实现一致
+- 当前目标：把验收结果、问题和修复状态都收进这份文档里，并保持与已交付实现一致，预览内容按项目独立展示
 
 ## 10. 待补充项
 

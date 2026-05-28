@@ -431,33 +431,17 @@ function MobileDesignSystemPage() {
 
 export function MobilePreviewPage({
   projectName,
+  previewUrl,
   onBackEdit,
   onPublish,
   embedded = false,
 }: {
   projectName: string;
+  previewUrl: string;
   onBackEdit: () => void;
   onPublish: () => void;
   embedded?: boolean;
 }) {
-  const featureCards = [
-    {
-      icon: <Sparkles className="size-4" />,
-      title: '对话式创建',
-      description: '从描述里生成页面，AI 辅助快速成型。',
-    },
-    {
-      icon: <Eye className="size-4" />,
-      title: '一键部署',
-      description: '自动构建并发布，全球可访问。',
-    },
-    {
-      icon: <Upload className="size-4" />,
-      title: '持续迭代',
-      description: '每次修改都能快速上线。',
-    },
-  ];
-
   return (
     <MobilePageSurface className={`sn-mobile-preview-page ${embedded ? 'sn-mobile-preview-page-embedded' : ''}`.trim()}>
       <div className="sn-mobile-preview-visual">
@@ -465,55 +449,20 @@ export function MobilePreviewPage({
           <button className="sn-mobile-preview-nav-icon" type="button" aria-label="返回" onClick={onBackEdit}>
             <ChevronLeft className="size-5" />
           </button>
-          <div className="sn-mobile-preview-nav-title">{projectName}</div>
+          <div className="sn-mobile-preview-nav-copy">
+            <div className="sn-mobile-preview-nav-title">{projectName}</div>
+            <StatusChip tone="preview-ready">预览中</StatusChip>
+          </div>
         </header>
 
         <div className="sn-mobile-preview-body">
-          <div className="sn-mobile-preview-version">v1 · Home</div>
-
-          <section className="sn-mobile-preview-hero">
-            <h1>Ship faster.<br />Ship now.</h1>
-            <p>ShipNow 帮助你以对话的方式创建和部署静态网站。输入想法，快速上线。</p>
-          </section>
-
-          <div className="sn-mobile-preview-actions">
-            <MobileActionButton variant="primary" className="sn-mobile-preview-primary">
-              Get started
-            </MobileActionButton>
-            <MobileActionButton variant="secondary" className="sn-mobile-preview-secondary">
-              Learn more
-            </MobileActionButton>
-          </div>
-
-          <div className="sn-mobile-preview-art">
-            <div className="sn-mobile-preview-art-background" />
-            <div className="sn-mobile-preview-art-card sn-mobile-preview-art-card-left">
-              <div className="sn-mobile-preview-art-icon">↺</div>
-            </div>
-            <div className="sn-mobile-preview-art-card sn-mobile-preview-art-card-center">
-              <div className="sn-mobile-preview-art-grid">
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-            </div>
-            <div className="sn-mobile-preview-art-card sn-mobile-preview-art-card-right">
-              <div className="sn-mobile-preview-art-icon">◎</div>
-            </div>
-            <div className="sn-mobile-preview-art-badge" />
-          </div>
-
-          <div className="sn-mobile-preview-feature-grid">
-            {featureCards.map((item) => (
-              <div key={item.title} className="sn-mobile-preview-feature-card">
-                <div className="sn-mobile-preview-feature-icon">{item.icon}</div>
-                <div className="sn-mobile-preview-feature-copy">
-                  <div className="sn-mobile-preview-feature-title">{item.title}</div>
-                  <div className="sn-mobile-preview-feature-desc">{item.description}</div>
-                </div>
-              </div>
-            ))}
+          <div className="sn-mobile-preview-frame-shell">
+            <iframe
+              className="sn-mobile-preview-frame"
+              src={previewUrl}
+              title={`${projectName} 预览`}
+              loading="eager"
+            />
           </div>
 
           <div className="sn-mobile-preview-footer-actions">
