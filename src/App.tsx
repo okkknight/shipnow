@@ -10,6 +10,7 @@ import {
   Copy,
   Edit2,
   Eye,
+  Globe,
   Folder,
   LayoutGrid,
   Info,
@@ -231,7 +232,7 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-function useDrawerTransition(open: boolean, durationMs = 240): { shouldRender: boolean; isOpen: boolean } {
+function useDrawerTransition(open: boolean, durationMs = 320): { shouldRender: boolean; isOpen: boolean } {
   const [shouldRender, setShouldRender] = useState(open);
   const [isOpen, setIsOpen] = useState(open);
 
@@ -305,7 +306,7 @@ function statusLabel(status: string): string {
     case 'draft':
       return '草稿';
     case 'generating':
-      return '正在修改';
+      return '生成中';
     case 'build_failed':
       return '修改失败';
     case 'preview_ready':
@@ -582,6 +583,31 @@ function App() {
   const renameNormalized = slugifyHandle(renameDraft);
   const renameValidation = renameDraft.trim().length > 0 ? validateHandle(renameNormalized) : '名称不能为空。';
   const renameDirty = Boolean(currentProject && renameNormalized !== currentProject.publicHandle);
+  const publishSheetOpen = publishConfirmOpen || previewConfirmDebug;
+
+  useEffect(() => {
+    if (!publishSheetOpen) {
+      return;
+    }
+
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+    const previousHtmlOverflow = documentElement.style.overflow;
+    const previousHtmlOverscroll = documentElement.style.overscrollBehavior;
+
+    body.style.overflow = 'hidden';
+    body.style.overscrollBehavior = 'none';
+    documentElement.style.overflow = 'hidden';
+    documentElement.style.overscrollBehavior = 'none';
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+      documentElement.style.overflow = previousHtmlOverflow;
+      documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+    };
+  }, [publishSheetOpen]);
 
   async function handleComposerSubmit(): Promise<void> {
     const prompt = composerPrompt.trim();
@@ -918,7 +944,7 @@ function App() {
               }}
             />
           ) : currentProject ? (
-            <WorkspaceDrawer
+            <ProjectWorkspaceDrawer
               open={sidebarOpen}
               currentProject={currentProject}
               recentProjects={homeRecentProjects}
@@ -1300,6 +1326,12 @@ function TemplatesWorkspace({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const templates = [
     {
+      title: '空白项目',
+      desc: '从空白开始，自由发挥',
+      prompt: TEMPLATE_PROMPTS[5],
+      icon: '+',
+    },
+    {
       title: '产品官网',
       desc: '展示产品与功能亮点',
       prompt: TEMPLATE_PROMPTS[0],
@@ -1316,12 +1348,6 @@ function TemplatesWorkspace({
       desc: '展示自己与作品集',
       prompt: TEMPLATE_PROMPTS[1],
       icon: '☺',
-    },
-    {
-      title: '空白项目',
-      desc: '从空白开始，自由发挥',
-      prompt: TEMPLATE_PROMPTS[5],
-      icon: '+',
     },
   ];
 
@@ -1353,9 +1379,6 @@ function TemplatesWorkspace({
               </button>
             ))}
           </div>
-          <MobileActionButton variant="secondary" className="sn-mobile-import-btn">
-            <Upload className="size-4" /> 导入现有项目
-          </MobileActionButton>
         </div>
         <HomeWorkspaceDrawer
           open={sidebarOpen}
@@ -1474,6 +1497,7 @@ function ProjectsWorkspace({
 }) {
   const isMobile = useMediaQuery('(max-width: 767px)');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [allProjectsOpen, setAllProjectsOpen] = useState(true);
 
   if (isMobile) {
     return (
@@ -1483,47 +1507,54 @@ function ProjectsWorkspace({
             onMenu={() => setSidebarOpen(true)}
             title="我的项目"
           />
-          <div className="sn-mobile-project-filter">
-            全部项目 <ChevronDown className="size-4" />
-          </div>
+          <details
+            className="sn-mobile-project-filter-group"
+            open={allProjectsOpen}
+            onToggle={(event) => setAllProjectsOpen(event.currentTarget.open)}
+          >
+            <summary className="sn-mobile-project-filter">
+              <span>全部项目</span>
+              <ChevronDown className={`size-4 sn-mobile-project-filter-chevron ${allProjectsOpen ? 'is-open' : ''}`.trim()} />
+            </summary>
 
-          {projectsLoading ? (
-            <div className="grid gap-3">
-              <Skeleton className="h-36 rounded-[24px]" />
-              <Skeleton className="h-36 rounded-[24px]" />
-              <Skeleton className="h-36 rounded-[24px]" />
-            </div>
-          ) : projects.length === 0 ? (
-            <div className="sn-mobile-empty">还没有项目。先创建一个再回来这里看列表。</div>
-          ) : (
-            <div className="sn-mobile-project-list">
-              {projects.map((project) => (
-                <button
-                  key={project.projectId}
-                  type="button"
-                  className={`sn-mobile-project-card ${project.status === 'preview_ready' ? 'is-active' : ''}`}
-                  onClick={() => onOpenProject(project.projectId)}
-                >
-                  <div className="sn-mobile-project-thumb" />
-                  <div className="sn-mobile-project-copy">
-                    <div className="sn-mobile-project-head">
-                      <div>
-                        <div className="sn-mobile-project-name">{project.displayName}</div>
-                        <div className="sn-mobile-project-desc">{project.title}</div>
+            {projectsLoading ? (
+              <div className="grid gap-3">
+                <Skeleton className="h-36 rounded-[24px]" />
+                <Skeleton className="h-36 rounded-[24px]" />
+                <Skeleton className="h-36 rounded-[24px]" />
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="sn-mobile-empty">还没有项目。先创建一个再回来这里看列表。</div>
+            ) : (
+              <div className="sn-mobile-project-list">
+                {projects.map((project) => (
+                  <button
+                    key={project.projectId}
+                    type="button"
+                    className={`sn-mobile-project-card ${project.status === 'preview_ready' ? 'is-active' : ''}`}
+                    onClick={() => onOpenProject(project.projectId)}
+                  >
+                    <div className="sn-mobile-project-thumb" />
+                    <div className="sn-mobile-project-copy">
+                      <div className="sn-mobile-project-head">
+                        <div>
+                          <div className="sn-mobile-project-name">{project.displayName}</div>
+                          <div className="sn-mobile-project-desc">{project.title}</div>
+                        </div>
+                        <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                          {statusLabel(project.status)}
+                        </StatusChip>
                       </div>
-                      <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
-                        {statusLabel(project.status)}
-                      </StatusChip>
+                      <div className="sn-mobile-project-meta">
+                        <span>{formatTime(project.updatedAt)}</span>
+                        <span>{project.type}</span>
+                      </div>
                     </div>
-                    <div className="sn-mobile-project-meta">
-                      <span>{formatTime(project.updatedAt)}</span>
-                      <span>{project.type}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </details>
         </div>
         <HomeWorkspaceDrawer
           open={sidebarOpen}
@@ -1695,38 +1726,70 @@ function ProjectPreviewWorkspace({
 }
 
 function MobilePublishConfirmSheet({
+  open,
   project,
   canPublish,
   onCancel,
   onConfirm,
 }: {
+  open: boolean;
   project: ProjectView;
   canPublish: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+
+  if (!shouldRender) {
+    return null;
+  }
+
   return (
-    <div className="sn-mobile-confirm-overlay">
-      <div className="sn-mobile-confirm-sheet">
-        <div className="sn-mobile-confirm-handle" />
-        <div className="sn-mobile-confirm-badge">确认发布</div>
-        <div className="sn-mobile-confirm-title">确认要把当前版本发布到正式站点吗？</div>
-        <div className="sn-mobile-confirm-address">
-          <span>{project.publicUrl}</span>
-          <Copy className="size-4" />
-        </div>
-        <div className="sn-mobile-confirm-list">
-          <div>将覆盖当前版本：{project.displayName}</div>
-          <div>构建并发布到线上环境</div>
-          <div>发布后立即可通过该地址访问</div>
-        </div>
-        <div className="sn-mobile-confirm-actions">
-          <button className="sn-mobile-confirm-button is-primary" type="button" onClick={onConfirm} disabled={!canPublish}>
-            确认发布
+    <div className={`sn-mobile-confirm-shell ${isOpen ? 'is-open' : ''}`.trim()} role="presentation">
+      <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭确认发布" onClick={onCancel} />
+      <div className="sn-mobile-confirm-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="sn-mobile-confirm-head">
+          <div className="sn-mobile-confirm-head-left">
+            <div className="sn-mobile-confirm-icon" aria-hidden="true">
+              <Globe className="size-4" />
+            </div>
+            <div className="sn-mobile-confirm-head-title">确认发布</div>
+          </div>
+          <button className="sn-reference-sheet-close sn-mobile-confirm-close" type="button" onClick={onCancel} aria-label="关闭确认发布">
+            ×
           </button>
-          <button className="sn-mobile-confirm-button is-secondary" type="button" onClick={onCancel}>
-            取消
-          </button>
+        </div>
+        <div className="sn-mobile-confirm-body">
+          <div className="sn-mobile-confirm-label">目标线上地址</div>
+          <div className="sn-mobile-confirm-address">
+            <span>{project.publicUrl}</span>
+            <Copy className="size-4" />
+          </div>
+          <div className="sn-mobile-confirm-list">
+            <div className="sn-mobile-confirm-list-item">
+              <CheckCircle2 className="size-4" />
+              <span>将覆盖当前版本：{project.displayName}</span>
+            </div>
+            <div className="sn-mobile-confirm-list-item">
+              <CheckCircle2 className="size-4" />
+              <span>构建并发布到线上环境</span>
+            </div>
+            <div className="sn-mobile-confirm-list-item">
+              <CheckCircle2 className="size-4" />
+              <span>发布后立即可通过该地址访问</span>
+            </div>
+          </div>
+        </div>
+        <div className="sn-mobile-confirm-footer">
+          <div className="sn-mobile-confirm-actions">
+            <button className="sn-mobile-confirm-button is-primary" type="button" onClick={onConfirm} disabled={!canPublish}>
+              确认发布
+            </button>
+            <button className="sn-mobile-confirm-button is-secondary" type="button" onClick={onCancel}>
+              取消
+            </button>
+          </div>
+          <div className="sn-mobile-confirm-footnote">发布即表示你同意 ShipNow 服务条款</div>
         </div>
       </div>
     </div>
@@ -1765,6 +1828,9 @@ function ProjectConfirmModal({
       <div className="sn-project-confirm-backdrop" onClick={onCancel} role="presentation" />
       <div className="sn-project-confirm-panel">
         <div className="sn-confirmation-sheet sn-project-confirm-sheet">
+          <button className="sn-reference-sheet-close sn-project-confirm-close" type="button" onClick={onCancel} aria-label="关闭确认发布">
+            ×
+          </button>
           <div className="sn-confirmation-head">
             <div className={`sn-confirmation-badge ${destructive ? 'is-destructive' : ''}`.trim()}>
               {destructive ? 'Delete confirmation' : 'Publish confirmation'}
@@ -1806,19 +1872,20 @@ function ProjectPublishConfirmSurface({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  if (!open) {
-    return null;
-  }
-
   if (isMobileLayout) {
     return (
       <MobilePublishConfirmSheet
+        open={open}
         project={project}
         canPublish={canPublish}
         onCancel={onCancel}
         onConfirm={onConfirm}
       />
     );
+  }
+
+  if (!open) {
+    return null;
   }
 
   return (
@@ -2142,7 +2209,7 @@ function ProjectWorkspace({
             </div>
           </section>
 
-          <section className="sn-panel sn-project-workspace-status">
+          <section className="sn-reference-sheet sn-project-workspace-status">
             <div className="sn-project-workspace-status-head">
               <div>
                 <div className="sn-project-workspace-section-copy">项目状态</div>
@@ -2154,79 +2221,7 @@ function ProjectWorkspace({
               </SnActionButton>
               </div>
             </div>
-
-            <div className="sn-project-workspace-list">
-              <div className="sn-project-workspace-card is-active">
-                <div className="sn-project-workspace-thumb is-mini" />
-                <div className="sn-project-workspace-copy">
-                  <div className="sn-project-workspace-head">
-                    <div>
-                      <div className="sn-project-workspace-name">{project.displayName}</div>
-                      <div className="sn-project-workspace-desc">{project.publicHandle}</div>
-                    </div>
-                    <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
-                      {statusLabel(project.status)}
-                    </StatusChip>
-                  </div>
-                  <div className="sn-project-workspace-meta">
-                    <span>{project.title}</span>
-                    <span>{project.type}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="sn-project-workspace-row">
-                <div>
-                  <div className="sn-project-workspace-label">预览地址</div>
-                  <div className="sn-project-workspace-address">
-                    <span>{project.previewUrl}</span>
-                    <Copy className="size-4" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="sn-project-workspace-row">
-                <div>
-                  <div className="sn-project-workspace-label">上线地址</div>
-                  <div className="sn-project-workspace-address">
-                    <span>{project.publicUrl}</span>
-                    <Copy className="size-4" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="sn-project-workspace-block">
-                <div className="sn-project-workspace-label">最近任务</div>
-                {latestTask ? (
-                  <div className="sn-project-workspace-task">
-                    <span>{taskTypeLabel(latestTask.type)}</span>
-                    <StatusChip tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}>
-                      {taskStatusLabel(latestTask.status)}
-                    </StatusChip>
-                  </div>
-                ) : (
-                  <div className="sn-project-workspace-empty">还没有最近任务。</div>
-                )}
-              </div>
-
-              <div className="sn-project-workspace-block">
-                <div className="sn-project-workspace-label">最近发布</div>
-                <div className="sn-project-workspace-history">
-                  {(detail?.releases ?? []).slice(0, 3).map((release) => (
-                    <div key={release.id} className="sn-project-workspace-history-item">
-                      <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
-                      <small>{formatTime(release.createdAt)}</small>
-                    </div>
-                  ))}
-                  {(detail?.releases ?? []).length === 0 ? <div className="sn-project-workspace-empty">还没有发布记录。</div> : null}
-                </div>
-              </div>
-
-              <div className="sn-project-workspace-block status-logs">
-                <div className="sn-project-workspace-label">技术日志入口</div>
-                <div className="sn-project-workspace-empty">{latestTask ? `日志路径：${latestTask.logPath}` : '当前没有可用的任务日志。'}</div>
-              </div>
-            </div>
+            <ProjectStatusContent project={project} detail={detail} latestTask={latestTask} showTaskInfo onViewLogs={onViewLogs} />
           </section>
         </div>
       </div>
@@ -2335,9 +2330,9 @@ function ProjectWorkspaceMobile({
 
       </div>
 
-      <div className="sn-mobile-project-composer-fixed">
-        <div className="sn-mobile-project-composer-actions">
-          <MobileActionButton variant="secondary" onClick={onOpenPreview}>
+        <div className="sn-mobile-project-composer-fixed">
+          <div className="sn-mobile-project-composer-actions">
+          <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
             <Eye className="size-4" /> Preview
           </MobileActionButton>
         </div>
@@ -2424,6 +2419,7 @@ function HomeWorkspaceDrawer({
 }) {
   const { shouldRender, isOpen } = useDrawerTransition(open);
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const [recentProjectsOpen, setRecentProjectsOpen] = useState(true);
 
   if (!shouldRender) {
     return null;
@@ -2440,9 +2436,11 @@ function HomeWorkspaceDrawer({
           ×
         </button>
         <div className="sn-mobile-drawer-brand">
-          <div className="sn-mobile-mini-brand">
-            <Zap className="size-4" />
-            <span>ShipNow</span>
+          <div className="sn-mobile-drawer-brand-main">
+            <div className="sn-mobile-drawer-mark">
+              <Zap className="size-4" />
+            </div>
+            <div className="sn-mobile-drawer-brand-name">ShipNow</div>
           </div>
         </div>
         <div className="sn-mobile-drawer-group">
@@ -2462,55 +2460,313 @@ function HomeWorkspaceDrawer({
             <ChevronRight className="size-4" />
           </button>
         </div>
-        <div className="sn-mobile-drawer-group">
-          <div className="sn-mobile-drawer-item is-static">
-            <span>最近项目</span>
-            <span className="text-xs text-[rgb(var(--muted))]">{projectsLoading ? '加载中' : `${recentProjects.length} 个`}</span>
-          </div>
-          {recentProjects.length === 0 ? (
-            <div className="sn-mobile-drawer-empty">还没有项目，先从一句话开始。</div>
-          ) : (
-            recentProjects.map((project) => (
-              <button
-                key={project.projectId}
-                className="sn-mobile-drawer-item is-project"
-                type="button"
-                onClick={() => {
-                  onClose();
-                  navigate(`/project/${project.projectId}`);
-                }}
-              >
-                <div className="min-w-0 flex items-center gap-2">
-                  <div className="min-w-0 flex-1 truncate font-medium">{project.displayName}</div>
-                  <span className={`sn-mobile-drawer-status-text ${statusTone(project.status)}`.trim()}>
-                    {statusLabel(project.status)}
-                  </span>
-                </div>
-                <ChevronRight className="size-4" />
-              </button>
-            ))
-          )}
-        </div>
-        <SnActionButton
-          variant="primary"
-          className="sn-mobile-drawer-create-btn"
-          onClick={() => {
-            navigate('/');
-            onClose();
-          }}
+        <details
+          className="sn-mobile-drawer-group sn-mobile-drawer-collapsible"
+          open={recentProjectsOpen}
+          onToggle={(event) => setRecentProjectsOpen(event.currentTarget.open)}
         >
-          <Plus className="size-4" />
-          新建项目
-        </SnActionButton>
-        <div className="sn-mobile-drawer-user">
-          <div className="sn-chat-avatar">艾</div>
-          <div>
-            <div className="sn-mobile-drawer-user-name">艾米</div>
-            <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
+          <summary className="sn-mobile-drawer-section-head sn-mobile-drawer-section-toggle">
+            <span className="sn-mobile-drawer-section-title">最近项目</span>
+            <div className="flex items-center gap-2">
+              <span className="sn-mobile-drawer-section-count">{projectsLoading ? '加载中' : `${recentProjects.length} 个`}</span>
+              <ChevronDown className={`size-4 sn-mobile-drawer-section-chevron ${recentProjectsOpen ? 'is-open' : ''}`.trim()} />
+            </div>
+          </summary>
+          <div className="sn-mobile-drawer-section-body">
+            {recentProjects.length === 0 ? (
+              <div className="sn-mobile-drawer-empty">还没有项目，先从一句话开始。</div>
+            ) : (
+              recentProjects.map((project) => (
+                <button
+                  key={project.projectId}
+                  className="sn-mobile-drawer-item is-project"
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/project/${project.projectId}`);
+                  }}
+                >
+                  <div className="min-w-0 flex items-center gap-2">
+                    <div className="min-w-0 flex-1 truncate font-medium">{project.displayName}</div>
+                    <span className={`sn-mobile-drawer-status-text ${statusTone(project.status)}`.trim()}>
+                      {statusLabel(project.status)}
+                    </span>
+                  </div>
+                  <ChevronRight className="size-4" />
+                </button>
+              ))
+            )}
+          </div>
+        </details>
+        <div className="sn-mobile-drawer-footer">
+          <SnActionButton
+            variant="primary"
+            className="sn-mobile-drawer-create-btn"
+            onClick={() => {
+              navigate('/');
+              onClose();
+            }}
+          >
+            <Plus className="size-4" />
+            新建项目
+          </SnActionButton>
+          <div className="sn-mobile-drawer-user">
+            <div className="sn-chat-avatar">艾</div>
+            <div>
+              <div className="sn-mobile-drawer-user-name">艾米</div>
+              <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ProjectWorkspaceDrawer({
+  open,
+  currentProject,
+  recentProjects,
+  navigate,
+  onClose,
+  onCreateProject,
+  onOpenTemplates,
+  onOpenProjects,
+  onOpenReleases,
+  onOpenSettings,
+  onSelectTemplate,
+}: {
+  open: boolean;
+  currentProject: ProjectView;
+  recentProjects: ProjectView[];
+  navigate: (path: string) => void;
+  onClose: () => void;
+  onCreateProject: () => void;
+  onOpenTemplates: () => void;
+  onOpenProjects: () => void;
+  onOpenReleases: () => void;
+  onOpenSettings: () => void;
+  onSelectTemplate: (prompt: string) => void;
+}) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const [recentTasksOpen, setRecentTasksOpen] = useState(true);
+  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
+
+  if (!shouldRender) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`sn-mobile-drawer-shell ${isOpen ? 'is-open' : ''}`.trim()}
+      role="presentation"
+    >
+      <button
+        className="sn-mobile-drawer-backdrop"
+        type="button"
+        aria-label="关闭抽屉"
+        onClick={onClose}
+      />
+      <div ref={sheetRef} className="sn-mobile-drawer-sheet" onClick={(event) => event.stopPropagation()}>
+        <button className="sn-mobile-drawer-close" type="button" onClick={onClose} aria-label="关闭项目抽屉">
+          ×
+        </button>
+        <div className="sn-mobile-drawer-brand">
+          <div className="sn-mobile-drawer-brand-main">
+            <div className="sn-mobile-drawer-mark">
+              <Zap className="size-4" />
+            </div>
+            <div className="sn-mobile-drawer-brand-name">ShipNow</div>
+          </div>
+        </div>
+        <button className="sn-mobile-drawer-item is-highlight" type="button" onClick={onCreateProject}>
+          <Plus className="size-4" />
+          <span>新建项目</span>
+        </button>
+        <div className="sn-mobile-drawer-group">
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenTemplates}>
+            <LayoutGrid className="size-4" />
+            <span>模板中心</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenProjects}>
+            <Folder className="size-4" />
+            <span>项目管理</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenReleases}>
+            <CalendarDays className="size-4" />
+            <span>最近发布</span>
+            <ChevronRight className="size-4" />
+          </button>
+          <button className="sn-mobile-drawer-item" type="button" onClick={onOpenSettings}>
+            <Settings2 className="size-4" />
+            <span>设置与偏好</span>
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <div className="sn-mobile-drawer-footer">
+          <div className="sn-mobile-drawer-user">
+            <div className="sn-chat-avatar">艾</div>
+            <div>
+              <div className="sn-mobile-drawer-user-name">艾米</div>
+              <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectStatusContent({
+  project,
+  detail,
+  latestTask,
+  showTaskInfo = false,
+  onViewLogs,
+}: {
+  project: ProjectView;
+  detail: ProjectDetailResponse | null;
+  latestTask?: TaskView | null;
+  showTaskInfo?: boolean;
+  onViewLogs?: () => void;
+}) {
+  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
+  const releases = detail?.releases ?? [];
+
+  const copyToClipboard = async (value: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Ignore clipboard failures; the address remains visible.
+    }
+  };
+
+  return (
+    <>
+      <div className="sn-reference-status-block">
+        <div className="sn-reference-project-head">
+          <div className="sn-reference-label">当前状态</div>
+          <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+            {statusLabel(project.status)}
+          </StatusChip>
+        </div>
+        <div className="sn-reference-note">预览已就绪，随时可以发布到线上。</div>
+      </div>
+
+      <div className="sn-reference-status-block">
+        <div className="sn-reference-label">预览地址</div>
+        <button
+          type="button"
+          className="sn-reference-address"
+          onClick={() => copyToClipboard(project.previewUrl)}
+          aria-label="复制预览地址"
+        >
+          <span className="sn-reference-address-text">{project.previewUrl}</span>
+          <Copy className="size-4" />
+        </button>
+      </div>
+
+      <div className="sn-reference-status-block">
+        <div className="sn-reference-label">线上地址</div>
+        {project.status === 'published' ? (
+          <button
+            type="button"
+            className="sn-reference-address"
+            onClick={() => copyToClipboard(project.publicUrl)}
+            aria-label="复制线上地址"
+          >
+            <span className="sn-reference-address-text">{project.publicUrl}</span>
+            <Copy className="size-4" />
+          </button>
+        ) : (
+          <div className="sn-reference-note">尚未发布到正式版本</div>
+        )}
+      </div>
+
+      <div className="sn-reference-status-block">
+        <div className="sn-reference-block-head">
+          <div className="sn-reference-label">发布历史</div>
+          <button
+            className="sn-reference-collapse-btn"
+            type="button"
+            onClick={() => setReleaseHistoryOpen((value) => !value)}
+            aria-expanded={releaseHistoryOpen}
+            aria-label={releaseHistoryOpen ? '收起发布历史' : '展开发布历史'}
+          >
+            <ChevronDown className={`size-4 ${releaseHistoryOpen ? 'is-rotated' : ''}`} />
+          </button>
+        </div>
+        {releaseHistoryOpen ? (
+          releases.length > 0 ? (
+            <div className="sn-reference-history-list">
+              {releases.slice(0, 3).map((release, index) => (
+                <div key={release.id} className="sn-reference-history-item">
+                  <div className="sn-reference-history-icon">
+                    {release.kind === 'preview' ? <ArrowUpRight className="size-4" /> : <Upload className="size-4" />}
+                  </div>
+                  <div className="sn-reference-history-copy">
+                    <span className="sn-reference-history-title">{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
+                    <small>{formatTime(release.createdAt)}</small>
+                  </div>
+                  {index === 0 ? <StatusChip tone="preview-ready">最新</StatusChip> : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="sn-reference-drawer-empty">还没有发布记录。</div>
+          )
+        ) : null}
+      </div>
+
+      {showTaskInfo ? (
+        <>
+          <div className="sn-reference-status-block">
+            <div className="sn-reference-block-head">
+              <div className="sn-reference-label">最近任务</div>
+            </div>
+            {latestTask ? (
+              <div className="sn-reference-task-item">
+                <div className="sn-reference-history-icon">
+                  <RefreshCcw className="size-4" />
+                </div>
+                <div className="sn-reference-history-copy">
+                  <span className="sn-reference-history-title">{taskTypeLabel(latestTask.type)}</span>
+                  <small>{latestTask.finishedAt ? formatTime(latestTask.finishedAt) : formatTime(latestTask.createdAt)}</small>
+                </div>
+                <StatusChip
+                  tone={latestTask.status === 'failed' ? 'needs-fix' : latestTask.status === 'success' ? 'published' : 'building'}
+                >
+                  {taskStatusLabel(latestTask.status)}
+                </StatusChip>
+              </div>
+            ) : (
+              <div className="sn-reference-drawer-empty">还没有最近任务。</div>
+            )}
+          </div>
+
+          <div className="sn-reference-status-block status-logs">
+            <div className="sn-reference-block-head">
+              <div className="sn-reference-label">技术日志入口</div>
+            </div>
+            {latestTask ? (
+              <>
+                <div className="sn-reference-note">日志路径：{latestTask.logPath}</div>
+                {onViewLogs ? (
+                  <SnActionButton variant="secondary" onClick={onViewLogs}>
+                    查看日志
+                  </SnActionButton>
+                ) : null}
+              </>
+            ) : (
+              <div className="sn-reference-note">当前没有可用的任务日志。</div>
+            )}
+          </div>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -2541,80 +2797,22 @@ function WorkspaceStatusDrawer({
 }) {
   const { shouldRender, isOpen } = useDrawerTransition(open);
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
 
   if (!shouldRender) {
     return null;
   }
 
-  const releases = detail?.releases ?? [];
-
   return (
     <div className={`sn-mobile-status-shell ${isOpen ? 'is-open' : ''}`.trim()} role="presentation">
       <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭抽屉" onClick={onClose} />
       <div ref={sheetRef} className="sn-mobile-status-sheet sn-reference-sheet" onClick={(event) => event.stopPropagation()}>
-        <button className="sn-reference-sheet-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
-          ×
-        </button>
-        <div className="sn-reference-sheet-title">项目详情</div>
-
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-project-head">
-            <div className="sn-reference-project-name">当前状态</div>
-            <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
-              {statusLabel(project.status)}
-            </StatusChip>
-          </div>
+        <div className="sn-reference-sheet-head">
+          <div className="sn-reference-sheet-title">项目详情</div>
+          <button className="sn-reference-sheet-close" type="button" onClick={onClose} aria-label="关闭状态抽屉">
+            ×
+          </button>
         </div>
-
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-label">预览地址</div>
-          <div className="sn-reference-address">
-            <span>{project.previewUrl}</span>
-            <Copy className="size-4" />
-          </div>
-        </div>
-
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-label">线上地址</div>
-          {project.status === 'published' ? (
-            <div className="sn-reference-address">
-              <span>{project.publicUrl}</span>
-              <Copy className="size-4" />
-            </div>
-          ) : (
-            <div className="sn-reference-note">尚未发布到正式版本</div>
-          )}
-        </div>
-
-        <div className="sn-reference-status-block">
-          <div className="sn-reference-block-head">
-            <div className="sn-reference-label">发布历史</div>
-            <button
-              className="sn-reference-collapse-btn"
-              type="button"
-              onClick={() => setReleaseHistoryOpen((value) => !value)}
-              aria-expanded={releaseHistoryOpen}
-              aria-label={releaseHistoryOpen ? '收起发布历史' : '展开发布历史'}
-            >
-              <ChevronDown className={`size-4 ${releaseHistoryOpen ? 'is-rotated' : ''}`} />
-            </button>
-          </div>
-          {releaseHistoryOpen ? (
-            releases.length > 0 ? (
-              <div className="sn-reference-history-list">
-                {releases.slice(0, 3).map((release) => (
-                  <div key={release.id} className="sn-reference-history-item">
-                    <span>{release.kind === 'preview' ? '预览版本' : '正式版本'}</span>
-                    <small>{formatTime(release.createdAt)}</small>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="sn-reference-drawer-empty">还没有发布记录。</div>
-            )
-          ) : null}
-        </div>
+        <ProjectStatusContent project={project} detail={detail} />
 
       </div>
     </div>

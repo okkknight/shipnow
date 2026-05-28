@@ -2,6 +2,8 @@
 
 ## 2026-05-28
 
+- Unified the mobile publish confirmation and project-details overlays with a shared slide-in / slide-out transition so both panels no longer flash in or out when opened and closed.
+- Aligned the mobile publish-failure result page to the publish-success page's spacing, card layout, and typography so the two result states now feel like one component family.
 - Left-aligned the project status chip in the mobile project details drawer so it sits immediately after the "当前状态" label instead of floating to the right.
 - Unified the mobile page top bars into borderless sticky background panels and removed the extra top padding from mobile content areas so the headers stay pinned to the top of the phone viewport.
 - Removed the mobile project page's bottom Publish button and tightened the composer action row to a single Preview button so the fixed footer stays aligned with the mobile home layout.
