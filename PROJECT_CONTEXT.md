@@ -34,7 +34,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The publish action now sends bodyless requests without a JSON content-type header, and the API preserves Fastify's real 4xx status codes instead of wrapping them into generic 500s.
 - The latest independent browser acceptance is not yet passing because the ShipNow entry and API are still reachable without an authentication gate, which violates the design doc's access-protection requirement.
 - The project workbench now auto-follows new conversation entries to the latest message on both desktop and mobile; the behavior was verified in Playwright CLI after scrolling the view back up and sending a test conversation.
-- The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md` and `docs/SITE_LAYOUT_STANDARD.md`.
+- The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md`.
 
 ## Latest task
 
@@ -44,7 +44,6 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 ## Key files
 
 - `ShipNow_产品详细设计方案.md`
-- `docs/SITE_LAYOUT_STANDARD.md`
 - `docs/handoff/README.md`
 - `docs/handoff/CHANGELOG.md`
 - `docs/SHIPNOW_VPS_DEPLOYMENT.md`
