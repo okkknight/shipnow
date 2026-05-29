@@ -23,6 +23,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - Generated static sites now use a relative Vite base, so preview and public releases resolve assets correctly when served from `/preview/<project>` and `/project`.
 - The active VPS layout now keeps each site self-contained under `/opt/boringmax/site/<siteName>`: source, preview snapshots, public snapshots, logs, and the current entrypoints all live inside the site directory, and the shared `.shipnow` bucket has been removed.
 - ShipNow's own app-private workspace and database now live under `/opt/boringmax/site/shipnow`, while managed site assets stay inside each site directory.
+- The VPS now also has Claude Code CLI installed at `/usr/bin/claude`, and `shipnow.service` loads `/etc/shipnow/shipnow.env` through a drop-in so the `claude-code` runner can use the configured DeepSeek-compatible Anthropic endpoint and API key.
 - The `test` project has been migrated to the per-site layout and verified end-to-end again after the move.
 - The build-failure recovery path has been verified and the reference project is back in `preview_ready`.
 - The default `game` template now builds as a playable Phaser power-charge basketball mini game.

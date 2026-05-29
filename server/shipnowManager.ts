@@ -428,6 +428,11 @@ export class ShipNowManager {
 
   async publish(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
     const project = this.requireActiveProject(projectId);
+    this.store.createMessage({
+      projectId: project.project_id,
+      role: 'user',
+      content: '请帮我发布到正式站点。',
+    });
     this.store.createEvent({
       projectId: project.project_id,
       type: 'publish_requested',

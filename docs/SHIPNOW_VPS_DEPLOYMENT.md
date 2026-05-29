@@ -80,6 +80,28 @@ Notes:
 - The ShipNow app database and workspace are app-private, but they live in the ShipNow site directory at `/opt/boringmax/site/shipnow`
 - The managed site assets themselves must live inside each site directory, not in a shared bucket
 
+## Claude Code runner
+
+The VPS now also has the Claude Code CLI installed for the `claude-code` runner:
+
+- Binary: `/usr/bin/claude`
+- Version: `2.1.156`
+- Runtime env is loaded from `/etc/shipnow/shipnow.env` through a systemd drop-in at `/etc/systemd/system/shipnow.service.d/10-claude-code.conf`
+- The env file carries both ShipNow-specific keys and Claude-compatible keys:
+  - `SHIPNOW_CLAUDE_CODE_BIN=/usr/bin/claude`
+  - `SHIPNOW_CLAUDE_ANTHROPIC_BASE_URL`
+  - `SHIPNOW_CLAUDE_ANTHROPIC_API_KEY`
+  - `SHIPNOW_CLAUDE_MODEL`
+  - `ANTHROPIC_BASE_URL`
+  - `ANTHROPIC_API_KEY`
+  - `ANTHROPIC_MODEL`
+
+Notes:
+
+- Keep the env file root-only readable, because it stores the DeepSeek API key used by Claude Code
+- ShipNow reads the `SHIPNOW_*` values directly, and Claude Code also accepts the `ANTHROPIC_*` aliases
+- After updating the env file, run `systemctl daemon-reload && systemctl restart shipnow`
+
 ## Caddy routing
 
 Recommended public routing:

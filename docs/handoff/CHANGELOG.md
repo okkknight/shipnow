@@ -2,6 +2,7 @@
 
 # 2026-05-29
 
+- Installed Claude Code CLI on the VPS, added a root-only ShipNow env file for Claude Code / DeepSeek configuration, and wired it into `shipnow.service` through a systemd drop-in.
 - Added automatic conversation follow in the project workbench so new messages and system events now scroll the view to the latest entry on both desktop and mobile.
 - Verified the follow behavior in Playwright CLI by scrolling the workbench back up, sending a test conversation, and confirming the page scrolled back to the latest conversation entry.
 
