@@ -1,6 +1,8 @@
 node_modules
 dist
 workspace
+.playwright-cli
+output
 .DS_Store
 *.sqlite
 *.sqlite-journal
