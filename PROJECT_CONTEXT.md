@@ -2,7 +2,7 @@
 
 ## What this is
 
-ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/shipnow`, with its API served from `https://shipnow.boringmax.com/api`.
+ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/shipnow`; its public UI is now a static site at `boringmax.com/shipnow`, and its shared dynamic gateway contract is defined at `https://api.boringmax.com/shipnow/api` and `https://api.boringmax.com/shipnow/preview`.
 
 ## What this is not
 
@@ -16,9 +16,10 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The product specification is complete enough to implement the MVP.
 - The workspace now contains a working ShipNow app skeleton, backend API, task runner, and default static template.
 - The app can create a project, apply a Codex-driven change, rebuild it, publish a preview release, and promote that preview to the public release.
+- The shared BoringAPI registry now freezes ShipNow's dynamic path contract as `api.boringmax.com/shipnow/api/*` for API traffic and `api.boringmax.com/shipnow/preview/*` for preview traffic, while the static UI is published to `boringmax.com/shipnow`.
 - The create flow now uses one default template instead of a visible project-type picker; game projects are inferred from the prompt and can still switch to Phaser through Codex.
 - The current implementation now enforces reserved project-name checks, explicit delete confirmation, and log-preserving deletion behavior.
-- VPS acceptance is live on the host-native deployment: the public ShipNow app runs at `/shipnow`, `shipnow.boringmax.com/preview` serves preview releases from each site's own `preview/` subdirectory, public releases are served from `boringmax.com/{projectName}`, the API is served from `shipnow.boringmax.com/api`, and the acceptance project `vps-accept-20260525` is fully published.
+- VPS acceptance is live on the host-native deployment: the ShipNow UI is published as a static site at `/shipnow`, public releases are served from `boringmax.com/{projectName}`, and ShipNow's dynamic traffic now follows the shared `api.boringmax.com/shipnow/api` and `api.boringmax.com/shipnow/preview` contract, with the acceptance project `vps-accept-20260525` fully published.
 - Project workspaces are initialized as git repositories before Codex runs, and the default static template builds with Vite's `--configLoader runner` mode to avoid the read-only temp-file issue on the VPS layout.
 - Generated static sites now use a relative Vite base, so preview and public releases resolve assets correctly when served from `/preview/<project>` and `/project`.
 - The active VPS layout now keeps each site self-contained under `/opt/boringmax/site/<siteName>`: source, preview snapshots, public snapshots, logs, and the current entrypoints all live inside the site directory, and the shared `.shipnow` bucket has been removed.

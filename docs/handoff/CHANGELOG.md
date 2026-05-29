@@ -1,8 +1,15 @@
 # Changelog
 
-# 2026-05-29
+## 2026-05-29
 
-- Clarified the VPS route split in the design and deployment docs: `boringmax.com/preview*` and `boringmax.com/site*` are no longer treated as live ShipNow entrypoints, and the real preview surface is `shipnow.boringmax.com/preview/<project>`.
+- Added the new `boringapi` standalone gateway project with a registry-driven proxy layer and real `api.boringmax.com/<app>/api/*` plus `api.boringmax.com/<app>/preview/*` forwarding.
+- Switched ShipNow’s runtime defaults to the shared gateway contract and disabled the backend UI shell in production so the public ShipNow page can be published as a static site.
+- Updated the project context and VPS deployment notes to treat `boringmax.com/shipnow` as a static site publication, not a backend-served shell.
+
+- Froze the shared BoringAPI registry contract so ShipNow dynamic requests now resolve through `api.boringmax.com/<app>/api/*` and `api.boringmax.com/<app>/preview/*`, with new apps extending the registry instead of Caddy.
+- Added the first `resolveGatewayRoute` test and minimal registry module for the new gateway contract.
+
+- Clarified the VPS route split in the design and deployment docs: `boringmax.com/preview*` and `boringmax.com/site*` are no longer treated as live ShipNow entrypoints, and the real preview surface is `api.boringmax.com/shipnow/preview/<project>`.
 - Moved `shipnow.service` onto the dedicated `shipnow` user and handed ownership of `/opt/boringmax/site` to that user, so the Claude Code runner can use its full permission-bypass mode without hitting the root restriction on `--dangerously-skip-permissions`.
 - Installed Claude Code CLI on the VPS, added a root-only ShipNow env file for Claude Code / DeepSeek configuration, and wired it into `shipnow.service` through a systemd drop-in.
 - Added automatic conversation follow in the project workbench so new messages and system events now scroll the view to the latest entry on both desktop and mobile.

@@ -10,12 +10,19 @@ This note records the live VPS shape for ShipNow and the site layout standard it
 
 ## VPS directory model
 
+### BoringAPI gateway
+
+- App code: `/opt/boringmax/boringapi`
+- systemd service: `boringapi.service`
+- HTTP listener: `127.0.0.1:8091`
+
 ### ShipNow app
 
 - App code: `/opt/boringmax/shipnow`
 - systemd service: `shipnow.service`
 - HTTP listener: `127.0.0.1:8090`
 - App-private data site: `/opt/boringmax/site/shipnow`
+- Public ShipNow UI site: `/opt/boringmax/site/shipnow`
 
 ### Site root
 
@@ -63,8 +70,8 @@ WorkingDirectory=/opt/boringmax/shipnow
 Environment=NODE_ENV=production
 Environment=SHIPNOW_PORT=8090
 Environment=SHIPNOW_PUBLIC_BASE_URL=https://boringmax.com
-Environment=SHIPNOW_PREVIEW_BASE_URL=https://shipnow.boringmax.com/preview
-Environment=SHIPNOW_API_BASE_URL=https://shipnow.boringmax.com/api
+Environment=SHIPNOW_PREVIEW_BASE_URL=https://api.boringmax.com/shipnow/preview
+Environment=SHIPNOW_API_BASE_URL=https://api.boringmax.com/shipnow/api
 Environment=SHIPNOW_APP_PREFIX=/shipnow
 Environment=SHIPNOW_WORKSPACE_ROOT=/opt/boringmax/site/shipnow
 Environment=SHIPNOW_PUBLIC_STATIC_ROOT=/opt/boringmax/site
@@ -112,19 +119,23 @@ Recommended public routing:
   - `root * /opt/boringmax/site`
   - `try_files {path}/index.html {path}.html {path} /index.html`
   - `file_server`
-- `boringmax.com/shipnow`
-  - reverse proxy to `127.0.0.1:8090`
-- `shipnow.boringmax.com/preview`
-  - `root * /opt/boringmax/site`
-  - `try_files {path}/preview/index.html {path}.html {path} /index.html`
-  - `file_server`
-- `shipnow.boringmax.com/api`
-  - reverse proxy to `127.0.0.1:8090`
+- `api.boringmax.com`
+  - reverse proxy to `127.0.0.1:8091`
+
+Note: `api.boringmax.com` must exist in public DNS before Caddy can obtain and serve a trusted TLS certificate for it. If the hostname does not resolve yet, the gateway process can still be healthy on `127.0.0.1:8091`, but the public HTTPS entrypoint will not come up until DNS is added.
+
+## Shared BoringAPI contract
+
+- `api.boringmax.com/<app>/api/*` routes that app's dynamic API requests
+- `api.boringmax.com/<app>/preview/*` routes that app's dynamic preview requests
+- New apps only extend the registry; Caddy stays generic
 
 Notes:
 
-- The public VPS no longer uses `boringmax.com/preview*` or `boringmax.com/site*` as ShipNow entrypoints.
-- `shipnow.boringmax.com/preview/<siteName>` is the real public preview URL, while the `/preview` directory under each site is only the filesystem layout that backs it.
+- The public VPS no longer uses `boringmax.com/preview*`, `boringmax.com/site*`, `preview.boringmax.com`, or `shipnow.boringmax.com` as ShipNow entrypoints.
+- `boringmax.com/shipnow` is the static ShipNow UI publication stored in `/opt/boringmax/site/shipnow`.
+- `api.boringmax.com/shipnow/preview/<siteName>` is the real public preview URL, while the `/preview` directory under each site is only the filesystem layout that backs it.
+- `boringmax.com/preview*` and `boringmax.com/site*` are left to the normal static `file_server` fallback; they do not need bespoke 404 handling if the requested file does not exist.
 - ShipNow still understands preview concepts internally, but that internal route model is not the same thing as the live Caddy entrypoint.
 
 ## Why this works
@@ -132,14 +143,17 @@ Notes:
 - Published sites are fully static and live under their own site directory
 - Preview sites are also static and live under the same site directory
 - ShipNow can disappear after publishing and the site still has everything it needs
-- Preview release HTML is written with a `/siteName/preview/` base so `shipnow.boringmax.com/preview/<siteName>` can load its own assets directly from the site tree
+- Preview release HTML is written with a `/siteName/preview/` base so `api.boringmax.com/shipnow/preview/<siteName>` can load its own assets directly from the site tree
 
 ## Validation
 
 ```bash
 systemctl status shipnow
+systemctl status boringapi
+curl -I https://boringmax.com/shipnow
+curl -I https://api.boringmax.com/shipnow/api/settings
+curl -I https://api.boringmax.com/shipnow/preview/test
 curl -I https://boringmax.com/test
-curl -I https://shipnow.boringmax.com/preview/test
 ls -la /opt/boringmax/site/test
 ls -la /opt/boringmax/site/test/preview
 ```

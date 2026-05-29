@@ -7,17 +7,9 @@ import type {
   ProjectView,
   TaskView,
 } from './types';
+import { getShipNowRuntimeConfig } from './runtimeConfig';
 
-function readRuntimeApiBase(): string | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  const meta = document.head.querySelector('meta[name="shipnow-api-base"]') as HTMLMetaElement | null;
-  const value = meta?.content?.trim();
-  return value ? value : null;
-}
-
-const API_BASE = readRuntimeApiBase() || import.meta.env.VITE_SHIPNOW_API_BASE_URL || '/api';
+const API_BASE = getShipNowRuntimeConfig().apiBaseUrl;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body !== undefined && init?.body !== null;

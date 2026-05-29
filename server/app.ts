@@ -67,7 +67,57 @@ async function maybeRedirect(reply: FastifyReply, to: string): Promise<void> {
   reply.redirect(to, 301);
 }
 
-export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv) {
+export interface ShipNowAppOptions {
+  serveUiShell: boolean;
+  publicBaseUrl: string;
+  apiBaseUrl: string;
+  previewBaseUrl: string;
+}
+
+function isShipNowAppOptions(value: ShipNowManager | ShipNowAppOptions): value is ShipNowAppOptions {
+  return typeof value === 'object' && value !== null && 'serveUiShell' in value;
+}
+
+export async function createShipNowApp(
+  managerOrOptions: ShipNowManager | ShipNowAppOptions,
+  env?: ShipNowEnv,
+  runtimeOptions?: Partial<ShipNowAppOptions>
+) {
+  if (isShipNowAppOptions(managerOrOptions)) {
+    const app = Fastify({
+      logger: {
+        level: 'info',
+      },
+    });
+
+    await app.register(cors, {
+      origin: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    });
+
+    app.get('/health', async () => ({ ok: true }));
+
+    if (managerOrOptions.serveUiShell) {
+      app.get('/', async (_request, reply) => {
+        reply.redirect('/shipnow');
+      });
+    }
+
+    return app;
+  }
+
+  if (!env) {
+    throw new Error('ShipNow env is required when creating the managed app.');
+  }
+
+  const manager = managerOrOptions;
+  const shellOptions: ShipNowAppOptions = {
+    serveUiShell: runtimeOptions?.serveUiShell ?? true,
+    publicBaseUrl: runtimeOptions?.publicBaseUrl ?? env.publicBaseUrl,
+    apiBaseUrl: runtimeOptions?.apiBaseUrl ?? env.shipnowApiBaseUrl,
+    previewBaseUrl: runtimeOptions?.previewBaseUrl ?? env.previewBaseUrl,
+  };
+
   const appPrefix = normalizePrefix(env.shipnowAppPrefix);
   const apiRoutePrefix = '/api';
   const appRootRoute = joinRoute(appPrefix);
@@ -365,6 +415,10 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   }
 
   async function serveShipNowApp(requestPath: string, reply: FastifyReply): Promise<boolean> {
+    if (!shellOptions.serveUiShell) {
+      return false;
+    }
+
     if (!existsSync(clientDistRoot)) {
       return false;
     }
@@ -408,39 +462,41 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     await servePreviewRoute(requestPath, reply);
   });
 
-  app.get(appRootRoute, async (_request, reply) => {
-    const indexFile = await findIndexFile(clientDistRoot);
-    if (indexFile) {
-      await sendIndex(reply, indexFile, shipnowIndexApiBase);
-      return;
-    }
-    reply.type('text/html').send(`<!doctype html>
-      <html lang="en">
-        <head><meta charset="utf-8"><title>ShipNow</title></head>
-        <body style="font-family: system-ui; padding: 24px;">
-          <h1>ShipNow is not built yet.</h1>
-          <p>Run the Vite dev server for local frontend work, or run a production build before serving ShipNow.</p>
-        </body>
-      </html>`);
-  });
-
-  app.get(appAssetRoute, async (request, reply) => {
-    const requestPath = request.url.split('?')[0];
-    const relative = isAppPrefixRoot
-      ? requestPath.replace(/^\/+/, '')
-      : requestPath.slice(appRootRoute.length).replace(/^\/+/, '');
-    const candidate = relative.length > 0 ? await findStaticFile(clientDistRoot, relative) : null;
-    if (candidate) {
-      await sendFile(reply, candidate);
-      return;
-    }
-    reply.code(404).send('ShipNow asset not found.');
-  });
-
-  if (!isAppPrefixRoot) {
-    app.get('/', async (_request, reply) => {
-      reply.redirect(appRootRoute);
+  if (shellOptions.serveUiShell) {
+    app.get(appRootRoute, async (_request, reply) => {
+      const indexFile = await findIndexFile(clientDistRoot);
+      if (indexFile) {
+        await sendIndex(reply, indexFile, shipnowIndexApiBase);
+        return;
+      }
+      reply.type('text/html').send(`<!doctype html>
+        <html lang="en">
+          <head><meta charset="utf-8"><title>ShipNow</title></head>
+          <body style="font-family: system-ui; padding: 24px;">
+            <h1>ShipNow is not built yet.</h1>
+            <p>Run the Vite dev server for local frontend work, or run a production build before serving ShipNow.</p>
+          </body>
+        </html>`);
     });
+
+    app.get(appAssetRoute, async (request, reply) => {
+      const requestPath = request.url.split('?')[0];
+      const relative = isAppPrefixRoot
+        ? requestPath.replace(/^\/+/, '')
+        : requestPath.slice(appRootRoute.length).replace(/^\/+/, '');
+      const candidate = relative.length > 0 ? await findStaticFile(clientDistRoot, relative) : null;
+      if (candidate) {
+        await sendFile(reply, candidate);
+        return;
+      }
+      reply.code(404).send('ShipNow asset not found.');
+    });
+
+    if (!isAppPrefixRoot) {
+      app.get('/', async (_request, reply) => {
+        reply.redirect(appRootRoute);
+      });
+    }
   }
 
   app.setNotFoundHandler(async (request, reply) => {

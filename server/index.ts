@@ -8,7 +8,12 @@ async function main(): Promise<void> {
   const store = new ShipNowStore(env.dbPath, env.publicStaticRoot);
   const manager = new ShipNowManager(store, env);
   await manager.initialize();
-  const app = await createShipNowApp(manager, env);
+  const app = await createShipNowApp(manager, env, {
+    serveUiShell: false,
+    publicBaseUrl: env.publicBaseUrl,
+    apiBaseUrl: env.shipnowApiBaseUrl,
+    previewBaseUrl: env.previewBaseUrl,
+  });
 
   const shutdown = async (): Promise<void> => {
     await manager.shutdown();

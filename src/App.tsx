@@ -32,7 +32,6 @@ import {
   applyChange,
   createProject,
   deleteProject,
-  getApiBase,
   getProject,
   publishProject,
   rebuildProject,
@@ -41,6 +40,7 @@ import {
   updateAppSettings,
   updateProjectSettings,
 } from './api';
+import { getShipNowRuntimeConfig } from './runtimeConfig';
 import { buildConversationTimeline, type ConversationTimelineItem } from './conversationTimeline';
 import { copyText } from './clipboard';
 import { RichTextMessage } from './messageFormatting';
@@ -143,6 +143,7 @@ function normalizeAppBase(base: string): string {
 
 const APP_BASE = normalizeAppBase(import.meta.env.BASE_URL || '/shipnow/');
 const FORCE_MOBILE_LAYOUT = true;
+const RUNTIME_CONFIG = getShipNowRuntimeConfig();
 
 function toAppPath(pathname: string): string {
   const next = pathname.startsWith('/') ? pathname : `/${pathname}`;
@@ -993,7 +994,7 @@ function App() {
         canSubmit={canSubmitComposer}
         activeAction={activeAction}
         recentProjects={homeRecentProjects}
-        apiBase={getApiBase()}
+        apiBase={RUNTIME_CONFIG.apiBaseUrl}
         projectsLoading={projectsLoading}
         homeRecentProjects={homeRecentProjects}
         route={route}

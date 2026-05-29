@@ -115,8 +115,8 @@ export function loadEnv(): ShipNowEnv {
   return {
     port: envInt('SHIPNOW_PORT', 3000),
     publicBaseUrl: envValue('SHIPNOW_PUBLIC_BASE_URL') || 'http://localhost:3000',
-    previewBaseUrl: envValue('SHIPNOW_PREVIEW_BASE_URL') || 'http://localhost:3000/preview',
-    shipnowApiBaseUrl: envValue('SHIPNOW_API_BASE_URL') || '/api',
+    previewBaseUrl: envValue('SHIPNOW_PREVIEW_BASE_URL') || 'https://api.boringmax.com/shipnow/preview',
+    shipnowApiBaseUrl: envValue('SHIPNOW_API_BASE_URL') || 'https://api.boringmax.com/shipnow/api',
     workspaceRoot,
     templateRoot: envPath('SHIPNOW_TEMPLATE_ROOT', 'templates'),
     publicStaticRoot,
