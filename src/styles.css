@@ -6722,46 +6722,6 @@
     max-width: calc(100% - 84px);
   }
 
-  .sn-mobile-chat-history-bar {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 2px;
-  }
-
-  .sn-mobile-chat-history-copy {
-    display: grid;
-    gap: 3px;
-    min-width: 0;
-  }
-
-  .sn-mobile-chat-history-title {
-    color: var(--sn-color-ink);
-    font-size: 0.86rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-  }
-
-  .sn-mobile-chat-history-meta {
-    color: var(--sn-color-muted);
-    font-size: 0.72rem;
-    line-height: 1.35;
-  }
-
-  .sn-mobile-chat-history-toggle {
-    flex: 0 0 auto;
-    min-height: 32px;
-    padding: 0 12px;
-    border: 1px solid rgba(15, 17, 21, 0.08);
-    border-radius: 999px;
-    background: rgba(255, 255, 252, 0.92);
-    color: var(--sn-color-ink);
-    font-size: 0.8rem;
-    font-weight: 700;
-    box-shadow: var(--sn-shadow-soft);
-  }
-
   .sn-mobile-chat-history-summary {
     display: inline-flex;
     align-items: center;

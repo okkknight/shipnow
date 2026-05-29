@@ -3125,22 +3125,6 @@ function ProjectWorkspaceMobile({
           </div>
         </div>
 
-        <div className="sn-mobile-chat-history-bar">
-          <div className="sn-mobile-chat-history-copy">
-            <div className="sn-mobile-chat-history-title">对话记录</div>
-          </div>
-          {canCollapseHistory ? (
-            <button
-              className="sn-mobile-chat-history-toggle"
-              type="button"
-              onClick={() => setHistoryCollapsed((current) => !current)}
-              aria-pressed={isHistoryCollapsed}
-            >
-              {isHistoryCollapsed ? '展开' : '收起'}
-            </button>
-          ) : null}
-        </div>
-
         {isHistoryCollapsed && canCollapseHistory ? (
           <button
             className="sn-mobile-chat-history-summary"
