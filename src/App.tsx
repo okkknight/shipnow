@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -142,6 +142,7 @@ function normalizeAppBase(base: string): string {
 }
 
 const APP_BASE = normalizeAppBase(import.meta.env.BASE_URL || '/shipnow/');
+const FORCE_MOBILE_LAYOUT = true;
 
 function toAppPath(pathname: string): string {
   const next = pathname.startsWith('/') ? pathname : `/${pathname}`;
@@ -172,6 +173,10 @@ function useWorkspaceRoute() {
 }
 
 function useMediaQuery(query: string): boolean {
+  if (FORCE_MOBILE_LAYOUT) {
+    return true;
+  }
+
   const getMatches = () => window.matchMedia(query).matches;
   const [matches, setMatches] = useState(getMatches);
 
@@ -219,6 +224,20 @@ function useDrawerTransition(open: boolean, durationMs = 320): { shouldRender: b
   }, [durationMs, open]);
 
   return { shouldRender, isOpen };
+}
+
+function RouteEnterTransition({ children }: { children: ReactNode }): ReactElement {
+  const [isEntered, setIsEntered] = useState(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setIsEntered(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return <div className={`sn-route-enter ${isEntered ? 'is-entered' : ''}`.trim()}>{children}</div>;
 }
 
 function slugifyHandle(value: string): string {
@@ -467,6 +486,7 @@ function App() {
   const [pendingConversation, setPendingConversation] = useState<PendingConversationState | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
+  const renameSheetOpenRef = useRef(false);
   const routeProjectId =
     route.kind === 'project' ||
     route.kind === 'project-preview' ||
@@ -540,7 +560,9 @@ function App() {
     try {
       const response = await getProject(projectId);
       setDetail(response);
-      setRenameDraft(response.project.displayName);
+      if (!renameSheetOpenRef.current) {
+        setRenameDraft(response.project.displayName);
+      }
       setRenameError(null);
       setError(null);
     } catch (refreshError) {
@@ -661,6 +683,10 @@ function App() {
       documentElement.style.overscrollBehavior = previousHtmlOverscroll;
     };
   }, [actionSheetOpen]);
+
+  useEffect(() => {
+    renameSheetOpenRef.current = renameSheetOpen;
+  }, [renameSheetOpen]);
 
   function openRenameSheet(): void {
     if (!currentProject || activeAction !== null) {
@@ -881,6 +907,14 @@ function App() {
   const homeRecentProjects = projects.slice(0, 4);
   const currentTasks = detail?.tasks ?? [];
   const latestTask = currentTasks[0] ?? null;
+  const shouldAnimateRoute =
+    route.kind === 'project-preview' ||
+    route.kind === 'project-live' ||
+    route.kind === 'publish-success' ||
+    route.kind === 'publish-failure';
+  const routeAnimationKey = shouldAnimateRoute
+    ? `${route.kind}:${'projectId' in route ? route.projectId : ''}`
+    : null;
 
   if (route.kind === 'design-system') {
     return <ShipNowDesignSystemPage />;
@@ -1041,6 +1075,12 @@ function App() {
     );
   }
 
+  const renderedPage = shouldAnimateRoute && routeAnimationKey ? (
+    <RouteEnterTransition key={routeAnimationKey}>{page}</RouteEnterTransition>
+  ) : (
+    page
+  );
+
   return (
     <div className="shipnow-app">
       <div className="sn-app-backdrop" />
@@ -1146,7 +1186,7 @@ function App() {
         </>
       ) : null}
 
-      <div className="shipnow-app-content">{page}</div>
+      <div className="shipnow-app-content">{renderedPage}</div>
 
       {copyHint ? (
         <div className="sn-copy-toast sn-mobile-result-toast" role="status" aria-live="polite">
@@ -1417,6 +1457,75 @@ function HomeWorkspace({
             </div>
           </div>
           </section>
+
+          <aside className="sn-home-workspace-aside">
+            <section className="sn-panel sn-home-projects-panel">
+              <div className="sn-home-projects-head">
+                <div>
+                  <div className="sn-home-projects-section-copy">最近项目</div>
+                  <div className="sn-home-projects-note">继续从上次的进度接着改。</div>
+                </div>
+                <SnButton variant="secondary" onClick={() => navigate('/projects')}>
+                  <Folder className="size-4" /> 查看全部
+                </SnButton>
+              </div>
+
+              {projectsLoading ? (
+                <div className="grid gap-3">
+                  <Skeleton className="h-32 rounded-[22px]" />
+                  <Skeleton className="h-32 rounded-[22px]" />
+                  <Skeleton className="h-32 rounded-[22px]" />
+                </div>
+              ) : recentProjects.length > 0 ? (
+                <div className="sn-home-project-list">
+                  {recentProjects.map((project) => (
+                    <ProjectCard
+                      key={project.projectId}
+                      name={project.displayName}
+                      description={project.title}
+                      status={
+                        project.status === 'preview_ready'
+                          ? 'preview-ready'
+                          : project.status === 'published'
+                            ? 'published'
+                            : project.status === 'build_failed' || project.status === 'publish_failed'
+                              ? 'needs-fix'
+                              : 'building'
+                      }
+                      updatedAt={formatTime(project.updatedAt)}
+                      onClick={() => navigate(`/project/${project.projectId}`)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="还没有项目"
+                  description="先从一句话开始创建，再回到这里继续管理。"
+                  icon={<Plus className="size-6" />}
+                />
+              )}
+            </section>
+
+            <section className="sn-panel sn-home-shortcuts-panel">
+              <div className="sn-home-projects-head">
+                <div>
+                  <div className="sn-home-projects-section-copy">快捷入口</div>
+                  <div className="sn-home-projects-note">把高频动作放在桌面上，不要藏进抽屉。</div>
+                </div>
+              </div>
+              <div className="sn-home-shortcuts-grid">
+                <SnButton variant="secondary" onClick={() => navigate('/templates')}>
+                  <LayoutGrid className="size-4" /> 模板中心
+                </SnButton>
+                <SnButton variant="secondary" onClick={() => navigate('/projects')}>
+                  <Folder className="size-4" /> 我的项目
+                </SnButton>
+                <SnButton variant="secondary" onClick={() => navigate('/settings')}>
+                  <Settings2 className="size-4" /> 设置与偏好
+                </SnButton>
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
     </div>
@@ -1783,27 +1892,117 @@ function TemplatesWorkspace({
       title: '空白项目',
       desc: '从空白开始，自由发挥',
       prompt: TEMPLATE_PROMPTS[5],
-      icon: '+',
+      art: 'blank' as const,
     },
     {
       title: '产品官网',
       desc: '展示产品与功能亮点',
       prompt: TEMPLATE_PROMPTS[0],
-      icon: '✦',
+      art: 'product' as const,
     },
     {
       title: 'Landing Page',
       desc: '快速验证活动与转化',
       prompt: '做一个活动页，带强视觉冲击和明确的报名 / 购买转化。',
-      icon: '◐',
+      art: 'landing' as const,
     },
     {
       title: '个人主页',
       desc: '展示自己与作品集',
       prompt: TEMPLATE_PROMPTS[1],
-      icon: '☺',
+      art: 'profile' as const,
     },
   ];
+
+  function TemplateThumbIllustration({ kind }: { kind: 'blank' | 'product' | 'landing' | 'profile' }): ReactElement {
+    const uid = useId().replace(/:/g, '');
+    const gradientId = `${uid}-${kind}-gradient`;
+    const glowId = `${uid}-${kind}-glow`;
+    const inkId = `${uid}-${kind}-ink`;
+
+    return (
+      <svg className="sn-template-thumb-art" viewBox="0 0 240 140" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="45%" stopColor="#d9ecff" stopOpacity="0.96" />
+            <stop offset="100%" stopColor="#b7f1df" stopOpacity="0.78" />
+          </linearGradient>
+          <radialGradient id={glowId} cx="0.2" cy="0.12" r="0.95">
+            <stop offset="0%" stopColor="#b7f1df" stopOpacity="0.9" />
+            <stop offset="55%" stopColor="#9bd7ff" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#9bd7ff" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id={inkId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#0f1115" stopOpacity="0.82" />
+            <stop offset="100%" stopColor="#0f1115" stopOpacity="0.58" />
+          </linearGradient>
+        </defs>
+
+        <g transform="matrix(0.5 0 0 0.5 60 35)">
+          <rect x="0" y="0" width="240" height="140" rx="18" fill={`url(#${gradientId})`} />
+          <rect x="0" y="0" width="240" height="140" rx="18" fill={`url(#${glowId})`} opacity="0.6" />
+
+          {kind === 'blank' ? (
+            <>
+              <rect x="28" y="24" width="184" height="22" rx="11" fill="rgba(255,255,255,0.4)" />
+              <rect x="28" y="54" width="98" height="14" rx="7" fill="rgba(15,17,21,0.1)" />
+              <rect x="28" y="74" width="126" height="14" rx="7" fill="rgba(15,17,21,0.08)" />
+              <rect x="28" y="96" width="72" height="24" rx="12" fill="rgba(255,255,255,0.72)" />
+              <path d="M178 30h22M189 19v22" stroke="rgba(13,107,80,0.45)" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="187" cy="101" r="15" fill="rgba(255,255,255,0.56)" />
+              <path d="M187 93v16M179 101h16" stroke="#0d6b50" strokeWidth="2.2" strokeLinecap="round" />
+              <rect x="160" y="64" width="48" height="10" rx="5" fill="rgba(183,241,223,0.5)" />
+            </>
+          ) : null}
+
+          {kind === 'product' ? (
+            <>
+              <rect x="22" y="26" width="150" height="82" rx="18" fill="rgba(255,255,255,0.62)" />
+              <rect x="36" y="38" width="70" height="10" rx="5" fill={`url(#${inkId})`} opacity="0.88" />
+              <rect x="36" y="56" width="112" height="8" rx="4" fill="rgba(15,17,21,0.16)" />
+              <rect x="36" y="70" width="92" height="8" rx="4" fill="rgba(15,17,21,0.1)" />
+              <rect x="36" y="86" width="54" height="20" rx="10" fill="#0f1115" />
+              <rect x="98" y="86" width="42" height="20" rx="10" fill="rgba(255,255,255,0.92)" />
+              <rect x="170" y="34" width="48" height="70" rx="18" fill="rgba(255,255,255,0.72)" />
+              <circle cx="194" cy="53" r="13" fill="rgba(183,241,223,0.8)" />
+              <rect x="181" y="73" width="26" height="10" rx="5" fill="rgba(15,17,21,0.12)" />
+              <rect x="181" y="87" width="20" height="8" rx="4" fill="rgba(15,17,21,0.08)" />
+            </>
+          ) : null}
+
+          {kind === 'landing' ? (
+            <>
+              <path d="M18 108L94 34h60l-70 74H18Z" fill="rgba(255,255,255,0.42)" />
+              <path d="M92 28h62l-68 72H24l68-72Z" fill="rgba(15,17,21,0.04)" />
+              <rect x="26" y="28" width="112" height="14" rx="7" fill="rgba(255,255,255,0.6)" />
+              <rect x="26" y="48" width="92" height="9" rx="4.5" fill="rgba(15,17,21,0.14)" />
+              <rect x="26" y="62" width="74" height="9" rx="4.5" fill="rgba(15,17,21,0.1)" />
+              <rect x="26" y="82" width="64" height="22" rx="11" fill="#0f1115" />
+              <rect x="98" y="82" width="48" height="22" rx="11" fill="rgba(255,255,255,0.86)" />
+              <circle cx="186" cy="45" r="24" fill="rgba(183,241,223,0.5)" />
+              <path d="M180 45h12M186 39v12" stroke="#0d6b50" strokeWidth="3" strokeLinecap="round" />
+              <rect x="168" y="78" width="44" height="12" rx="6" fill="rgba(255,255,255,0.68)" />
+            </>
+          ) : null}
+
+          {kind === 'profile' ? (
+            <>
+              <circle cx="72" cy="48" r="22" fill="rgba(255,255,255,0.76)" />
+              <circle cx="72" cy="42" r="10" fill="rgba(15,17,21,0.14)" />
+              <rect x="48" y="68" width="48" height="12" rx="6" fill={`url(#${inkId})`} opacity="0.8" />
+              <rect x="34" y="90" width="46" height="24" rx="12" fill="rgba(255,255,255,0.72)" />
+              <rect x="88" y="90" width="46" height="24" rx="12" fill="rgba(255,255,255,0.58)" />
+              <rect x="142" y="30" width="62" height="18" rx="9" fill="rgba(255,255,255,0.72)" />
+              <rect x="142" y="56" width="78" height="10" rx="5" fill="rgba(15,17,21,0.12)" />
+              <rect x="142" y="74" width="58" height="10" rx="5" fill="rgba(15,17,21,0.08)" />
+              <rect x="142" y="94" width="72" height="16" rx="8" fill="#0f1115" />
+            </>
+          ) : null}
+        </g>
+      </svg>
+    );
+  }
 
   if (isMobile) {
       return (
@@ -1816,7 +2015,7 @@ function TemplatesWorkspace({
           <div className="sn-mobile-section-copy">选择一个模板开始</div>
           <div className="sn-mobile-template-grid">
             {templates.map((template) => (
-              <button
+                <button
                 key={template.title}
                 type="button"
                 className={`sn-mobile-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
@@ -1826,7 +2025,7 @@ function TemplatesWorkspace({
                 }}
               >
                 <div className="sn-mobile-template-thumb">
-                  <div className="sn-mobile-template-thumb-shape" />
+                  <TemplateThumbIllustration kind={template.art} />
                 </div>
                 <div className="sn-mobile-template-title">{template.title}</div>
                 <div className="sn-mobile-template-desc">{template.desc}</div>
@@ -1901,11 +2100,7 @@ function TemplatesWorkspace({
                       }}
                     >
                       <div className="sn-template-thumb">
-                        {template.icon === '+' ? (
-                          <Plus className="size-7 sn-template-empty-plus" />
-                        ) : (
-                          <div className="sn-template-thumb-shape" />
-                        )}
+                        <TemplateThumbIllustration kind={template.art} />
                       </div>
                       <div className="sn-template-title">{template.title}</div>
                       <div className="sn-template-desc">{template.desc}</div>
@@ -2618,6 +2813,10 @@ function ProjectWorkspace({
 }) {
   const isMobileLayout = useMediaQuery('(max-width: 767px)');
   const renderedTimelineItems = isMobileLayout ? timelineItems.slice(-4) : timelineItems;
+  const liveTimelineEventId = useMemo(
+    () => findLiveTimelineEventId(timelineItems, latestTask),
+    [latestTask, timelineItems]
+  );
 
   if (isMobileLayout) {
     return (
@@ -2633,6 +2832,7 @@ function ProjectWorkspace({
         canAutoFix={canAutoFix}
         activeAction={activeAction}
         pendingConversation={pendingConversation}
+        liveTimelineEventId={liveTimelineEventId}
         onRebuild={onRebuild}
         onPublish={onPublish}
         onAutoFix={onAutoFix}
@@ -2695,7 +2895,9 @@ function ProjectWorkspace({
                 renderedTimelineItems.length === 0 ? (
                   <div className="sn-project-workspace-empty">刚打开这个项目。先说一句你要改什么。</div>
                 ) : (
-                  renderedTimelineItems.map((item) => <TimelineEntry key={item.id} item={item} latestTask={latestTask} />)
+                  renderedTimelineItems.map((item) => (
+                    <TimelineEntry key={item.id} item={item} liveTimelineEventId={liveTimelineEventId} />
+                  ))
                 )
               ) : (
                 <div className="sn-project-workspace-empty">正在加载项目…</div>
@@ -2755,7 +2957,7 @@ function ProjectWorkspace({
               </div>
               <div className="sn-project-workspace-actions">
                 <SnActionButton variant="secondary" onClick={onOpenPreview}>
-                  <Eye className="size-4" /> 预览
+                  <Eye className="size-4" /> 预览站点
                 </SnActionButton>
                 <SnActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
                   <Upload className="size-4" /> 发布
@@ -2804,6 +3006,7 @@ function ProjectWorkspaceMobile({
   canAutoFix,
   activeAction,
   pendingConversation,
+  liveTimelineEventId,
   onRebuild,
   onPublish,
   onAutoFix,
@@ -2835,6 +3038,7 @@ function ProjectWorkspaceMobile({
   canAutoFix: boolean;
   activeAction: string | null;
   pendingConversation: PendingConversationState | null;
+  liveTimelineEventId: string | null;
   onRebuild: () => void;
   onPublish: () => void;
   onAutoFix: () => void;
@@ -2856,7 +3060,7 @@ function ProjectWorkspaceMobile({
   navigate: (path: string) => void;
 }) {
   const MOBILE_HISTORY_COLLAPSE_COUNT = 8;
-  const [isHistoryCollapsed, setHistoryCollapsed] = useState(false);
+  const [isHistoryCollapsed, setHistoryCollapsed] = useState(true);
   const canCollapseHistory = timelineItems.length > MOBILE_HISTORY_COLLAPSE_COUNT;
   const visibleTimelineItems = isHistoryCollapsed
     ? timelineItems.slice(-MOBILE_HISTORY_COLLAPSE_COUNT)
@@ -2924,9 +3128,6 @@ function ProjectWorkspaceMobile({
         <div className="sn-mobile-chat-history-bar">
           <div className="sn-mobile-chat-history-copy">
             <div className="sn-mobile-chat-history-title">对话记录</div>
-            <div className="sn-mobile-chat-history-meta">
-              共 {timelineItems.length} 条
-            </div>
           </div>
           {canCollapseHistory ? (
             <button
@@ -2935,7 +3136,7 @@ function ProjectWorkspaceMobile({
               onClick={() => setHistoryCollapsed((current) => !current)}
               aria-pressed={isHistoryCollapsed}
             >
-              {isHistoryCollapsed ? '展开早期记录' : '收起早期记录'}
+              {isHistoryCollapsed ? '展开' : '收起'}
             </button>
           ) : null}
         </div>
@@ -2954,26 +3155,27 @@ function ProjectWorkspaceMobile({
           {visibleTimelineItems.length === 0 ? (
             <div className="sn-mobile-chat-empty">刚打开这个项目。先说一句你要改什么。</div>
           ) : (
-            visibleTimelineItems.map((item) => <TimelineEntry key={item.id} item={item} latestTask={latestTask} />)
+            visibleTimelineItems.map((item) => (
+              <TimelineEntry key={item.id} item={item} liveTimelineEventId={liveTimelineEventId} />
+            ))
           )}
         </div>
 
         <PendingConversationBubble pendingConversation={pendingConversation} />
         <div ref={conversationEndRef} className="sn-conversation-end-anchor" aria-hidden="true" />
-
       </div>
 
-        <div className="sn-mobile-project-composer-fixed">
-          <div className={`sn-mobile-project-composer-actions ${canOpenLive ? 'has-dual-actions' : 'has-single-action'}`.trim()}>
-            <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
-              <Eye className="size-4" /> 预览
+      <div className="sn-mobile-project-composer-fixed">
+        <div className={`sn-mobile-project-composer-actions ${canOpenLive ? 'has-dual-actions' : 'has-single-action'}`.trim()}>
+          <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
+            <Eye className="size-4" /> 预览站点
+          </MobileActionButton>
+          {canOpenLive ? (
+            <MobileActionButton variant="secondary" className="sn-mobile-project-live-button" onClick={onOpenLive}>
+              <ArrowUpRight className="size-4" /> 正式站点
             </MobileActionButton>
-            {canOpenLive ? (
-              <MobileActionButton variant="secondary" className="sn-mobile-project-live-button" onClick={onOpenLive}>
-                <ArrowUpRight className="size-4" /> 查看线上
-              </MobileActionButton>
-            ) : null}
-          </div>
+          ) : null}
+        </div>
         <div className="sn-mobile-home-composer-card is-bottom">
           <textarea
             className="sn-mobile-home-composer-input"
@@ -3483,13 +3685,19 @@ function Chip({ tone, children }: { tone: string; children: ReactNode }): ReactE
   );
 }
 
-function TimelineEntry({ item, latestTask }: { item: ConversationTimelineItem; latestTask: TaskView | null }): ReactElement {
+function TimelineEntry({
+  item,
+  liveTimelineEventId,
+}: {
+  item: ConversationTimelineItem;
+  liveTimelineEventId: string | null;
+}): ReactElement {
   if (item.kind === 'message') {
     const bubbleRole = item.role === 'user' ? 'user' : 'assistant';
     return <ChatBubble role={bubbleRole} className={item.id.startsWith('local-') ? 'is-entering' : undefined}>{item.content}</ChatBubble>;
   }
 
-  return <TimelineSystemBubble item={item} latestTask={latestTask} />;
+  return <TimelineSystemBubble item={item} liveTimelineEventId={liveTimelineEventId} />;
 }
 
 function PendingConversationBubble({
@@ -3536,14 +3744,12 @@ function PendingConversationBubble({
 
 function TimelineSystemBubble({
   item,
-  latestTask,
+  liveTimelineEventId,
 }: {
   item: Extract<ConversationTimelineItem, { kind: 'event' }>;
-  latestTask: TaskView | null;
+  liveTimelineEventId: string | null;
 }): ReactElement {
-  const isLiveTask = Boolean(
-    latestTask && ['pending', 'running'].includes(latestTask.status) && item.taskId && item.taskId === latestTask.id
-  );
+  const isLiveTask = item.id === liveTimelineEventId;
   const [elapsedMs, setElapsedMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -3580,10 +3786,35 @@ function TimelineSystemBubble({
             <RichTextMessage content={item.detail} />
           </div>
         ) : null}
-        {item.data ? <pre className="sn-system-event-data">{JSON.stringify(item.data, null, 2)}</pre> : null}
       </div>
     </ChatBubble>
   );
+}
+
+function findLiveTimelineEventId(
+  timelineItems: ConversationTimelineItem[],
+  latestTask: TaskView | null
+): string | null {
+  if (!latestTask || !['pending', 'running'].includes(latestTask.status)) {
+    return null;
+  }
+
+  const liveTypes = new Set(['task_queued', 'task_started', 'task_progress']);
+  for (let index = timelineItems.length - 1; index >= 0; index -= 1) {
+    const item = timelineItems[index];
+    if (item.kind !== 'event') {
+      continue;
+    }
+    if (item.taskId !== latestTask.id) {
+      continue;
+    }
+    if (!liveTypes.has(item.type)) {
+      continue;
+    }
+    return item.id;
+  }
+
+  return null;
 }
 
 export default App;
