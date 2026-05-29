@@ -465,7 +465,6 @@ function buildOptimisticAutoFixEvent(projectId: string, createdAt: string): Proj
 function App() {
   const { route, navigate } = useWorkspaceRoute();
   const isEnhancedRoute = route.kind === 'design-system' || route.kind === 'visual-reference';
-  const isMobileLayout = useMediaQuery('(max-width: 767px)');
   const previewConfirmDebug = new URLSearchParams(window.location.search).get('confirmPublish') === '1';
   const settingsProjectId = new URLSearchParams(window.location.search).get('projectId');
   const [projects, setProjects] = useState<ProjectView[]>([]);
@@ -928,7 +927,7 @@ function App() {
 
   if ((route.kind === 'project-preview' || route.kind === 'project-live') && currentProject) {
     const isLiveRoute = route.kind === 'project-live';
-    page = isMobileLayout ? (
+    page = (
       <MobilePreviewPage
         projectName={currentProject.displayName}
         frameUrl={isLiveRoute ? currentProject.publicUrl : currentProject.previewUrl}
@@ -936,30 +935,12 @@ function App() {
         onPublish={isLiveRoute ? undefined : () => setPublishConfirmOpen(true)}
         mode={isLiveRoute ? 'live' : 'preview'}
       />
-    ) : (
-      <ProjectPreviewWorkspace
-        project={currentProject}
-        iframeUrl={isLiveRoute ? currentProject.publicUrl : currentProject.previewUrl}
-        mode={isLiveRoute ? 'live' : 'preview'}
-        onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
-        onPublish={isLiveRoute ? undefined : () => setPublishConfirmOpen(true)}
-      />
     );
   } else if ((route.kind === 'publish-success' || route.kind === 'publish-failure') && currentProject) {
-    page = isMobileLayout ? (
+    page = (
       <MobilePublishResultPage
         success={route.kind === 'publish-success'}
         publicUrl={currentProject.publicUrl}
-        onOpenWebsite={() => navigate(buildProjectLivePath(currentProject.projectId))}
-        onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
-        onContinueEditing={() => navigate(`/project/${currentProject.projectId}`)}
-        onAutoFix={handleAutoFix}
-        onViewLogs={() => setStatusOpen(true)}
-      />
-    ) : (
-      <PublishResultWorkspace
-        project={currentProject}
-        success={route.kind === 'publish-success'}
         onOpenWebsite={() => navigate(buildProjectLivePath(currentProject.projectId))}
         onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
         onContinueEditing={() => navigate(`/project/${currentProject.projectId}`)}
@@ -1087,105 +1068,6 @@ function App() {
 
       {error ? <div className="error-banner shell-panel">{error}</div> : null}
 
-      {!isMobileLayout ? (
-        <>
-          {route.kind === 'home' ? (
-            <HomeWorkspaceDrawer
-              open={sidebarOpen}
-              projectsLoading={projectsLoading}
-              recentProjects={homeRecentProjects}
-              navigate={navigate}
-              onClose={() => setSidebarOpen(false)}
-              onOpenTemplates={() => {
-                navigate('/templates');
-                setSidebarOpen(false);
-              }}
-              onOpenProjects={() => {
-                navigate('/projects');
-                setSidebarOpen(false);
-              }}
-              onOpenSettings={() => {
-                navigate('/settings');
-                setSidebarOpen(false);
-              }}
-            />
-          ) : route.kind === 'settings' ? (
-            <HomeWorkspaceDrawer
-              open={sidebarOpen}
-              projectsLoading={projectsLoading}
-              recentProjects={homeRecentProjects}
-              navigate={navigate}
-              onClose={() => setSidebarOpen(false)}
-              onOpenTemplates={() => {
-                navigate('/templates');
-                setSidebarOpen(false);
-              }}
-              onOpenProjects={() => {
-                navigate('/projects');
-                setSidebarOpen(false);
-              }}
-              onOpenSettings={() => {
-                navigate('/settings');
-                setSidebarOpen(false);
-              }}
-            />
-          ) : currentProject ? (
-            <ProjectWorkspaceDrawer
-              open={sidebarOpen}
-              currentProject={currentProject}
-              recentProjects={homeRecentProjects}
-              navigate={navigate}
-              onClose={() => setSidebarOpen(false)}
-              onCreateProject={() => {
-                navigate('/');
-                setSidebarOpen(false);
-                setStatusOpen(false);
-              }}
-              onOpenTemplates={() => {
-                navigate('/templates');
-                setSidebarOpen(false);
-              }}
-              onOpenProjects={() => {
-                navigate('/projects');
-                setSidebarOpen(false);
-              }}
-              onOpenReleases={() => {
-                setStatusOpen(true);
-              }}
-              onOpenSettings={() => {
-                navigate(`/settings?projectId=${currentProject.projectId}`);
-                setSidebarOpen(false);
-                setStatusOpen(false);
-              }}
-              onSelectTemplate={(prompt) => {
-                navigate('/');
-                setSidebarOpen(false);
-                setStatusOpen(false);
-                setComposerPrompt(prompt);
-              }}
-            />
-          ) : null}
-
-          {currentProject ? (
-            <WorkspaceStatusDrawer
-              open={statusOpen}
-              project={currentProject}
-              detail={detail}
-              canPublish={canPublish}
-              activeAction={activeAction}
-              onClose={() => setStatusOpen(false)}
-              onOpenPreview={() => navigate(buildProjectPreviewPath(currentProject.projectId))}
-              onPublish={() => setPublishConfirmOpen(true)}
-              onContinueEditing={() => document.querySelector('.sn-home-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-              onAutoFix={handleAutoFix}
-              onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              onCopyPreviewUrl={() => void handleCopy(currentProject.previewUrl, '预览地址已复制')}
-              onCopyPublicUrl={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
-            />
-          ) : null}
-        </>
-      ) : null}
-
       <div className="shipnow-app-content">{renderedPage}</div>
 
       {copyHint ? (
@@ -1199,7 +1081,6 @@ function App() {
           open={publishConfirmOpen || previewConfirmDebug}
           project={currentProject}
           canPublish={canPublish && activeAction === null}
-          isMobileLayout={isMobileLayout}
           onCancel={() => setPublishConfirmOpen(false)}
           onConfirm={handlePublish}
           onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
@@ -1274,10 +1155,7 @@ function HomeWorkspace({
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
 }) {
-  const isMobile = useMediaQuery('(max-width: 767px)');
-
-  if (isMobile) {
-    return (
+  return (
       <MobilePageSurface className="sn-mobile-home-page">
         <div className="sn-mobile-page-body sn-mobile-entry-welcome">
           <div className="sn-mobile-home-brand-row">
@@ -1377,159 +1255,6 @@ function HomeWorkspace({
         />
       </MobilePageSurface>
     );
-  }
-
-  return (
-    <div className="sn-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <header className="sn-ds-header">
-          <div className="sn-ds-brand">
-            <div className="sn-ds-logo">
-              <Zap className="size-5" />
-            </div>
-            <div className="sn-ds-title-wrap">
-              <div className="sn-ds-brand-name">ShipNow</div>
-              <div className="sn-ds-brand-sub">
-                <span>AI 创作工作台</span>
-                <span className="sn-ds-pill">chat-first</span>
-              </div>
-            </div>
-          </div>
-          <p className="sn-ds-description">
-            用一句话创建、修改、预览并发布一个小网站。
-            <br />
-            Tell ShipNow what you want to build.
-          </p>
-        </header>
-
-        <div className="sn-home-workspace-grid">
-          <section className="sn-panel sn-home-entry-welcome">
-            <div className="sn-home-welcome-title">你好！👋</div>
-            <div className="sn-home-welcome-copy">告诉我你想做什么，我来帮你快速实现。</div>
-
-            <div className="sn-home-entry-list">
-              <button type="button" className="sn-home-entry-card" onClick={() => setComposerPrompt('做一个干净、现代的产品官网，首屏突出价值主张和行动按钮。')}>
-                <div className="sn-home-entry-icon">✦</div>
-                <div>
-                  <div className="sn-home-entry-title">创建产品官网</div>
-                  <div className="sn-home-entry-desc">展示产品与核心卖点</div>
-                </div>
-              </button>
-              <button type="button" className="sn-home-entry-card" onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}>
-                <div className="sn-home-entry-icon">◌</div>
-                <div>
-                  <div className="sn-home-entry-title">做一个小游戏</div>
-                  <div className="sn-home-entry-desc">轻松有趣的互动体验</div>
-                </div>
-              </button>
-              <button type="button" className="sn-home-entry-card" onClick={() => setComposerPrompt('做一个个人主页，包含简介、作品、联系入口和轻量的作品展示。')}>
-                <div className="sn-home-entry-icon">☺</div>
-                <div>
-                  <div className="sn-home-entry-title">创建个人主页</div>
-                  <div className="sn-home-entry-desc">展示自己与作品集</div>
-                </div>
-              </button>
-            </div>
-
-            <div className="sn-home-composer-card is-bottom">
-              <div className="sn-home-composer-rail">
-              <button className="icon-button h-10 w-10" type="button" aria-label="附件">
-                <Paperclip className="size-4" />
-              </button>
-                <textarea
-                  className="sn-home-composer-input"
-                  placeholder="告诉 ShipNow 你想做什么..."
-                  value={composerPrompt}
-                  onChange={(event) => setComposerPrompt(event.target.value)}
-                />
-                <button className="sn-home-send-button" type="button" aria-label="发送" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
-                  <Send className="size-4" />
-                </button>
-              </div>
-              <div className="sn-home-footer-actions">
-              <MobileActionButton variant="secondary" onClick={() => navigate('/templates')}>
-                <Sparkles className="size-4" /> 模板中心
-              </MobileActionButton>
-              <MobileActionButton variant="primary" onClick={onSubmit} disabled={!canSubmit || activeAction !== null}>
-                <Upload className="size-4" /> 开始创建
-              </MobileActionButton>
-            </div>
-          </div>
-          </section>
-
-          <aside className="sn-home-workspace-aside">
-            <section className="sn-panel sn-home-projects-panel">
-              <div className="sn-home-projects-head">
-                <div>
-                  <div className="sn-home-projects-section-copy">最近项目</div>
-                  <div className="sn-home-projects-note">继续从上次的进度接着改。</div>
-                </div>
-                <SnButton variant="secondary" onClick={() => navigate('/projects')}>
-                  <Folder className="size-4" /> 查看全部
-                </SnButton>
-              </div>
-
-              {projectsLoading ? (
-                <div className="grid gap-3">
-                  <Skeleton className="h-32 rounded-[22px]" />
-                  <Skeleton className="h-32 rounded-[22px]" />
-                  <Skeleton className="h-32 rounded-[22px]" />
-                </div>
-              ) : recentProjects.length > 0 ? (
-                <div className="sn-home-project-list">
-                  {recentProjects.map((project) => (
-                    <ProjectCard
-                      key={project.projectId}
-                      name={project.displayName}
-                      description={project.title}
-                      status={
-                        project.status === 'preview_ready'
-                          ? 'preview-ready'
-                          : project.status === 'published'
-                            ? 'published'
-                            : project.status === 'build_failed' || project.status === 'publish_failed'
-                              ? 'needs-fix'
-                              : 'building'
-                      }
-                      updatedAt={formatTime(project.updatedAt)}
-                      onClick={() => navigate(`/project/${project.projectId}`)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  title="还没有项目"
-                  description="先从一句话开始创建，再回到这里继续管理。"
-                  icon={<Plus className="size-6" />}
-                />
-              )}
-            </section>
-
-            <section className="sn-panel sn-home-shortcuts-panel">
-              <div className="sn-home-projects-head">
-                <div>
-                  <div className="sn-home-projects-section-copy">快捷入口</div>
-                  <div className="sn-home-projects-note">把高频动作放在桌面上，不要藏进抽屉。</div>
-                </div>
-              </div>
-              <div className="sn-home-shortcuts-grid">
-                <SnButton variant="secondary" onClick={() => navigate('/templates')}>
-                  <LayoutGrid className="size-4" /> 模板中心
-                </SnButton>
-                <SnButton variant="secondary" onClick={() => navigate('/projects')}>
-                  <Folder className="size-4" /> 我的项目
-                </SnButton>
-                <SnButton variant="secondary" onClick={() => navigate('/settings')}>
-                  <Settings2 className="size-4" /> 设置与偏好
-                </SnButton>
-              </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function SettingsWorkspace({
@@ -1553,7 +1278,6 @@ function SettingsWorkspace({
   refreshProjects: () => Promise<void>;
   navigate: (path: string) => void;
 }) {
-  const isMobile = useMediaQuery('(max-width: 767px)');
   const [appSettings, setAppSettings] = useState<AppSettingsView | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -1652,8 +1376,7 @@ function SettingsWorkspace({
   const currentProjectRunner = selectedProject?.preferredRunner ?? null;
   const currentProjectEffectiveRunner = selectedProject?.effectiveRunner ?? effectiveGlobalRunner;
 
-  if (isMobile) {
-    return (
+  return (
       <MobilePageSurface className="sn-mobile-settings-page">
         <div className="sn-mobile-page-body sn-mobile-settings-body">
           <MobileCompactHeader title="设置与偏好" onMenu={onOpenMenu} />
@@ -1759,117 +1482,6 @@ function SettingsWorkspace({
         />
       </MobilePageSurface>
     );
-  }
-
-  return (
-    <div className="sn-page sn-settings-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell sn-settings-shell">
-        <div className="sn-settings-hero">
-          <div>
-            <p className="sn-hero-kicker">Settings & Preferences</p>
-            <h1 className="sn-hero-title">设置与偏好</h1>
-            <p className="sn-hero-description">
-              在这里切换 ShipNow 的默认执行器，并按项目覆盖为 Codex 或 Claude Code。
-            </p>
-          </div>
-          <SnButton variant="icon" icon={<Settings2 className="size-4" />} title="设置" />
-        </div>
-
-        {settingsError ? <div className="sn-settings-inline-error">{settingsError}</div> : null}
-
-        <div className="sn-settings-layout">
-          <section className="sn-panel sn-settings-section">
-            <header className="sn-section-head">
-              <div>
-                <p className="sn-section-kicker">Global Default</p>
-                <h2 className="sn-section-title">全局默认执行器</h2>
-              </div>
-              {settingsLoading ? <StatusChip tone="building">加载中</StatusChip> : <StatusChip tone="preview-ready">{taskRunnerLabel(effectiveGlobalRunner)}</StatusChip>}
-            </header>
-            <div className="sn-settings-runner-grid">
-              {(['codex', 'claude-code'] as const).map((runner) =>
-                renderRunnerCard(
-                  runner,
-                  effectiveGlobalRunner === runner,
-                  () => handleUpdateGlobalRunner(runner),
-                  savingDefaultRunner !== null,
-                  taskRunnerDescription(runner)
-                )
-              )}
-            </div>
-          </section>
-
-          <section className="sn-panel sn-settings-section">
-            <header className="sn-section-head">
-              <div>
-                <p className="sn-section-kicker">Project Preference</p>
-                <h2 className="sn-section-title">{selectedProject ? selectedProject.displayName : '选择一个项目'}</h2>
-              </div>
-              {selectedProject ? (
-                <StatusChip tone={statusTone(selectedProject.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
-                  {taskRunnerLabel(currentProjectEffectiveRunner)}
-                </StatusChip>
-              ) : (
-                <StatusChip tone="building">无项目上下文</StatusChip>
-              )}
-            </header>
-            {selectedProject ? (
-              <>
-                <div className="sn-settings-project-meta">
-                  <div className="sn-settings-project-line">
-                    <span>当前生效</span>
-                    <strong>{taskRunnerLabel(currentProjectEffectiveRunner)} · {taskRunnerBackendLabel(currentProjectEffectiveRunner)}</strong>
-                  </div>
-                  <div className="sn-settings-project-line">
-                    <span>当前偏好</span>
-                    <strong>{currentProjectRunner ? taskRunnerLabel(currentProjectRunner) : '继承全局默认'}</strong>
-                  </div>
-                </div>
-                <div className="sn-settings-runner-grid">
-                  {renderRunnerCard(
-                    'codex',
-                    currentProjectRunner === 'codex',
-                    () => handleUpdateProjectRunner('codex'),
-                    savingProjectRunner !== null,
-                    taskRunnerDescription('codex')
-                  )}
-                  {renderRunnerCard(
-                    'claude-code',
-                    currentProjectRunner === 'claude-code',
-                    () => handleUpdateProjectRunner('claude-code'),
-                    savingProjectRunner !== null,
-                    taskRunnerDescription('claude-code')
-                  )}
-                  <button
-                    type="button"
-                    className={`sn-settings-runner-card ${currentProjectRunner === null ? 'is-active' : ''}`.trim()}
-                    onClick={() => void handleUpdateProjectRunner(null)}
-                    disabled={savingProjectRunner !== null}
-                  >
-                    <div className="sn-settings-runner-card-head">
-                      <div>
-                        <div className="sn-settings-runner-name">继承全局默认</div>
-                        <div className="sn-settings-runner-backend">跟随系统默认</div>
-                      </div>
-                      {currentProjectRunner === null ? <StatusChip tone="preview-ready">当前选择</StatusChip> : null}
-                    </div>
-                    <div className="sn-settings-runner-copy">这个项目会自动使用全局默认执行器，适合统一管理。</div>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <EmptyState
-                title="选择一个项目"
-                description="从项目页的“设置与偏好”菜单进入后，会显示该项目的覆盖设置。"
-                icon={<Folder className="size-6" />}
-              />
-            )}
-          </section>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function TemplatesWorkspace({
@@ -1885,7 +1497,6 @@ function TemplatesWorkspace({
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
 }) {
-  const isMobile = useMediaQuery('(max-width: 767px)');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const templates = [
     {
@@ -2004,8 +1615,7 @@ function TemplatesWorkspace({
     );
   }
 
-  if (isMobile) {
-      return (
+  return (
       <MobilePageSurface className="sn-mobile-templates-page">
         <div className="sn-mobile-page-body">
           <MobileCompactHeader
@@ -2054,79 +1664,6 @@ function TemplatesWorkspace({
         />
       </MobilePageSurface>
     );
-  }
-
-  return (
-    <div className="sn-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <header className="sn-ds-header">
-          <div className="sn-ds-brand">
-            <div className="sn-ds-logo">
-              <Zap className="size-5" />
-            </div>
-            <div className="sn-ds-title-wrap">
-              <div className="sn-ds-brand-name">ShipNow</div>
-              <div className="sn-ds-brand-sub">
-                <span>模板中心</span>
-                <span className="sn-ds-pill">starter kits</span>
-              </div>
-            </div>
-          </div>
-          <p className="sn-ds-description">
-            先用合适的起点，再继续对话修改。
-            <br />
-            No tables, only cards.
-          </p>
-        </header>
-
-        <div className="sn-template-workspace-grid">
-          <section className="sn-panel sn-template-entry-welcome">
-            <div className="sn-template-welcome-title">选择一个模板开始。</div>
-            <div className="sn-template-welcome-copy">先用合适的起点，再继续对话修改。这里用卡片承载模板，不用表格。</div>
-            <div className="sn-template-grid">
-              {projectsLoading
-                ? Array.from({ length: 6 }).map((_, index) => (
-                    <Skeleton key={index} className="h-40 rounded-[24px]" />
-                  ))
-                : templates.map((template) => (
-                    <button
-                      key={template.title}
-                      type="button"
-                      className={`sn-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
-                      onClick={() => {
-                        onSelectTemplate(template.prompt);
-                        onBackHome();
-                      }}
-                    >
-                      <div className="sn-template-thumb">
-                        <TemplateThumbIllustration kind={template.art} />
-                      </div>
-                      <div className="sn-template-title">{template.title}</div>
-                      <div className="sn-template-desc">{template.desc}</div>
-                    </button>
-                  ))}
-            </div>
-          </section>
-
-          <section className="sn-panel sn-template-projects">
-            <div className="sn-template-projects-head">
-              <div>
-                <div className="sn-template-section-copy">导入现有项目</div>
-                <div className="sn-template-note">如果已有站点，直接导入继续改。</div>
-              </div>
-            </div>
-            <div className="sn-template-project-list">
-              <div className="sn-template-empty">从现有项目导入后，可以继续沿用当前风格与结构。</div>
-              <SnActionButton variant="secondary" onClick={onBackHome}>
-                <Upload className="size-4" /> 导入现有项目
-              </SnActionButton>
-            </div>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function ProjectsWorkspace({
@@ -2144,12 +1681,10 @@ function ProjectsWorkspace({
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
 }) {
-  const isMobile = useMediaQuery('(max-width: 767px)');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [allProjectsOpen, setAllProjectsOpen] = useState(true);
 
-  if (isMobile) {
-    return (
+  return (
       <MobilePageSurface className="sn-mobile-projects-page">
         <div className="sn-mobile-page-body">
           <MobileCompactHeader
@@ -2225,145 +1760,6 @@ function ProjectsWorkspace({
         />
       </MobilePageSurface>
     );
-  }
-
-  return (
-    <div className="sn-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <header className="sn-ds-header">
-          <div className="sn-ds-brand">
-            <div className="sn-ds-logo">
-              <Zap className="size-5" />
-            </div>
-            <div className="sn-ds-title-wrap">
-              <div className="sn-ds-brand-name">ShipNow</div>
-              <div className="sn-ds-brand-sub">
-                <span>项目管理</span>
-                <span className="sn-ds-pill">all projects</span>
-              </div>
-            </div>
-          </div>
-          <p className="sn-ds-description">
-            用卡片列表查看每个项目的状态、更新时间和协作信息。
-            <br />
-            No tables, only cards.
-          </p>
-        </header>
-
-        <section className="sn-panel sn-projects-panel">
-          <div className="sn-projects-head">
-            <div>
-              <div className="sn-projects-section-copy">所有项目</div>
-              <div className="sn-projects-note">卡片列表，而不是表格。</div>
-            </div>
-            <div className="sn-projects-toolbar">
-              <SnActionButton variant="secondary" onClick={onBackHome}>
-                <Plus className="size-4" /> 新建项目
-              </SnActionButton>
-            </div>
-          </div>
-
-          {projectsLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <Skeleton className="h-40 rounded-[24px]" />
-              <Skeleton className="h-40 rounded-[24px]" />
-              <Skeleton className="h-40 rounded-[24px]" />
-            </div>
-          ) : projects.length === 0 ? (
-            <EmptyState title="No projects yet" description="Start a conversation to build your first site." icon={<Plus className="size-6" />} />
-          ) : (
-            <div className="sn-projects-list">
-              {projects.map((project) => (
-                <ProjectCard
-                  key={project.projectId}
-                  name={project.displayName}
-                  description={project.title}
-                  status={project.status === 'preview_ready' ? 'preview-ready' : project.status === 'published' ? 'published' : project.status === 'build_failed' || project.status === 'publish_failed' ? 'needs-fix' : 'building'}
-                  updatedAt={formatTime(project.updatedAt)}
-                  onClick={() => onOpenProject(project.projectId)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function ProjectPreviewWorkspace({
-  project,
-  iframeUrl,
-  mode,
-  onBackEdit,
-  onPublish,
-}: {
-  project: ProjectView;
-  iframeUrl: string;
-  mode: 'preview' | 'live';
-  onBackEdit: () => void;
-  onPublish?: () => void;
-}) {
-  const isLiveMode = mode === 'live';
-
-  return (
-    <div className="sn-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <TopBar mode={isLiveMode ? 'live' : 'preview'} />
-
-        <div className="sn-project-preview-grid">
-          <section className="sn-panel sn-visual-main">
-            <div className="sn-visual-main-head">
-              <div className="sn-visual-project-head">
-                <div className="sn-visual-project-mark" />
-                <div>
-                  <div className="sn-visual-project-name">{project.displayName}</div>
-                  <div className="sn-visual-project-subtitle">{project.publicHandle}</div>
-                </div>
-              </div>
-              <StatusChip tone={isLiveMode ? 'published' : 'published'}>{isLiveMode ? '正式站点' : 'Preview ready'}</StatusChip>
-            </div>
-
-            <div className="sn-visual-preview-canvas sn-visual-preview-canvas-live">
-              <div className="sn-visual-preview-top">
-                <span>{isLiveMode ? '正式站点' : '实时预览'}</span>
-                <div className="sn-visual-preview-icons">
-                  <span className="sn-visual-preview-url">{iframeUrl}</span>
-                </div>
-              </div>
-              <iframe
-                className="sn-visual-preview-frame"
-                src={iframeUrl}
-                title={`${project.displayName} ${isLiveMode ? '正式站点' : '预览'}`}
-                loading="eager"
-              />
-            </div>
-          </section>
-
-          <aside className="sn-panel sn-visual-status">
-            <div className="sn-visual-status-block">
-              <div className="sn-visual-status-title">{isLiveMode ? '当前正式站点已准备好' : '当前预览已准备好'}</div>
-              <p>{isLiveMode ? '你可以继续修改，或者回到编辑页。' : '你可以继续修改，或者直接发布到正式地址。'}</p>
-            </div>
-            <div className="sn-visual-status-block">
-              <div className="sn-visual-status-title">地址</div>
-              <DetailRow label="预览地址" value={project.previewUrl} />
-              <DetailRow label="正式地址" value={project.publicUrl} />
-            </div>
-            <div className="sn-visual-status-block">
-              <div className="sn-visual-status-title">操作</div>
-              <div className="grid gap-2">
-                <SnButton variant="secondary" onClick={onBackEdit}>继续编辑</SnButton>
-                {!isLiveMode && onPublish ? <SnButton variant="primary" onClick={onPublish}>发布</SnButton> : null}
-              </div>
-            </div>
-          </aside>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function MobilePublishConfirmSheet({
@@ -2509,7 +1905,6 @@ function ProjectPublishConfirmSurface({
   open,
   project,
   canPublish,
-  isMobileLayout,
   onCancel,
   onConfirm,
   onCopyLink,
@@ -2517,44 +1912,18 @@ function ProjectPublishConfirmSurface({
   open: boolean;
   project: ProjectView;
   canPublish: boolean;
-  isMobileLayout: boolean;
   onCancel: () => void;
   onConfirm: () => void;
   onCopyLink: () => void;
 }) {
-  if (isMobileLayout) {
-    return (
-      <MobilePublishConfirmSheet
-        open={open}
-        project={project}
-        canPublish={canPublish}
-        onCancel={onCancel}
-        onConfirm={onConfirm}
-        onCopyLink={onCopyLink}
-      />
-    );
-  }
-
-  if (!open) {
-    return null;
-  }
-
   return (
-    <ProjectConfirmModal
+    <MobilePublishConfirmSheet
       open={open}
-      title="确认发布到正式站点"
-      description={`ShipNow 会把当前预览复制到正式站点，并使用 ${project.publicUrl} 作为访问地址。`}
-      details={[
-        { label: '项目', value: project.displayName },
-        { label: '公开句柄', value: project.publicHandle },
-        { label: '预览地址', value: project.previewUrl },
-        { label: '正式地址', value: project.publicUrl },
-      ]}
-      confirmLabel="确认发布"
-      cancelLabel="先不发布"
-      confirmDisabled={!canPublish}
+      project={project}
+      canPublish={canPublish}
       onCancel={onCancel}
       onConfirm={onConfirm}
+      onCopyLink={onCopyLink}
     />
   );
 }
@@ -2643,111 +2012,6 @@ function ProjectRenameSheet({
   );
 }
 
-function PublishResultWorkspace({
-  project,
-  success,
-  onOpenWebsite,
-  onCopyLink,
-  onContinueEditing,
-  onAutoFix,
-  onViewLogs,
-}: {
-  project: ProjectView;
-  success: boolean;
-  onOpenWebsite: () => void;
-  onCopyLink: () => void;
-  onContinueEditing: () => void;
-  onAutoFix: () => void;
-  onViewLogs: () => void;
-}) {
-  return (
-    <div className="sn-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <TopBar mode="preview" />
-
-        <div className="sn-project-workspace-grid">
-          <section className="sn-panel sn-visual-main">
-            <div className="sn-visual-main-head">
-              <div className="sn-visual-project-head">
-                <div className="sn-visual-project-mark" />
-                <div>
-                  <div className="sn-visual-project-name">{project.displayName}</div>
-                  <div className="sn-visual-project-subtitle">{project.publicHandle}</div>
-                </div>
-              </div>
-              <StatusChip tone={success ? 'published' : 'needs-fix'}>{statusLabel(success ? 'published' : 'publish_failed')}</StatusChip>
-            </div>
-
-            <div className="sn-visual-preview-canvas">
-              <div className={`sn-visual-preview-content ${success ? '' : ''}`.trim()}>
-                <div className="sn-visual-preview-brand">{success ? '发布成功' : '发布失败'}</div>
-                <h3 className="!text-[clamp(2.1rem,3vw,3.4rem)]">
-                  {success ? 'Your site is live.' : 'Something needs fixing.'}
-                </h3>
-                <p>
-                  {success
-                    ? '你的网站已上线，全球都可以访问了。'
-                    : '部署过程中遇到了一些问题，但我们可以继续修复。'}
-                </p>
-                <div className="sn-visual-preview-features">
-                  {success ? (
-                    <span className="sn-visual-preview-feature">线上地址可访问</span>
-                  ) : (
-                    <>
-                      <span className="sn-visual-preview-feature">构建错误</span>
-                      <span className="sn-visual-preview-feature">依赖安装失败</span>
-                      <span className="sn-visual-preview-feature">配置文件问题</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <aside className="sn-panel sn-visual-status">
-            <div className="sn-visual-status-block">
-              <div className="sn-visual-status-title">下一步</div>
-              <div className="grid gap-2">
-                {success ? (
-                  <>
-                    <SnButton variant="primary" onClick={onOpenWebsite}>
-                      <ArrowUpRight className="size-4" />
-                      打开网站
-                    </SnButton>
-                    <SnButton variant="secondary" onClick={onCopyLink}>
-                      <Copy className="size-4" />
-                      复制链接
-                    </SnButton>
-                    <SnButton variant="secondary" onClick={onContinueEditing}>
-                      <Edit2 className="size-4" />
-                      继续编辑
-                    </SnButton>
-                  </>
-                ) : (
-                  <>
-                    <SnButton variant="primary" onClick={onAutoFix}>
-                      <WandSparkles className="size-4" />
-                      ShipNow 自动修复
-                    </SnButton>
-                    <SnButton variant="secondary" onClick={onViewLogs}>
-                      <Info className="size-4" />
-                      查看日志
-                    </SnButton>
-                    <SnButton variant="secondary" onClick={onContinueEditing}>
-                      稍后再试
-                    </SnButton>
-                  </>
-                )}
-              </div>
-            </div>
-          </aside>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ProjectWorkspace({
   project,
   detail,
@@ -2811,186 +2075,45 @@ function ProjectWorkspace({
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
 }) {
-  const isMobileLayout = useMediaQuery('(max-width: 767px)');
-  const renderedTimelineItems = isMobileLayout ? timelineItems.slice(-4) : timelineItems;
   const liveTimelineEventId = useMemo(
     () => findLiveTimelineEventId(timelineItems, latestTask),
     [latestTask, timelineItems]
   );
 
-  if (isMobileLayout) {
-    return (
-      <ProjectWorkspaceMobile
-        project={project}
-        detail={detail}
-        timelineItems={timelineItems}
-        composerPrompt={composerPrompt}
-        setComposerPrompt={setComposerPrompt}
-        onSubmit={onSubmit}
-        canSubmit={canSubmit}
-        canPublish={canPublish}
-        canAutoFix={canAutoFix}
-        activeAction={activeAction}
-        pendingConversation={pendingConversation}
-        liveTimelineEventId={liveTimelineEventId}
-        onRebuild={onRebuild}
-        onPublish={onPublish}
-        onAutoFix={onAutoFix}
-        latestTask={latestTask}
-        onViewLogs={onViewLogs}
-        conversationRef={conversationRef}
-        onOpenStatus={onOpenStatus}
-        onOpenPreview={onOpenPreview}
-        onOpenLive={onOpenLive}
-        onEditProjectName={onEditProjectName}
-        onCopyPreviewUrl={onCopyPreviewUrl}
-        onCopyPublicUrl={onCopyPublicUrl}
-        conversationEndRef={conversationEndRef}
-        sidebarOpen={sidebarOpen}
-        statusOpen={statusOpen}
-        setSidebarOpen={setSidebarOpen}
-        setStatusOpen={setStatusOpen}
-        recentProjects={recentProjects}
-        navigate={navigate}
-      />
-    );
-  }
-
   return (
-    <div className="sn-page">
-      <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <header className="sn-ds-header">
-          <div className="sn-ds-brand">
-            <div className="sn-ds-logo">
-              <Zap className="size-5" />
-            </div>
-            <div className="sn-ds-title-wrap">
-              <div className="sn-ds-brand-name">{project.displayName}</div>
-              <div className="sn-ds-brand-sub">
-                <span>{project.publicHandle}</span>
-                <span className="sn-ds-pill">{statusLabel(project.status)}</span>
-              </div>
-            </div>
-          </div>
-          <p className="sn-ds-description">
-            {project.title}
-            <br />
-            Conversation first, publish when ready.
-          </p>
-        </header>
-
-        <div className="sn-project-workspace-grid">
-          <section className="sn-panel sn-project-workspace-entry">
-            <div className="sn-project-workspace-title">{project.displayName}</div>
-            <div className="sn-project-workspace-copy">{project.title}</div>
-            <div className="flex flex-wrap gap-2">
-              <Chip tone={statusTone(project.status)}>{statusLabel(project.status)}</Chip>
-              <Chip tone="neutral">{project.publicHandle}</Chip>
-              <Chip tone="neutral">{project.type}</Chip>
-            </div>
-
-            <div className="sn-project-workspace-chat" ref={conversationRef}>
-              {detail ? (
-                renderedTimelineItems.length === 0 ? (
-                  <div className="sn-project-workspace-empty">刚打开这个项目。先说一句你要改什么。</div>
-                ) : (
-                  renderedTimelineItems.map((item) => (
-                    <TimelineEntry key={item.id} item={item} liveTimelineEventId={liveTimelineEventId} />
-                  ))
-                )
-              ) : (
-                <div className="sn-project-workspace-empty">正在加载项目…</div>
-              )}
-            </div>
-
-            <PendingConversationBubble pendingConversation={pendingConversation} />
-            <div ref={conversationEndRef} className="sn-conversation-end-anchor" aria-hidden="true" />
-
-            <div className="sn-project-workspace-chips">
-              <QuickActionChip icon={<WandSparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
-                优化文案
-              </QuickActionChip>
-              <QuickActionChip icon={<Sparkles className="size-4" />} onClick={() => setComposerPrompt('把配色再轻一点，偏薄荷绿和更柔和的留白。')}>
-                调整配色
-              </QuickActionChip>
-              <QuickActionChip icon={<Plus className="size-4" />} onClick={() => setComposerPrompt('增加一个独立页面，保留当前风格和层次。')}>
-                增加页面
-              </QuickActionChip>
-              <QuickActionChip icon={<Upload className="size-4" />} onClick={() => setComposerPrompt('帮我替换一张更合适的图片 / 视觉素材。')}>
-                上传图片
-              </QuickActionChip>
-              <QuickActionChip icon={<CircleAlert className="size-4" />} onClick={onAutoFix} className={activeAction !== null || !canAutoFix ? 'opacity-50 pointer-events-none' : ''}>
-                修复问题
-              </QuickActionChip>
-              <button
-                className="icon-button h-10 w-10"
-                type="button"
-                aria-label="刷新"
-                onClick={onRebuild}
-                disabled={activeAction !== null}
-              >
-                <RefreshCcw className="size-4" />
-              </button>
-            </div>
-
-            <div className="sn-project-workspace-composer is-bottom">
-              <div className="sn-project-workspace-composer-rail">
-                <button className="icon-button h-10 w-10" type="button" aria-label="附件">
-                  <Paperclip className="size-4" />
-                </button>
-                <textarea
-                  className="sn-project-workspace-composer-input"
-                  placeholder="例如：把首屏的大标题再收一点，按钮更明确，配色更薄荷绿。"
-                  value={composerPrompt}
-                  onChange={(event) => setComposerPrompt(event.target.value)}
-                />
-                <button
-                  className="sn-project-workspace-send-button"
-                  type="button"
-                  aria-label="发送修改"
-                  onClick={onSubmit}
-                  disabled={!canSubmit || activeAction !== null}
-                >
-                  <Send className="size-4" />
-                </button>
-              </div>
-              <div className="sn-project-workspace-actions">
-                <SnActionButton variant="secondary" onClick={onOpenPreview}>
-                  <Eye className="size-4" /> 预览站点
-                </SnActionButton>
-                <SnActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
-                  <Upload className="size-4" /> 发布
-                </SnActionButton>
-              </div>
-            </div>
-          </section>
-
-          <section className="sn-reference-sheet sn-project-workspace-status">
-            <div className="sn-project-workspace-status-head">
-              <div>
-                <div className="sn-project-workspace-section-copy">项目状态</div>
-                <div className="sn-project-workspace-note">状态、发布和日志都收纳到更清晰的层次里。</div>
-              </div>
-              <div className="sn-project-workspace-toolbar">
-              <SnActionButton variant="secondary" onClick={onOpenStatus}>
-                <MoreHorizontal className="size-4" /> 更多
-              </SnActionButton>
-              </div>
-            </div>
-            <ProjectStatusContent
-              project={project}
-              detail={detail}
-              latestTask={latestTask}
-              showTaskInfo
-              onViewLogs={onViewLogs}
-              onCopyPreviewUrl={onCopyPreviewUrl}
-              onCopyPublicUrl={onCopyPublicUrl}
-            />
-          </section>
-        </div>
-      </div>
-    </div>
+    <ProjectWorkspaceMobile
+      project={project}
+      detail={detail}
+      timelineItems={timelineItems}
+      composerPrompt={composerPrompt}
+      setComposerPrompt={setComposerPrompt}
+      onSubmit={onSubmit}
+      canSubmit={canSubmit}
+      canPublish={canPublish}
+      canAutoFix={canAutoFix}
+      activeAction={activeAction}
+      pendingConversation={pendingConversation}
+      liveTimelineEventId={liveTimelineEventId}
+      onRebuild={onRebuild}
+      onPublish={onPublish}
+      onAutoFix={onAutoFix}
+      latestTask={latestTask}
+      onViewLogs={onViewLogs}
+      conversationRef={conversationRef}
+      onOpenStatus={onOpenStatus}
+      onOpenPreview={onOpenPreview}
+      onOpenLive={onOpenLive}
+      onEditProjectName={onEditProjectName}
+      onCopyPreviewUrl={onCopyPreviewUrl}
+      onCopyPublicUrl={onCopyPublicUrl}
+      conversationEndRef={conversationEndRef}
+      sidebarOpen={sidebarOpen}
+      statusOpen={statusOpen}
+      setSidebarOpen={setSidebarOpen}
+      setStatusOpen={setStatusOpen}
+      recentProjects={recentProjects}
+      navigate={navigate}
+    />
   );
 }
 
