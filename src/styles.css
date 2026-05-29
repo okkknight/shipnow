@@ -1501,6 +1501,15 @@
       min-width: 0;
     }
 
+    .sn-mobile-preview-inline-status {
+      color: #0d6b50;
+      font-size: 0.82rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
     .sn-mobile-preview-page {
       overflow: hidden;
     }
@@ -1565,6 +1574,10 @@
       bottom: calc(16px + env(safe-area-inset-bottom));
       z-index: 24;
       margin: 0 auto;
+    }
+
+    .sn-mobile-preview-footer-actions.is-single {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .sn-visual-mobile-footer-secondary,
@@ -2618,8 +2631,7 @@
     color: var(--sn-color-muted);
     font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   .sn-system-event-title {
@@ -4269,6 +4281,7 @@
   }
 
   .sn-mobile-settings-body .sn-section-title {
+    font-size: 1rem;
     margin-bottom: 10px;
   }
 
@@ -4291,6 +4304,10 @@
   .sn-mobile-settings-body .sn-settings-runner-card-head {
     align-items: flex-start;
     gap: 10px;
+  }
+
+  .sn-mobile-settings-body .sn-settings-runner-name {
+    font-size: 0.9375rem;
   }
 
   .sn-mobile-settings-body .sn-settings-runner-copy {
@@ -4808,7 +4825,46 @@
     border: 1px solid rgba(15, 17, 21, 0.08);
     border-radius: 20px;
     background: rgba(255, 255, 252, 0.88);
+    font: inherit;
     font-size: 0.86rem;
+  }
+
+  .sn-mobile-confirm-address {
+    cursor: pointer;
+    text-align: left;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .sn-mobile-rename-field {
+    cursor: text;
+    align-items: center;
+  }
+
+  .sn-mobile-rename-field:focus-within {
+    border-color: rgba(97, 206, 180, 0.7);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 0 0 4px rgba(97, 206, 180, 0.12);
+  }
+
+  .sn-mobile-rename-input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.25;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .sn-mobile-rename-input::placeholder {
+    color: rgba(15, 17, 21, 0.36);
   }
 
   .sn-reference-address-text {
@@ -4998,6 +5054,10 @@
   .sn-mobile-confirm-shell.is-open .sn-mobile-confirm-sheet {
     transform: translate3d(0, 0, 0);
     opacity: 1;
+  }
+
+  .sn-mobile-project-edit-button:disabled {
+    opacity: 0.45;
   }
 
   .sn-mobile-confirm-close {
@@ -5209,6 +5269,11 @@
     box-shadow: 0 16px 32px rgba(15, 17, 21, 0.18);
     pointer-events: none;
     z-index: 40;
+  }
+
+  .sn-copy-toast {
+    position: fixed;
+    z-index: 80;
   }
 
     .sn-reference-result-phone,
@@ -6371,6 +6436,15 @@
       grid-template-columns: minmax(0, 1fr);
     }
 
+    .sn-mobile-projects-page .sn-mobile-project-copy,
+    .sn-mobile-projects-page .sn-mobile-project-head > div {
+      text-align: left;
+    }
+
+    .sn-mobile-projects-page .sn-mobile-project-meta {
+      justify-content: flex-start;
+    }
+
     .sn-mobile-project-head > div {
       min-width: 0;
     }
@@ -6505,6 +6579,12 @@
   .sn-chat-bubble.user .sn-chat-copy {
     background: rgba(183, 241, 223, 0.28);
     border-color: rgba(13, 107, 80, 0.12);
+  }
+
+  .sn-conversation-end-anchor {
+    width: 100%;
+    height: 1px;
+    pointer-events: none;
   }
 
   .sn-mobile-project-page .sn-mobile-project-card.is-compact-header {
@@ -6644,6 +6724,14 @@
     gap: 8px;
   }
 
+  .sn-mobile-project-page .sn-chat-bubble.system {
+    width: 100%;
+  }
+
+  .sn-mobile-project-page .sn-chat-bubble.system .sn-chat-copy {
+    max-width: calc(100% - 84px);
+  }
+
   .sn-mobile-project-page .sn-system-event-title {
     font-size: 0.94rem;
   }
@@ -6754,13 +6842,20 @@
     gap: 10px;
   }
 
+  .sn-mobile-project-composer-actions.has-dual-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
   .sn-mobile-project-composer-actions .sn-mobile-action-button {
     width: 100%;
   }
 
   .sn-mobile-project-preview-button {
-    width: 130px !important;
-    justify-self: end;
+    width: 100% !important;
+  }
+
+  .sn-mobile-project-live-button {
+    width: 100% !important;
   }
 
   .sn-mobile-project-page .sn-mobile-home-composer-input {

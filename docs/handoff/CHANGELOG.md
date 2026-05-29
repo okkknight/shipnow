@@ -1,5 +1,10 @@
 # Changelog
 
+# 2026-05-29
+
+- Added automatic conversation follow in the project workbench so new messages and system events now scroll the view to the latest entry on both desktop and mobile.
+- Verified the follow behavior in Playwright CLI by scrolling the workbench back up, sending a test conversation, and confirming the page scrolled back to the latest conversation entry.
+
 ## 2026-05-28
 
 - Removed `inferProjectType` and stopped writing template-level `type` metadata into new generated site configs, so the starter stays generic and no longer carries the old landing/game branching baggage.

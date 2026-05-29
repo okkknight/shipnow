@@ -30,12 +30,13 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The latest browser acceptance of the modify flow passed for `ui-smoke-20260526`: apply-change completed successfully, the preview release updated, and the public release stayed unchanged because Publish was not clicked.
 - The publish action now sends bodyless requests without a JSON content-type header, and the API preserves Fastify's real 4xx status codes instead of wrapping them into generic 500s.
 - The latest independent browser acceptance is not yet passing because the ShipNow entry and API are still reachable without an authentication gate, which violates the design doc's access-protection requirement.
+- The project workbench now auto-follows new conversation entries to the latest message on both desktop and mobile; the behavior was verified in Playwright CLI after scrolling the view back up and sending a test conversation.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md` and `docs/SITE_LAYOUT_STANDARD.md`.
 
 ## Latest task
 
-- Status: `Publish request handling stabilized and docs aligned`
-- Reason: bodyless publish/rebuild/delete requests no longer send a JSON content-type header, Fastify errors now surface with their real status codes, and the current implementation plus deployment docs are aligned to the per-site layout.
+- Status: `Conversation auto-follow added and verified`
+- Reason: the project workbench now auto-scrolls to the latest conversation entry when new messages or task events appear, and the behavior was verified in Playwright CLI on the live local app.
 
 ## Key files
 

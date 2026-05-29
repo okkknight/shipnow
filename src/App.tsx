@@ -42,10 +42,19 @@ import {
   updateProjectSettings,
 } from './api';
 import { buildConversationTimeline, type ConversationTimelineItem } from './conversationTimeline';
+import { copyText } from './clipboard';
 import { RichTextMessage } from './messageFormatting';
 import { subscribeProjectTimeline } from './projectTimelineStream';
+import {
+  buildProjectLivePath,
+  buildProjectPreviewPath,
+  hasEverPublishedProject,
+  parseWorkspaceRoute,
+  type WorkspaceRouteState,
+} from './workspaceRoutes';
 import type {
   ProjectDetailResponse,
+  ProjectEventView,
   ProjectMessageView,
   ProjectView,
   TaskView,
@@ -75,18 +84,6 @@ import {
 } from './shipnow-real-ui';
 import { ShipNowDesignSystemPage, ShipNowVisualReferencePage, SnActionButton } from './shipnow-reference-pages';
 import { MobilePreviewPage, MobilePublishResultPage } from './shipnow-pages';
-
-type RouteState =
-  | { kind: 'home' }
-  | { kind: 'project'; projectId: string }
-  | { kind: 'project-preview'; projectId: string }
-  | { kind: 'publish-success'; projectId: string }
-  | { kind: 'publish-failure'; projectId: string }
-  | { kind: 'settings' }
-  | { kind: 'templates' }
-  | { kind: 'projects' }
-  | { kind: 'design-system' }
-  | { kind: 'visual-reference' };
 
 interface PendingConversationState {
   id: string;
@@ -154,57 +151,11 @@ function toAppPath(pathname: string): string {
   return next === '/' ? `${APP_BASE}/` : `${APP_BASE}${next}`;
 }
 
-function stripAppBase(pathname: string): string {
-  if (!APP_BASE) {
-    return pathname || '/';
-  }
-  if (pathname === APP_BASE || pathname === `${APP_BASE}/`) {
-    return '/';
-  }
-  if (pathname.startsWith(`${APP_BASE}/`)) {
-    return pathname.slice(APP_BASE.length);
-  }
-  return pathname || '/';
-}
-
-function parseRoute(pathname: string): RouteState {
-  const path = stripAppBase(pathname).replace(/\/+$/, '') || '/';
-  const segments = path.split('/').filter(Boolean);
-  if (segments[0] === 'design-system') {
-    return { kind: 'design-system' };
-  }
-  if (segments[0] === 'visual-reference') {
-    return { kind: 'visual-reference' };
-  }
-  if (segments[0] === 'project' && segments[1]) {
-    if (segments[2] === 'preview') {
-      return { kind: 'project-preview', projectId: decodeURIComponent(segments[1]) };
-    }
-    if (segments[2] === 'publish-success') {
-      return { kind: 'publish-success', projectId: decodeURIComponent(segments[1]) };
-    }
-    if (segments[2] === 'publish-failure') {
-      return { kind: 'publish-failure', projectId: decodeURIComponent(segments[1]) };
-    }
-    return { kind: 'project', projectId: decodeURIComponent(segments[1]) };
-  }
-  if (segments[0] === 'templates') {
-    return { kind: 'templates' };
-  }
-  if (segments[0] === 'projects') {
-    return { kind: 'projects' };
-  }
-  if (segments[0] === 'settings') {
-    return { kind: 'settings' };
-  }
-  return { kind: 'home' };
-}
-
 function useWorkspaceRoute() {
-  const [route, setRoute] = useState<RouteState>(() => parseRoute(window.location.pathname));
+  const [route, setRoute] = useState<WorkspaceRouteState>(() => parseWorkspaceRoute(window.location.pathname, APP_BASE));
 
   useEffect(() => {
-    const handlePopState = () => setRoute(parseRoute(window.location.pathname));
+    const handlePopState = () => setRoute(parseWorkspaceRoute(window.location.pathname, APP_BASE));
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -213,7 +164,7 @@ function useWorkspaceRoute() {
     const nextPath = toAppPath(path);
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, '', nextPath);
-      setRoute(parseRoute(window.location.pathname));
+      setRoute(parseWorkspaceRoute(window.location.pathname, APP_BASE));
     }
   };
 
@@ -476,6 +427,22 @@ function buildAutoFixPrompt(detail: ProjectDetailResponse | null): string {
   ].join('\n');
 }
 
+function buildOptimisticAutoFixEvent(projectId: string, createdAt: string): ProjectEventView {
+  return {
+    id: `local-auto-fix-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    projectId,
+    taskId: null,
+    type: 'task_progress',
+    title: '正在自动修复',
+    detail: 'ShipNow 正在根据最近一次失败信息尝试修复并重新构建预览。',
+    data: {
+      phase: 'auto-fix',
+      status: 'running',
+    },
+    createdAt,
+  };
+}
+
 function App() {
   const { route, navigate } = useWorkspaceRoute();
   const isEnhancedRoute = route.kind === 'design-system' || route.kind === 'visual-reference';
@@ -493,12 +460,19 @@ function App() {
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [renameSheetOpen, setRenameSheetOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
   const [pendingConversation, setPendingConversation] = useState<PendingConversationState | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
+  const conversationEndRef = useRef<HTMLDivElement | null>(null);
   const routeProjectId =
-    route.kind === 'project' || route.kind === 'project-preview' || route.kind === 'publish-success' || route.kind === 'publish-failure'
+    route.kind === 'project' ||
+    route.kind === 'project-preview' ||
+    route.kind === 'project-live' ||
+    route.kind === 'publish-success' ||
+    route.kind === 'publish-failure'
       ? route.projectId
       : null;
   const currentProject = useMemo(
@@ -516,6 +490,24 @@ function App() {
   const activeTasks = projects.filter((project) => ['generating', 'publishing'].includes(project.status)).length;
   const publishedProjects = projects.filter((project) => project.status === 'published').length;
   const failedProjects = projects.filter((project) => ['build_failed', 'publish_failed'].includes(project.status)).length;
+
+  useEffect(() => {
+    if (!copyHint) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCopyHint(null);
+    }, 1600);
+
+    return () => window.clearTimeout(timeout);
+  }, [copyHint]);
+
+  async function handleCopy(value: string, successMessage = '已复制'): Promise<boolean> {
+    const ok = await copyText(value);
+    setCopyHint(ok ? successMessage : '复制失败');
+    return ok;
+  }
 
   async function refreshProjects(): Promise<void> {
     if (isEnhancedRoute) {
@@ -601,6 +593,18 @@ function App() {
     if (isEnhancedRoute) {
       return;
     }
+
+    const frame = window.requestAnimationFrame(() => {
+      conversationEndRef.current?.scrollIntoView({ block: 'end' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isEnhancedRoute, pendingConversation?.id, route.kind, routeProjectId, timelineItems.length]);
+
+  useEffect(() => {
+    if (isEnhancedRoute) {
+      return;
+    }
     if (!conversationRef.current) {
       return;
     }
@@ -624,9 +628,10 @@ function App() {
   const renameValidation = renameDraft.trim().length > 0 ? validateHandle(renameNormalized) : '名称不能为空。';
   const renameDirty = Boolean(currentProject && renameNormalized !== currentProject.publicHandle);
   const publishSheetOpen = publishConfirmOpen || previewConfirmDebug;
+  const actionSheetOpen = publishSheetOpen || renameSheetOpen;
 
   useEffect(() => {
-    if (!publishSheetOpen) {
+    if (!actionSheetOpen) {
       return;
     }
 
@@ -647,7 +652,25 @@ function App() {
       documentElement.style.overflow = previousHtmlOverflow;
       documentElement.style.overscrollBehavior = previousHtmlOverscroll;
     };
-  }, [publishSheetOpen]);
+  }, [actionSheetOpen]);
+
+  function openRenameSheet(): void {
+    if (!currentProject || activeAction !== null) {
+      return;
+    }
+
+    setRenameDraft(currentProject.displayName);
+    setRenameError(null);
+    setRenameSheetOpen(true);
+  }
+
+  function closeRenameSheet(): void {
+    setRenameSheetOpen(false);
+    setRenameError(null);
+    if (currentProject) {
+      setRenameDraft(currentProject.displayName);
+    }
+  }
 
   async function handleComposerSubmit(): Promise<void> {
     const prompt = composerPrompt.trim();
@@ -770,6 +793,24 @@ function App() {
     if (!currentProject) {
       return;
     }
+    const previousDetail = detail;
+    const startedAt = new Date().toISOString();
+    const optimisticAutoFixEvent = buildOptimisticAutoFixEvent(currentProject.projectId, startedAt);
+    setPendingConversation({
+      id: optimisticAutoFixEvent.id,
+      startedAt,
+      prompt: 'ShipNow 正在根据最近一次失败信息自动修复并重新构建预览。',
+    });
+    setDetail((current) => {
+      if (!current || current.project.projectId !== currentProject.projectId) {
+        return current;
+      }
+      return {
+        ...current,
+        events: [...current.events, optimisticAutoFixEvent],
+      };
+    });
+    navigate(`/project/${currentProject.projectId}`);
     setActiveAction('auto-fix');
     try {
       const result = await applyChange(currentProject.projectId, buildAutoFixPrompt(detail));
@@ -777,9 +818,11 @@ function App() {
       await refreshDetail(result.project.projectId);
       setComposerPrompt('');
     } catch (autoFixError) {
+      setDetail(previousDetail);
       setError(autoFixError instanceof Error ? autoFixError.message : String(autoFixError));
     } finally {
       setActiveAction(null);
+      setPendingConversation(null);
     }
   }
 
@@ -800,6 +843,7 @@ function App() {
       await refreshProjects();
       await refreshDetail(currentProject.projectId);
       setRenameError(null);
+      setRenameSheetOpen(false);
     } catch (renameActionError) {
       setRenameError(renameActionError instanceof Error ? renameActionError.message : String(renameActionError));
     } finally {
@@ -840,19 +884,23 @@ function App() {
 
   let page: ReactElement;
 
-  if (route.kind === 'project-preview' && currentProject) {
+  if ((route.kind === 'project-preview' || route.kind === 'project-live') && currentProject) {
+    const isLiveRoute = route.kind === 'project-live';
     page = isMobileLayout ? (
       <MobilePreviewPage
         projectName={currentProject.displayName}
-        previewUrl={currentProject.previewUrl}
+        frameUrl={isLiveRoute ? currentProject.publicUrl : currentProject.previewUrl}
         onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
-        onPublish={() => setPublishConfirmOpen(true)}
+        onPublish={isLiveRoute ? undefined : () => setPublishConfirmOpen(true)}
+        mode={isLiveRoute ? 'live' : 'preview'}
       />
     ) : (
       <ProjectPreviewWorkspace
         project={currentProject}
+        iframeUrl={isLiveRoute ? currentProject.publicUrl : currentProject.previewUrl}
+        mode={isLiveRoute ? 'live' : 'preview'}
         onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
-        onPublish={() => setPublishConfirmOpen(true)}
+        onPublish={isLiveRoute ? undefined : () => setPublishConfirmOpen(true)}
       />
     );
   } else if ((route.kind === 'publish-success' || route.kind === 'publish-failure') && currentProject) {
@@ -860,8 +908,8 @@ function App() {
       <MobilePublishResultPage
         success={route.kind === 'publish-success'}
         publicUrl={currentProject.publicUrl}
-        onOpenWebsite={() => window.open(currentProject.publicUrl, '_blank', 'noopener,noreferrer')}
-        onCopyLink={() => navigator.clipboard.writeText(currentProject.publicUrl).catch(() => undefined)}
+        onOpenWebsite={() => navigate(buildProjectLivePath(currentProject.projectId))}
+        onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
         onContinueEditing={() => navigate(`/project/${currentProject.projectId}`)}
         onAutoFix={handleAutoFix}
         onViewLogs={() => setStatusOpen(true)}
@@ -870,8 +918,8 @@ function App() {
       <PublishResultWorkspace
         project={currentProject}
         success={route.kind === 'publish-success'}
-        onOpenWebsite={() => window.open(currentProject.publicUrl, '_blank', 'noopener,noreferrer')}
-        onCopyLink={() => navigator.clipboard.writeText(currentProject.publicUrl).catch(() => undefined)}
+        onOpenWebsite={() => navigate(buildProjectLivePath(currentProject.projectId))}
+        onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
         onContinueEditing={() => navigate(`/project/${currentProject.projectId}`)}
         onAutoFix={handleAutoFix}
         onViewLogs={() => setStatusOpen(true)}
@@ -960,7 +1008,12 @@ function App() {
         onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         conversationRef={conversationRef}
         onOpenStatus={() => setStatusOpen(true)}
-        onOpenPreview={() => navigate(`/project/${currentProject.projectId}/preview`)}
+        onOpenPreview={() => navigate(buildProjectPreviewPath(currentProject.projectId))}
+        onOpenLive={() => navigate(buildProjectLivePath(currentProject.projectId))}
+        onEditProjectName={openRenameSheet}
+        onCopyPreviewUrl={() => void handleCopy(currentProject.previewUrl, '预览地址已复制')}
+        onCopyPublicUrl={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
+        conversationEndRef={conversationEndRef}
         sidebarOpen={sidebarOpen}
         statusOpen={statusOpen}
         setSidebarOpen={setSidebarOpen}
@@ -1073,17 +1126,25 @@ function App() {
               canPublish={canPublish}
               activeAction={activeAction}
               onClose={() => setStatusOpen(false)}
-              onOpenPreview={() => navigate(`/project/${currentProject.projectId}/preview`)}
+              onOpenPreview={() => navigate(buildProjectPreviewPath(currentProject.projectId))}
               onPublish={() => setPublishConfirmOpen(true)}
               onContinueEditing={() => document.querySelector('.sn-home-composer-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
               onAutoFix={handleAutoFix}
               onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              onCopyPreviewUrl={() => void handleCopy(currentProject.previewUrl, '预览地址已复制')}
+              onCopyPublicUrl={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
             />
           ) : null}
         </>
       ) : null}
 
       <div className="shipnow-app-content">{page}</div>
+
+      {copyHint ? (
+        <div className="sn-copy-toast sn-mobile-result-toast" role="status" aria-live="polite">
+          {copyHint}
+        </div>
+      ) : null}
 
       {currentProject ? (
         <ProjectPublishConfirmSurface
@@ -1093,6 +1154,24 @@ function App() {
           isMobileLayout={isMobileLayout}
           onCancel={() => setPublishConfirmOpen(false)}
           onConfirm={handlePublish}
+          onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
+        />
+      ) : null}
+
+      {currentProject ? (
+        <ProjectRenameSheet
+          open={renameSheetOpen}
+          project={currentProject}
+          draft={renameDraft}
+          validation={renameValidation}
+          error={renameError}
+          saving={activeAction === 'rename'}
+          onCancel={closeRenameSheet}
+          onDraftChange={(value) => {
+            setRenameDraft(value);
+            setRenameError(null);
+          }}
+          onConfirm={() => void handleRename()}
         />
       ) : null}
 
@@ -1142,7 +1221,7 @@ function HomeWorkspace({
   apiBase: string;
   projectsLoading: boolean;
   homeRecentProjects: ProjectView[];
-  route: RouteState;
+  route: WorkspaceRouteState;
   navigate: (path: string) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
@@ -1914,7 +1993,6 @@ function ProjectsWorkspace({
                       </div>
                       <div className="sn-mobile-project-meta">
                         <span>{formatTime(project.updatedAt)}</span>
-                        <span>{project.type}</span>
                       </div>
                     </div>
                   </button>
@@ -2013,18 +2091,24 @@ function ProjectsWorkspace({
 
 function ProjectPreviewWorkspace({
   project,
+  iframeUrl,
+  mode,
   onBackEdit,
   onPublish,
 }: {
   project: ProjectView;
+  iframeUrl: string;
+  mode: 'preview' | 'live';
   onBackEdit: () => void;
-  onPublish: () => void;
+  onPublish?: () => void;
 }) {
+  const isLiveMode = mode === 'live';
+
   return (
     <div className="sn-page">
       <div className="sn-page-backdrop" />
       <div className="sn-page-shell">
-        <TopBar mode="preview" />
+        <TopBar mode={isLiveMode ? 'live' : 'preview'} />
 
         <div className="sn-project-preview-grid">
           <section className="sn-panel sn-visual-main">
@@ -2036,20 +2120,20 @@ function ProjectPreviewWorkspace({
                   <div className="sn-visual-project-subtitle">{project.publicHandle}</div>
                 </div>
               </div>
-              <StatusChip tone="published">Preview ready</StatusChip>
+              <StatusChip tone={isLiveMode ? 'published' : 'published'}>{isLiveMode ? '正式站点' : 'Preview ready'}</StatusChip>
             </div>
 
             <div className="sn-visual-preview-canvas sn-visual-preview-canvas-live">
               <div className="sn-visual-preview-top">
-                <span>实时预览</span>
+                <span>{isLiveMode ? '正式站点' : '实时预览'}</span>
                 <div className="sn-visual-preview-icons">
-                  <span className="sn-visual-preview-url">{project.previewUrl}</span>
+                  <span className="sn-visual-preview-url">{iframeUrl}</span>
                 </div>
               </div>
               <iframe
                 className="sn-visual-preview-frame"
-                src={project.previewUrl}
-                title={`${project.displayName} 预览`}
+                src={iframeUrl}
+                title={`${project.displayName} ${isLiveMode ? '正式站点' : '预览'}`}
                 loading="eager"
               />
             </div>
@@ -2057,8 +2141,8 @@ function ProjectPreviewWorkspace({
 
           <aside className="sn-panel sn-visual-status">
             <div className="sn-visual-status-block">
-              <div className="sn-visual-status-title">当前预览已准备好</div>
-              <p>你可以继续修改，或者直接发布到正式地址。</p>
+              <div className="sn-visual-status-title">{isLiveMode ? '当前正式站点已准备好' : '当前预览已准备好'}</div>
+              <p>{isLiveMode ? '你可以继续修改，或者回到编辑页。' : '你可以继续修改，或者直接发布到正式地址。'}</p>
             </div>
             <div className="sn-visual-status-block">
               <div className="sn-visual-status-title">地址</div>
@@ -2069,7 +2153,7 @@ function ProjectPreviewWorkspace({
               <div className="sn-visual-status-title">操作</div>
               <div className="grid gap-2">
                 <SnButton variant="secondary" onClick={onBackEdit}>继续编辑</SnButton>
-                <SnButton variant="primary" onClick={onPublish}>发布</SnButton>
+                {!isLiveMode && onPublish ? <SnButton variant="primary" onClick={onPublish}>发布</SnButton> : null}
               </div>
             </div>
           </aside>
@@ -2085,12 +2169,14 @@ function MobilePublishConfirmSheet({
   canPublish,
   onCancel,
   onConfirm,
+  onCopyLink,
 }: {
   open: boolean;
   project: ProjectView;
   canPublish: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  onCopyLink: () => void;
 }) {
   const { shouldRender, isOpen } = useDrawerTransition(open);
 
@@ -2115,10 +2201,15 @@ function MobilePublishConfirmSheet({
         </div>
         <div className="sn-mobile-confirm-body">
           <div className="sn-mobile-confirm-label">目标线上地址</div>
-          <div className="sn-mobile-confirm-address">
+          <button
+            className="sn-mobile-confirm-address"
+            type="button"
+            onClick={onCopyLink}
+            aria-label="复制目标线上地址"
+          >
             <span>{project.publicUrl}</span>
             <Copy className="size-4" />
-          </div>
+          </button>
           <div className="sn-mobile-confirm-list">
             <div className="sn-mobile-confirm-list-item">
               <CheckCircle2 className="size-4" />
@@ -2218,6 +2309,7 @@ function ProjectPublishConfirmSurface({
   isMobileLayout,
   onCancel,
   onConfirm,
+  onCopyLink,
 }: {
   open: boolean;
   project: ProjectView;
@@ -2225,6 +2317,7 @@ function ProjectPublishConfirmSurface({
   isMobileLayout: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  onCopyLink: () => void;
 }) {
   if (isMobileLayout) {
     return (
@@ -2234,6 +2327,7 @@ function ProjectPublishConfirmSurface({
         canPublish={canPublish}
         onCancel={onCancel}
         onConfirm={onConfirm}
+        onCopyLink={onCopyLink}
       />
     );
   }
@@ -2259,6 +2353,90 @@ function ProjectPublishConfirmSurface({
       onCancel={onCancel}
       onConfirm={onConfirm}
     />
+  );
+}
+
+function ProjectRenameSheet({
+  open,
+  project,
+  draft,
+  validation,
+  error,
+  saving,
+  onCancel,
+  onDraftChange,
+  onConfirm,
+}: {
+  open: boolean;
+  project: ProjectView;
+  draft: string;
+  validation: string | null;
+  error: string | null;
+  saving: boolean;
+  onCancel: () => void;
+  onDraftChange: (value: string) => void;
+  onConfirm: () => void;
+}) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+
+  if (!shouldRender) {
+    return null;
+  }
+
+  const canConfirm = Boolean(draft.trim()) && !validation && !saving;
+
+  return (
+    <div className={`sn-mobile-confirm-shell ${isOpen ? 'is-open' : ''}`.trim()} role="presentation">
+      <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭重命名" onClick={onCancel} />
+      <div className="sn-mobile-confirm-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="sn-mobile-confirm-head">
+          <div className="sn-mobile-confirm-head-left">
+            <div className="sn-mobile-confirm-icon" aria-hidden="true">
+              <Edit2 className="size-4" />
+            </div>
+            <div className="sn-mobile-confirm-head-title">编辑项目名称</div>
+          </div>
+          <button className="sn-reference-sheet-close sn-mobile-confirm-close" type="button" onClick={onCancel} aria-label="关闭重命名">
+            ×
+          </button>
+        </div>
+        <form
+          id="sn-mobile-rename-form"
+          className="sn-mobile-confirm-body"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canConfirm) {
+              onConfirm();
+            }
+          }}
+        >
+          <div className="sn-mobile-confirm-label">项目名称</div>
+          <div className="sn-mobile-confirm-address sn-mobile-rename-field">
+            <input
+              className="sn-mobile-rename-input"
+              type="text"
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+              placeholder={project.displayName}
+            />
+          </div>
+          <div className="sn-mobile-note">
+            {error ?? validation ?? '这个名称会同步到公开地址和项目标题。'}
+          </div>
+        </form>
+        <div className="sn-mobile-confirm-footer">
+          <div className="sn-mobile-confirm-actions">
+            <button className="sn-mobile-confirm-button is-primary" type="submit" form="sn-mobile-rename-form" disabled={!canConfirm}>
+              {saving ? '保存中…' : '保存'}
+            </button>
+            <button className="sn-mobile-confirm-button is-secondary" type="button" onClick={onCancel}>
+              取消
+            </button>
+          </div>
+          <div className="sn-mobile-confirm-footnote">修改后会保留旧地址别名，方便继续访问。</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2387,6 +2565,11 @@ function ProjectWorkspace({
   conversationRef,
   onOpenStatus,
   onOpenPreview,
+  onOpenLive,
+  onEditProjectName,
+  onCopyPreviewUrl,
+  onCopyPublicUrl,
+  conversationEndRef,
   sidebarOpen,
   statusOpen,
   setSidebarOpen,
@@ -2413,6 +2596,11 @@ function ProjectWorkspace({
   conversationRef: RefObject<HTMLDivElement | null>;
   onOpenStatus: () => void;
   onOpenPreview: () => void;
+  onOpenLive: () => void;
+  onEditProjectName: () => void;
+  onCopyPreviewUrl: () => void;
+  onCopyPublicUrl: () => void;
+  conversationEndRef: RefObject<HTMLDivElement | null>;
   sidebarOpen: boolean;
   statusOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
@@ -2445,6 +2633,11 @@ function ProjectWorkspace({
         conversationRef={conversationRef}
         onOpenStatus={onOpenStatus}
         onOpenPreview={onOpenPreview}
+        onOpenLive={onOpenLive}
+        onEditProjectName={onEditProjectName}
+        onCopyPreviewUrl={onCopyPreviewUrl}
+        onCopyPublicUrl={onCopyPublicUrl}
+        conversationEndRef={conversationEndRef}
         sidebarOpen={sidebarOpen}
         statusOpen={statusOpen}
         setSidebarOpen={setSidebarOpen}
@@ -2502,6 +2695,7 @@ function ProjectWorkspace({
             </div>
 
             <PendingConversationBubble pendingConversation={pendingConversation} />
+            <div ref={conversationEndRef} className="sn-conversation-end-anchor" aria-hidden="true" />
 
             <div className="sn-project-workspace-chips">
               <QuickActionChip icon={<WandSparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
@@ -2553,10 +2747,10 @@ function ProjectWorkspace({
               </div>
               <div className="sn-project-workspace-actions">
                 <SnActionButton variant="secondary" onClick={onOpenPreview}>
-                  <Eye className="size-4" /> Preview
+                  <Eye className="size-4" /> 预览
                 </SnActionButton>
                 <SnActionButton variant="primary" onClick={onPublish} disabled={!canPublish || activeAction !== null}>
-                  <Upload className="size-4" /> Publish
+                  <Upload className="size-4" /> 发布
                 </SnActionButton>
               </div>
             </div>
@@ -2574,7 +2768,15 @@ function ProjectWorkspace({
               </SnActionButton>
               </div>
             </div>
-            <ProjectStatusContent project={project} detail={detail} latestTask={latestTask} showTaskInfo onViewLogs={onViewLogs} />
+            <ProjectStatusContent
+              project={project}
+              detail={detail}
+              latestTask={latestTask}
+              showTaskInfo
+              onViewLogs={onViewLogs}
+              onCopyPreviewUrl={onCopyPreviewUrl}
+              onCopyPublicUrl={onCopyPublicUrl}
+            />
           </section>
         </div>
       </div>
@@ -2602,6 +2804,11 @@ function ProjectWorkspaceMobile({
   conversationRef,
   onOpenStatus,
   onOpenPreview,
+  onOpenLive,
+  onEditProjectName,
+  onCopyPreviewUrl,
+  onCopyPublicUrl,
+  conversationEndRef,
   sidebarOpen,
   statusOpen,
   setSidebarOpen,
@@ -2628,6 +2835,11 @@ function ProjectWorkspaceMobile({
   conversationRef: RefObject<HTMLDivElement | null>;
   onOpenStatus: () => void;
   onOpenPreview: () => void;
+  onOpenLive: () => void;
+  onEditProjectName: () => void;
+  onCopyPreviewUrl: () => void;
+  onCopyPublicUrl: () => void;
+  conversationEndRef: RefObject<HTMLDivElement | null>;
   sidebarOpen: boolean;
   statusOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
@@ -2642,6 +2854,7 @@ function ProjectWorkspaceMobile({
     ? timelineItems.slice(-MOBILE_HISTORY_COLLAPSE_COUNT)
     : timelineItems;
   const hiddenTimelineCount = Math.max(0, timelineItems.length - visibleTimelineItems.length);
+  const canOpenLive = hasEverPublishedProject(project);
 
   useEffect(() => {
     const container = conversationRef.current;
@@ -2678,7 +2891,13 @@ function ProjectWorkspaceMobile({
             <div className="sn-mobile-project-header-title">
               <div className="sn-mobile-project-name-row">
                 <div className="sn-mobile-brand">{project.displayName}</div>
-                <button className="sn-mobile-project-edit-button" type="button" aria-label="编辑项目名称">
+                <button
+                  className="sn-mobile-project-edit-button"
+                  type="button"
+                  aria-label="编辑项目名称"
+                  onClick={onEditProjectName}
+                  disabled={activeAction !== null}
+                >
                   <Edit2 className="size-3" />
                 </button>
               </div>
@@ -2699,7 +2918,6 @@ function ProjectWorkspaceMobile({
             <div className="sn-mobile-chat-history-title">对话记录</div>
             <div className="sn-mobile-chat-history-meta">
               共 {timelineItems.length} 条
-              {canCollapseHistory ? ' · 默认展开全部' : ''}
             </div>
           </div>
           {canCollapseHistory ? (
@@ -2733,15 +2951,21 @@ function ProjectWorkspaceMobile({
         </div>
 
         <PendingConversationBubble pendingConversation={pendingConversation} />
+        <div ref={conversationEndRef} className="sn-conversation-end-anchor" aria-hidden="true" />
 
       </div>
 
         <div className="sn-mobile-project-composer-fixed">
-          <div className="sn-mobile-project-composer-actions">
-          <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
-            <Eye className="size-4" /> Preview
-          </MobileActionButton>
-        </div>
+          <div className={`sn-mobile-project-composer-actions ${canOpenLive ? 'has-dual-actions' : 'has-single-action'}`.trim()}>
+            <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
+              <Eye className="size-4" /> 预览
+            </MobileActionButton>
+            {canOpenLive ? (
+              <MobileActionButton variant="secondary" className="sn-mobile-project-live-button" onClick={onOpenLive}>
+                <ArrowUpRight className="size-4" /> 查看线上
+              </MobileActionButton>
+            ) : null}
+          </div>
         <div className="sn-mobile-home-composer-card is-bottom">
           <textarea
             className="sn-mobile-home-composer-input"
@@ -2799,6 +3023,8 @@ function ProjectWorkspaceMobile({
               onContinueEditing={() => document.querySelector('.sn-mobile-project-composer-fixed')?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
         onAutoFix={onAutoFix}
         onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        onCopyPreviewUrl={onCopyPreviewUrl}
+        onCopyPublicUrl={onCopyPublicUrl}
       />
     </MobilePageSurface>
   );
@@ -2857,7 +3083,7 @@ function HomeWorkspaceDrawer({
           </button>
           <button className="sn-mobile-drawer-item" type="button" onClick={onOpenProjects}>
             <Folder className="size-4" />
-            <span>项目管理</span>
+            <span>我的项目</span>
             <ChevronRight className="size-4" />
           </button>
           <button className="sn-mobile-drawer-item" type="button" onClick={onOpenSettings}>
@@ -2998,7 +3224,7 @@ function ProjectWorkspaceDrawer({
           </button>
           <button className="sn-mobile-drawer-item" type="button" onClick={onOpenProjects}>
             <Folder className="size-4" />
-            <span>项目管理</span>
+            <span>我的项目</span>
             <ChevronRight className="size-4" />
           </button>
           <button className="sn-mobile-drawer-item" type="button" onClick={onOpenReleases}>
@@ -3032,23 +3258,19 @@ function ProjectStatusContent({
   latestTask,
   showTaskInfo = false,
   onViewLogs,
+  onCopyPreviewUrl,
+  onCopyPublicUrl,
 }: {
   project: ProjectView;
   detail: ProjectDetailResponse | null;
   latestTask?: TaskView | null;
   showTaskInfo?: boolean;
   onViewLogs?: () => void;
+  onCopyPreviewUrl: () => void;
+  onCopyPublicUrl: () => void;
 }) {
   const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(true);
   const releases = detail?.releases ?? [];
-
-  const copyToClipboard = async (value: string): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // Ignore clipboard failures; the address remains visible.
-    }
-  };
 
   return (
     <>
@@ -3059,7 +3281,7 @@ function ProjectStatusContent({
             {statusLabel(project.status)}
           </StatusChip>
         </div>
-        <div className="sn-reference-note">预览已就绪，随时可以发布到线上。</div>
+        <div className="sn-reference-note">{statusDescription(project.status)}</div>
       </div>
 
       <div className="sn-reference-status-block">
@@ -3067,7 +3289,7 @@ function ProjectStatusContent({
         <button
           type="button"
           className="sn-reference-address"
-          onClick={() => copyToClipboard(project.previewUrl)}
+          onClick={onCopyPreviewUrl}
           aria-label="复制预览地址"
         >
           <span className="sn-reference-address-text">{project.previewUrl}</span>
@@ -3081,7 +3303,7 @@ function ProjectStatusContent({
           <button
             type="button"
             className="sn-reference-address"
-            onClick={() => copyToClipboard(project.publicUrl)}
+            onClick={onCopyPublicUrl}
             aria-label="复制线上地址"
           >
             <span className="sn-reference-address-text">{project.publicUrl}</span>
@@ -3188,6 +3410,8 @@ function WorkspaceStatusDrawer({
   onContinueEditing,
   onAutoFix,
   onViewLogs,
+  onCopyPreviewUrl,
+  onCopyPublicUrl,
 }: {
   open: boolean;
   project: ProjectView;
@@ -3200,6 +3424,8 @@ function WorkspaceStatusDrawer({
   onContinueEditing: () => void;
   onAutoFix: () => void;
   onViewLogs: () => void;
+  onCopyPreviewUrl: () => void;
+  onCopyPublicUrl: () => void;
 }) {
   const { shouldRender, isOpen } = useDrawerTransition(open);
   const sheetRef = useRef<HTMLDivElement | null>(null);
@@ -3218,7 +3444,13 @@ function WorkspaceStatusDrawer({
             ×
           </button>
         </div>
-        <ProjectStatusContent project={project} detail={detail} />
+        <ProjectStatusContent
+          project={project}
+          detail={detail}
+          onViewLogs={onViewLogs}
+          onCopyPreviewUrl={onCopyPreviewUrl}
+          onCopyPublicUrl={onCopyPublicUrl}
+        />
 
       </div>
     </div>
@@ -3281,7 +3513,7 @@ function PendingConversationBubble({
     <ChatBubble role="system" className="is-pending">
       <div className="sn-pending-bubble">
         <div className="sn-pending-bubble-text">
-          <span className="sn-pending-bubble-label">我在处理这个请求</span>
+          <span className="sn-pending-bubble-label">思考中</span>
           <span className="sn-pending-bubble-time">· {elapsed}</span>
         </div>
         <div className="sn-pending-bubble-dots" aria-hidden="true">
@@ -3301,7 +3533,6 @@ function TimelineSystemBubble({
   item: Extract<ConversationTimelineItem, { kind: 'event' }>;
   latestTask: TaskView | null;
 }): ReactElement {
-  const typeLabel = item.type.replace(/_/g, ' ');
   const isLiveTask = Boolean(
     latestTask && ['pending', 'running'].includes(latestTask.status) && item.taskId && item.taskId === latestTask.id
   );
@@ -3326,7 +3557,6 @@ function TimelineSystemBubble({
       <div className={`sn-system-event ${item.type === 'task_progress' ? 'is-progress' : ''} ${isLiveTask ? 'is-live' : ''}`.trim()}>
         <div className="sn-system-event-head">
           <div className="sn-system-event-copy">
-            <div className="sn-system-event-kicker">{typeLabel}</div>
             <div className="sn-system-event-title">{item.title}</div>
             {liveElapsed ? (
               <div className="sn-system-event-live">
