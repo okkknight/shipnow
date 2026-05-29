@@ -38,16 +38,6 @@ function taskTypeLabel(taskType: TaskType): string {
   }
 }
 
-function runnerLabel(runnerName: TaskRunnerName | null): string | null {
-  if (runnerName === 'codex') {
-    return 'Codex';
-  }
-  if (runnerName === 'claude-code') {
-    return 'Claude Code';
-  }
-  return null;
-}
-
 function phaseTitle(phase: TaskProgressPhase): string {
   switch (phase) {
     case 'queued':
@@ -70,23 +60,21 @@ function phaseTitle(phase: TaskProgressPhase): string {
 function phaseDetail(
   taskType: TaskType,
   phase: TaskProgressPhase,
-  runnerName: TaskRunnerName | null,
   errorMessage?: string | null
 ): string {
   const label = taskTypeLabel(taskType);
-  const runner = runnerLabel(runnerName);
 
   switch (phase) {
     case 'queued':
-      return runner ? `${label} · ${runner}` : label;
+      return `${label} 即将开始`;
     case 'starting':
-      return runner ? `${label} · 准备开始 · ${runner}` : `${label} · 准备开始`;
+      return `${label} 正在准备`;
     case 'running':
-      return runner ? `${label} · 正在运行 · ${runner}` : `${label} · 正在运行`;
+      return `${label} 正在执行`;
     case 'building':
-      return runner ? `${label} · pnpm build · ${runner}` : `${label} · pnpm build`;
+      return `${label} 正在构建`;
     case 'completed':
-      return runner ? `${label} · 已完成 · ${runner}` : `${label} · 已完成`;
+      return `${label} 已完成`;
     case 'failed':
       return errorMessage ? `${label} · ${errorMessage}` : `${label} · 失败`;
     default:
@@ -113,7 +101,7 @@ export function createTaskProgressEvent(input: {
     runnerName: input.runnerName ?? null,
     phase: input.phase,
     title: phaseTitle(input.phase),
-    detail: phaseDetail(input.taskType, input.phase, input.runnerName ?? null, input.errorMessage ?? null),
+    detail: phaseDetail(input.taskType, input.phase, input.errorMessage ?? null),
     createdAt,
   };
 }

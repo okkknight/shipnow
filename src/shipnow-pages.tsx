@@ -1,21 +1,23 @@
-import { useEffect, useState } from 'react';
 import { ArrowUpRight, CheckCircle2, CircleAlert, Copy, Edit2, Info, Sparkles, Upload, Zap, ChevronLeft } from 'lucide-react';
 import { MobileActionButton, MobilePageSurface } from './shipnow-real-ui';
-import { StatusChip } from './shipnow-ui';
 
 export function MobilePreviewPage({
   projectName,
-  previewUrl,
+  frameUrl,
   onBackEdit,
   onPublish,
+  mode = 'preview',
   embedded = false,
 }: {
   projectName: string;
-  previewUrl: string;
+  frameUrl: string;
   onBackEdit: () => void;
-  onPublish: () => void;
+  onPublish?: () => void;
+  mode?: 'preview' | 'live';
   embedded?: boolean;
 }) {
+  const isLiveMode = mode === 'live';
+
   return (
     <MobilePageSurface className={`sn-mobile-preview-page ${embedded ? 'sn-mobile-preview-page-embedded' : ''}`.trim()}>
       <div className="sn-mobile-preview-visual">
@@ -25,7 +27,7 @@ export function MobilePreviewPage({
           </button>
           <div className="sn-mobile-preview-nav-copy">
             <div className="sn-mobile-preview-nav-title">{projectName}</div>
-            <StatusChip tone="preview-ready">预览中</StatusChip>
+            <span className="sn-mobile-preview-inline-status">{isLiveMode ? '正式站点' : '预览中'}</span>
           </div>
         </header>
 
@@ -33,21 +35,23 @@ export function MobilePreviewPage({
           <div className="sn-mobile-preview-frame-shell">
             <iframe
               className="sn-mobile-preview-frame"
-              src={previewUrl}
-              title={`${projectName} 预览`}
+              src={frameUrl}
+              title={`${projectName} ${isLiveMode ? '正式站点' : '预览'}`}
               loading="eager"
             />
           </div>
 
-          <div className="sn-mobile-preview-footer-actions">
+          <div className={`sn-mobile-preview-footer-actions ${isLiveMode ? 'is-single' : ''}`.trim()}>
             <MobileActionButton variant="secondary" className="sn-mobile-preview-footer-secondary" onClick={onBackEdit}>
               <Sparkles className="size-4" />
-              Continue editing
+              继续编辑
             </MobileActionButton>
-            <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onPublish}>
-              <Upload className="size-4" />
-              Publish
-            </MobileActionButton>
+            {isLiveMode ? null : onPublish ? (
+              <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onPublish}>
+                <Upload className="size-4" />
+                发布
+              </MobileActionButton>
+            ) : null}
           </div>
         </div>
       </div>
@@ -72,23 +76,8 @@ export function MobilePublishResultPage({
   onAutoFix: () => void;
   onViewLogs: () => void;
 }) {
-  const [copyHint, setCopyHint] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!copyHint) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setCopyHint(null);
-    }, 1600);
-
-    return () => window.clearTimeout(timeout);
-  }, [copyHint]);
-
   async function handleCopyLink(): Promise<void> {
     await onCopyLink();
-    setCopyHint('链接已复制');
   }
 
   return (
@@ -154,11 +143,6 @@ export function MobilePublishResultPage({
           )}
         </div>
       </div>
-      {copyHint ? (
-        <div className="sn-mobile-result-toast" role="status" aria-live="polite">
-          {copyHint}
-        </div>
-      ) : null}
     </MobilePageSurface>
   );
 }

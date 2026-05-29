@@ -337,7 +337,7 @@ export class ShipNowManager {
       type: 'task_queued',
       title: '创建任务已排队',
       detail: buildTaskQueueDetail(),
-      data: { taskId: task.id, taskType: task.type, runnerName, runnerSummary: taskRunnerSummary(runnerName) },
+      data: { taskId: task.id, taskType: task.type },
     });
     return { project: this.toProjectView(this.store.getProjectById(projectId) ?? project), taskId: task.id };
   }
@@ -404,7 +404,7 @@ export class ShipNowManager {
       type: 'task_queued',
       title: '修改任务已排队',
       detail: '我会在当前工作区整理好环境，再继续执行这次修改。',
-      data: { taskId: task.id, taskType: task.type, runnerName, runnerSummary: taskRunnerSummary(runnerName) },
+      data: { taskId: task.id, taskType: task.type },
     });
     return { kind: 'task', project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
@@ -694,8 +694,8 @@ export class ShipNowManager {
       taskId: task.id,
       type: 'task_started',
       title: '任务开始执行',
-      detail: `${statusText(task.type)}${task.runner_name ? ` · ${taskRunnerSummary(task.runner_name)}` : ''}`,
-      data: { taskId: task.id, taskType: task.type, runnerName: task.runner_name, runnerSummary: task.runner_name ? taskRunnerSummary(task.runner_name) : null },
+      detail: `${taskTypeText(task.type)}正在执行。`,
+      data: { taskId: task.id, taskType: task.type },
     });
     await this.store.appendTaskLogAsync(task.id, `Starting ${task.type} for ${project.display_name}.`);
     this.publishTaskProgress(project, task, 'running');

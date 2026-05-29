@@ -26,7 +26,7 @@ describe('task progress timeline events', () => {
       runnerName: 'codex',
       phase: 'building',
       title: '任务正在构建',
-      detail: '修改项目 · pnpm build · Codex',
+      detail: '修改项目 正在构建',
       createdAt: '2026-05-29T10:00:00.000Z',
     });
   });

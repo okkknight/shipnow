@@ -503,6 +503,14 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [copyHint]);
 
+  useEffect(() => {
+    if (currentProject) {
+      return;
+    }
+    setRenameSheetOpen(false);
+    setRenameError(null);
+  }, [currentProject]);
+
   async function handleCopy(value: string, successMessage = '已复制'): Promise<boolean> {
     const ok = await copyText(value);
     setCopyHint(ok ? successMessage : '复制失败');

@@ -56,7 +56,7 @@ export function buildConversationTimeline(detail: ConversationTimelineSource): C
 
   const messageItems: Array<ConversationTimelineMessageItem & { order: number }> = detail.messages
     .filter((message) => !(message.role === 'assistant' && (message.taskId !== null || isSystemGeneratedMessage(message.content))))
-    .map((message, order) => ({
+    .map((message, order): ConversationTimelineMessageItem & { order: number } => ({
       kind: 'message',
       id: message.id,
       createdAt: message.createdAt,
@@ -75,7 +75,7 @@ export function buildConversationTimeline(detail: ConversationTimelineSource): C
     type: event.type,
     data: event.data,
     order,
-  })).filter((event) => event.type !== 'chat_replied');
+  }) as ConversationTimelineEventItem & { order: number }).filter((event) => event.type !== 'chat_replied');
 
   return [...messageItems, ...eventItems]
     .sort((left, right) => {

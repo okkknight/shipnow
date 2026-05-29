@@ -103,7 +103,7 @@ export function QuickActionChip({
 export function TopBar({
   mode,
 }: {
-  mode: 'workspace' | 'project' | 'preview';
+  mode: 'workspace' | 'project' | 'preview' | 'live';
 }) {
   return (
     <div className="sn-topbar">
@@ -161,6 +161,24 @@ export function TopBar({
           </div>
           <div className="sn-topbar-right">
             <SnButton variant="icon" icon={<ArrowUpRight className="size-4" />} title="分享" />
+          </div>
+        </>
+      ) : null}
+
+      {mode === 'live' ? (
+        <>
+          <div className="sn-topbar-left">
+            <SnButton variant="icon" icon={<X className="size-4" />} title="关闭" />
+            <div className="sn-brand-stack">
+              <div className="sn-brand-mark sn-brand-mark--compact">SN</div>
+              <div>
+                <div className="sn-brand-title sn-brand-title-inline">正式站点 - v1 · Home</div>
+                <div className="sn-brand-subtitle">正式站点顶部栏</div>
+              </div>
+            </div>
+          </div>
+          <div className="sn-topbar-right">
+            <SnButton variant="icon" icon={<ArrowUpRight className="size-4" />} title="打开正式站点" />
           </div>
         </>
       ) : null}
