@@ -1,0 +1,22 @@
+# ShipNow 执行器切换与模型后端拆分
+
+- Title: ShipNow 执行器切换与模型后端拆分
+- Objective: 在项目的设置与偏好菜单中支持在 Codex 与 Claude Code 之间切换，并将模型后端按约定拆分为 Codex 走 OpenAI LLM、Claude Code 走 DeepSeek；同时把当前单一的 Codex 任务执行逻辑抽象为可扩展的 runner 层，默认仍走 Codex，确保只影响新任务，不干扰进行中的任务。
+- Scope:
+  - 只覆盖 ShipNow 主产品流里的任务执行链路与设置入口
+  - 只覆盖项目级与全局级的执行器偏好读取、保存和展示
+  - 后端新增任务执行器抽象，保留现有创建、修改、重建、发布、删除的业务语义
+  - 前端在“设置与偏好”菜单里提供 `Codex / Claude Code` 切换入口，并显示当前启用的执行器
+  - 新增或调整的样式必须参照 ShipNow 现有设计语言与公共组件，不引入与系统语言冲突的新视觉体系
+  - `design-system`、`visual-reference` 参考页不纳入本次验收
+  - 不要求本轮同时支持更多第三方执行器，先把 `Codex` 与 `Claude Code` 两条路径稳定打通
+- Verification:
+  - `pnpm build`
+  - 本地浏览器验证设置页和侧边菜单可以切换执行器
+  - 新建项目、修改项目、重新构建三类任务在不同执行器下都能正常进入队列并完成
+  - Codex 路径继续使用 OpenAI LLM，Claude Code 路径继续使用 DeepSeek，日志中能看出实际选用的 runner
+  - 切换执行器只影响后续新任务，不回滚或中断正在执行的任务
+- Notes:
+- 建议先把执行器抽成统一接口，再补项目级偏好和设置持久化
+- 如果后续要扩展更多模型后端，可以继续沿用 runner/provider 分层
+- 默认执行器保持为 Codex，Claude Code 只在用户显式切换后启用

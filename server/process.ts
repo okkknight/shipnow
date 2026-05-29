@@ -7,6 +7,7 @@ export interface RunCommandOptions {
   args: string[];
   cwd: string;
   timeoutMs: number;
+  env?: NodeJS.ProcessEnv;
   onStdout?: (chunk: string) => void | Promise<void>;
   onStderr?: (chunk: string) => void | Promise<void>;
 }
@@ -25,7 +26,10 @@ export async function runCommand(options: RunCommandOptions): Promise<RunCommand
   return await new Promise<RunCommandResult>((resolve, reject) => {
     const child = spawn(options.command, options.args, {
       cwd: options.cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        ...options.env,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

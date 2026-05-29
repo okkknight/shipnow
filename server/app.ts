@@ -7,6 +7,7 @@ import { ZodError, z } from 'zod';
 import { findIndexFile, findStaticFile, sendFile } from './utils.js';
 import type { ShipNowEnv } from './env.js';
 import { ShipNowManager } from './shipnowManager.js';
+import { projectTimelineBus, serializeTimelineEvent } from './timelineBus.js';
 import { publicHandleSchema, projectIdSchema } from './security.js';
 import type { FastifyReply } from 'fastify';
 
@@ -82,7 +83,7 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
 
   await app.register(cors, {
     origin: true,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -135,7 +136,12 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
         reply.status(500).send({ error: message });
         return;
       }
-      if (message.includes('Codex failed') || message.includes('pnpm build failed') || message.includes('pnpm install failed')) {
+      if (
+        message.includes('Codex failed') ||
+        message.includes('Claude Code failed') ||
+        message.includes('pnpm build failed') ||
+        message.includes('pnpm install failed')
+      ) {
         reply.status(500).send({ error: message });
         return;
       }
@@ -145,6 +151,19 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
   });
 
   app.get('/health', async () => ({ ok: true }));
+
+  const runnerSchema = z.enum(['codex', 'claude-code']);
+
+  app.get(apiRoute('settings'), async () => ({ settings: manager.getAppSettings() }));
+
+  app.put(apiRoute('settings'), async (request) => {
+    const body = z
+      .object({
+        defaultRunner: runnerSchema,
+      })
+      .parse(request.body);
+    return { settings: manager.updateAppSettings(body.defaultRunner) };
+  });
 
   app.get(apiRoute('projects'), async () => ({ projects: manager.listProjects() }));
 
@@ -191,6 +210,29 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     return await manager.renameProject({ projectId, displayName: body.displayName });
   });
 
+  app.get(apiRoute('projects/:projectId/settings'), async (request, reply) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    const settings = manager.getProjectSettings(projectId);
+    if (!settings) {
+      return reply.code(404).send({ error: `Project ${projectId} not found.` });
+    }
+    return { settings };
+  });
+
+  app.put(apiRoute('projects/:projectId/settings'), async (request, reply) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    const body = z
+      .object({
+        preferredRunner: runnerSchema.nullable(),
+      })
+      .parse(request.body);
+    const settings = manager.updateProjectSettings(projectId, body.preferredRunner);
+    if (!settings) {
+      return reply.code(404).send({ error: `Project ${projectId} not found.` });
+    }
+    return { settings };
+  });
+
   app.delete(apiRoute('projects/:projectId'), async (request) => {
     const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
     return await manager.deleteProject(projectId);
@@ -214,6 +256,35 @@ export async function createShipNowApp(manager: ShipNowManager, env: ShipNowEnv)
     reply.header('Content-Type', 'text/plain; charset=utf-8');
     reply.header('Cache-Control', 'no-store');
     return manager.getTaskLog(taskId);
+  });
+
+  app.get(apiRoute('projects/:projectId/timeline/stream'), async (request, reply) => {
+    const projectId = projectIdSchema.parse((request.params as { projectId: string }).projectId);
+    const project = manager.getProject(projectId);
+    if (!project) {
+      return reply.code(404).send({ error: `Project ${projectId} not found.` });
+    }
+
+    reply.hijack();
+    const stream = reply.raw;
+    stream.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    stream.write('\n');
+
+    const unsubscribe = projectTimelineBus.subscribe(projectId, (event) => {
+      stream.write(serializeTimelineEvent(event));
+    }, false);
+
+    request.raw.on('close', () => {
+      unsubscribe();
+      if (!stream.writableEnded) {
+        stream.end();
+      }
+    });
   });
 
   const publicRoot = env.publicStaticRoot;

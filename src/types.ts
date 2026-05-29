@@ -1,3 +1,7 @@
+export type TaskRunnerName = 'codex' | 'claude-code';
+export type RunnerBackendName = 'openai' | 'deepseek';
+export type RunnerSource = 'global' | 'project';
+
 export type ProjectType = 'landing' | 'tool' | 'showcase' | 'game';
 
 export type ProjectStatus =
@@ -22,6 +26,10 @@ export interface ProjectView {
   title: string;
   prompt: string;
   status: ProjectStatus;
+  preferredRunner: TaskRunnerName | null;
+  effectiveRunner: TaskRunnerName;
+  effectiveRunnerBackend: RunnerBackendName;
+  runnerSource: RunnerSource;
   previewUrl: string;
   publicUrl: string;
   previewRoute: string;
@@ -49,6 +57,7 @@ export interface TaskView {
   createdAt: string;
   updatedAt: string;
   logPath: string;
+  runnerName: TaskRunnerName | null;
 }
 
 export interface ProjectMessageView {
@@ -58,6 +67,18 @@ export interface ProjectMessageView {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   createdAt: string;
+}
+
+export interface ProjectTaskActionResponse {
+  kind: 'task';
+  project: ProjectView;
+  taskId: string;
+}
+
+export interface ProjectChatActionResponse {
+  kind: 'chat';
+  project: ProjectView;
+  assistantMessage: ProjectMessageView;
 }
 
 export interface ProjectEventView {
@@ -95,7 +116,25 @@ export interface ProjectListResponse {
   projects: ProjectView[];
 }
 
-export interface ProjectActionResponse {
-  project: ProjectView;
-  taskId: string;
+export type ProjectActionResponse = ProjectTaskActionResponse | ProjectChatActionResponse;
+
+export interface AppSettingsView {
+  defaultRunner: TaskRunnerName;
+  defaultRunnerBackend: RunnerBackendName;
+}
+
+export interface ProjectSettingsView {
+  projectId: string;
+  preferredRunner: TaskRunnerName | null;
+  effectiveRunner: TaskRunnerName;
+  effectiveRunnerBackend: RunnerBackendName;
+  runnerSource: RunnerSource;
+}
+
+export interface AppSettingsResponse {
+  settings: AppSettingsView;
+}
+
+export interface ProjectSettingsResponse {
+  settings: ProjectSettingsView;
 }

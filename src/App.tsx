@@ -28,6 +28,7 @@ import {
   Zap,
 } from 'lucide-react';
 import {
+  getAppSettings,
   applyChange,
   createProject,
   deleteProject,
@@ -37,11 +38,19 @@ import {
   rebuildProject,
   renameProject,
   listProjects,
+  updateAppSettings,
+  updateProjectSettings,
 } from './api';
+import { buildConversationTimeline, type ConversationTimelineItem } from './conversationTimeline';
+import { RichTextMessage } from './messageFormatting';
+import { subscribeProjectTimeline } from './projectTimelineStream';
 import type {
   ProjectDetailResponse,
+  ProjectMessageView,
   ProjectView,
   TaskView,
+  TaskRunnerName,
+  AppSettingsView,
 } from './types';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,22 +60,21 @@ import {
   ConfirmationSheet as SnConfirmationSheet,
   DrawerMock,
   EmptyState,
-  MobilePreviewPage,
-  MobilePublishResultPage,
-  MobilePageSurface,
-  MobileCompactHeader,
-  MobileIconButton,
-  MobileStatusPill,
-  MobileActionButton,
   ProjectCard,
   QuickActionChip,
-  SnActionButton,
-  ShipNowDesignSystemPage,
-  ShipNowVisualReferencePage,
   SnButton,
   StatusChip,
   TopBar,
-} from './shipnow-enhanced';
+} from './shipnow-ui';
+import {
+  MobileActionButton,
+  MobileCompactHeader,
+  MobileIconButton,
+  MobilePageSurface,
+  MobileStatusPill,
+} from './shipnow-real-ui';
+import { ShipNowDesignSystemPage, ShipNowVisualReferencePage, SnActionButton } from './shipnow-reference-pages';
+import { MobilePreviewPage, MobilePublishResultPage } from './shipnow-pages';
 
 type RouteState =
   | { kind: 'home' }
@@ -80,23 +88,11 @@ type RouteState =
   | { kind: 'design-system' }
   | { kind: 'visual-reference' };
 
-type TimelineItem =
-  | {
-      kind: 'message';
-      id: string;
-      createdAt: string;
-      role: 'user' | 'assistant' | 'system' | 'tool';
-      content: string;
-    }
-  | {
-      kind: 'event';
-      id: string;
-      createdAt: string;
-      title: string;
-      detail: string | null;
-      type: string;
-      data: Record<string, unknown> | null;
-    };
+interface PendingConversationState {
+  id: string;
+  startedAt: string;
+  prompt: string;
+}
 
 const RESERVED_HANDLES = new Set([
   'shipnow',
@@ -126,6 +122,19 @@ const TEMPLATE_PROMPTS = [
   '做一个活动页，带强视觉冲击和明确的报名 / 购买转化。',
   '做一个空白项目，先搭好结构，再让我继续细化。',
 ];
+
+const TASK_RUNNER_META: Record<TaskRunnerName, { label: string; backend: string; description: string }> = {
+  codex: {
+    label: 'Codex',
+    backend: 'GPT',
+    description: '继续沿用现有 GPT 执行链路，默认优先使用。',
+  },
+  'claude-code': {
+    label: 'Claude Code',
+    backend: 'DeepSeek',
+    description: '通过 Claude Code CLI 执行，后端接 DeepSeek。',
+  },
+};
 
 function normalizeAppBase(base: string): string {
   const trimmed = base.trim();
@@ -301,6 +310,21 @@ function formatTime(value: string | null): string {
   }).format(new Date(value));
 }
 
+function formatElapsedTime(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}小时${String(minutes).padStart(2, '0')}分`;
+  }
+  if (minutes > 0) {
+    return `${minutes}分${String(seconds).padStart(2, '0')}秒`;
+  }
+  return `${seconds}秒`;
+}
+
 function statusLabel(status: string): string {
   switch (status) {
     case 'draft':
@@ -308,7 +332,7 @@ function statusLabel(status: string): string {
     case 'generating':
       return '生成中';
     case 'build_failed':
-      return '修改失败';
+      return '生成失败';
     case 'preview_ready':
       return '预览已就绪';
     case 'published':
@@ -378,6 +402,18 @@ function statusDescription(status: string): string {
   }
 }
 
+function taskRunnerLabel(runner: TaskRunnerName): string {
+  return TASK_RUNNER_META[runner].label;
+}
+
+function taskRunnerBackendLabel(runner: TaskRunnerName): string {
+  return TASK_RUNNER_META[runner].backend;
+}
+
+function taskRunnerDescription(runner: TaskRunnerName): string {
+  return TASK_RUNNER_META[runner].description;
+}
+
 function taskStatusLabel(status: string): string {
   return statusLabel(status);
 }
@@ -440,36 +476,12 @@ function buildAutoFixPrompt(detail: ProjectDetailResponse | null): string {
   ].join('\n');
 }
 
-function buildConversationItems(detail: ProjectDetailResponse | null): TimelineItem[] {
-  if (!detail) {
-    return [];
-  }
-  const items: TimelineItem[] = [
-    ...detail.messages.map((message) => ({
-      kind: 'message' as const,
-      id: message.id,
-      createdAt: message.createdAt,
-      role: message.role,
-      content: message.content,
-    })),
-    ...detail.events.map((event) => ({
-      kind: 'event' as const,
-      id: event.id,
-      createdAt: event.createdAt,
-      title: event.title || eventTitle(event.type),
-      detail: event.detail,
-      type: event.type,
-      data: event.data,
-    })),
-  ];
-  return items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-}
-
 function App() {
   const { route, navigate } = useWorkspaceRoute();
   const isEnhancedRoute = route.kind === 'design-system' || route.kind === 'visual-reference';
   const isMobileLayout = useMediaQuery('(max-width: 767px)');
   const previewConfirmDebug = new URLSearchParams(window.location.search).get('confirmPublish') === '1';
+  const settingsProjectId = new URLSearchParams(window.location.search).get('projectId');
   const [projects, setProjects] = useState<ProjectView[]>([]);
   const [detail, setDetail] = useState<ProjectDetailResponse | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(true);
@@ -483,6 +495,7 @@ function App() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [pendingConversation, setPendingConversation] = useState<PendingConversationState | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const routeProjectId =
     route.kind === 'project' || route.kind === 'project-preview' || route.kind === 'publish-success' || route.kind === 'publish-failure'
@@ -498,7 +511,7 @@ function App() {
     [detail, projects, routeProjectId]
   );
 
-  const timelineItems = useMemo(() => buildConversationItems(detail), [detail]);
+  const timelineItems = useMemo(() => buildConversationTimeline(detail), [detail]);
 
   const activeTasks = projects.filter((project) => ['generating', 'publishing'].includes(project.status)).length;
   const publishedProjects = projects.filter((project) => project.status === 'published').length;
@@ -571,16 +584,37 @@ function App() {
   }, [isEnhancedRoute, route.kind, routeProjectId]);
 
   useEffect(() => {
+    if (isEnhancedRoute || !routeProjectId) {
+      return;
+    }
+
+    const source = subscribeProjectTimeline(routeProjectId, () => {
+      void refreshDetail(routeProjectId);
+    });
+
+    return () => {
+      source.close();
+    };
+  }, [isEnhancedRoute, refreshDetail, routeProjectId]);
+
+  useEffect(() => {
     if (isEnhancedRoute) {
       return;
     }
-    if (window.matchMedia('(max-width: 767px)').matches) {
+    if (!conversationRef.current) {
       return;
     }
-    if (conversationRef.current) {
-      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
-    }
-  }, [isEnhancedRoute, timelineItems.length, route.kind, routeProjectId]);
+
+    const frame = window.requestAnimationFrame(() => {
+      const container = conversationRef.current;
+      if (!container) {
+        return;
+      }
+      container.scrollTop = container.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isEnhancedRoute, timelineItems.length, pendingConversation?.id, route.kind, routeProjectId]);
 
   const createFromComposer = route.kind === 'home';
   const canSubmitComposer = composerPrompt.trim().length > 0 && activeAction === null;
@@ -621,6 +655,19 @@ function App() {
       setError('请输入一句话描述。');
       return;
     }
+    const pendingId = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const submittedAt = new Date().toISOString();
+    const optimisticUserMessage: ProjectMessageView = {
+      id: pendingId,
+      projectId: currentProject?.projectId ?? 'pending',
+      taskId: null,
+      role: 'user',
+      content: prompt,
+      createdAt: submittedAt,
+    };
+    const previousDetail = detail;
+    setComposerPrompt('');
+    setPendingConversation({ id: pendingId, startedAt: submittedAt, prompt });
 
     if (createFromComposer) {
       setActiveAction('create');
@@ -628,11 +675,13 @@ function App() {
         const result = await createProject({ prompt });
         await refreshProjects();
         navigate(`/project/${result.project.projectId}`);
-        setComposerPrompt('');
         setSidebarOpen(false);
+        setError(null);
       } catch (createError) {
+        setComposerPrompt(prompt);
         setError(createError instanceof Error ? createError.message : String(createError));
       } finally {
+        setPendingConversation(null);
         setActiveAction(null);
       }
       return;
@@ -644,14 +693,38 @@ function App() {
 
     setActiveAction('change');
     try {
+      setDetail((current) => {
+        if (!current || current.project.projectId !== currentProject.projectId) {
+          return current;
+        }
+        return {
+          ...current,
+          messages: [...current.messages, optimisticUserMessage],
+        };
+      });
       const result = await applyChange(currentProject.projectId, prompt);
       await refreshProjects();
-      await refreshDetail(result.project.projectId);
-      setComposerPrompt('');
+      if ('kind' in result && result.kind === 'chat') {
+        setDetail((current) => {
+          if (!current || current.project.projectId !== currentProject.projectId) {
+            return current;
+          }
+          return {
+            ...current,
+            project: result.project,
+            messages: [...current.messages, result.assistantMessage],
+          };
+        });
+      } else {
+        await refreshDetail(result.project.projectId);
+      }
       setError(null);
     } catch (changeError) {
+      setDetail(previousDetail);
+      setComposerPrompt(prompt);
       setError(changeError instanceof Error ? changeError.message : String(changeError));
     } finally {
+      setPendingConversation(null);
       setActiveAction(null);
     }
   }
@@ -832,7 +905,10 @@ function App() {
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         projectsLoading={projectsLoading}
+        projects={projects}
         recentProjects={homeRecentProjects}
+        selectedProjectId={settingsProjectId}
+        refreshProjects={refreshProjects}
         navigate={navigate}
       />
     );
@@ -876,10 +952,12 @@ function App() {
         canPublish={canPublish}
         canAutoFix={canAutoFix}
         activeAction={activeAction}
+        pendingConversation={pendingConversation}
         onRebuild={handleRebuild}
         onPublish={() => setPublishConfirmOpen(true)}
         onAutoFix={handleAutoFix}
         latestTask={latestTask}
+        onViewLogs={() => document.querySelector('.status-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         conversationRef={conversationRef}
         onOpenStatus={() => setStatusOpen(true)}
         onOpenPreview={() => navigate(`/project/${currentProject.projectId}/preview`)}
@@ -974,7 +1052,7 @@ function App() {
                 setStatusOpen(true);
               }}
               onOpenSettings={() => {
-                navigate('/settings');
+                navigate(`/settings?projectId=${currentProject.projectId}`);
                 setSidebarOpen(false);
                 setStatusOpen(false);
               }}
@@ -1165,6 +1243,10 @@ function HomeWorkspace({
             navigate('/projects');
             setSidebarOpen(false);
           }}
+          onOpenSettings={() => {
+            navigate('/settings');
+            setSidebarOpen(false);
+          }}
         />
       </MobilePageSurface>
     );
@@ -1259,29 +1341,206 @@ function SettingsWorkspace({
   sidebarOpen,
   setSidebarOpen,
   projectsLoading,
+  projects,
   recentProjects,
+  selectedProjectId,
+  refreshProjects,
   navigate,
 }: {
   onOpenMenu: () => void;
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
   projectsLoading: boolean;
+  projects: ProjectView[];
   recentProjects: ProjectView[];
+  selectedProjectId: string | null;
+  refreshProjects: () => Promise<void>;
   navigate: (path: string) => void;
 }) {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const [appSettings, setAppSettings] = useState<AppSettingsView | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [savingDefaultRunner, setSavingDefaultRunner] = useState<TaskRunnerName | null>(null);
+  const [savingProjectRunner, setSavingProjectRunner] = useState<TaskRunnerName | 'inherit' | null>(null);
+
+  const selectedProject = selectedProjectId ? projects.find((project) => project.projectId === selectedProjectId) ?? null : null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSettings(): Promise<void> {
+      setSettingsLoading(true);
+      try {
+        const response = await getAppSettings();
+        if (!cancelled) {
+          setAppSettings(response.settings);
+          setSettingsError(null);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setSettingsError(loadError instanceof Error ? loadError.message : String(loadError));
+        }
+      } finally {
+        if (!cancelled) {
+          setSettingsLoading(false);
+        }
+      }
+    }
+
+    void loadSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleUpdateGlobalRunner(runner: TaskRunnerName): Promise<void> {
+    setSavingDefaultRunner(runner);
+    try {
+      const response = await updateAppSettings(runner);
+      setAppSettings(response.settings);
+      setSettingsError(null);
+      await refreshProjects();
+    } catch (updateError) {
+      setSettingsError(updateError instanceof Error ? updateError.message : String(updateError));
+    } finally {
+      setSavingDefaultRunner(null);
+    }
+  }
+
+  async function handleUpdateProjectRunner(runner: TaskRunnerName | null): Promise<void> {
+    if (!selectedProject) {
+      return;
+    }
+    setSavingProjectRunner(runner ?? 'inherit');
+    try {
+      await updateProjectSettings(selectedProject.projectId, runner);
+      setSettingsError(null);
+      await refreshProjects();
+    } catch (updateError) {
+      setSettingsError(updateError instanceof Error ? updateError.message : String(updateError));
+    } finally {
+      setSavingProjectRunner(null);
+    }
+  }
+
+  function renderRunnerCard(
+    runner: TaskRunnerName,
+    active: boolean,
+    action: () => Promise<void>,
+    busy: boolean,
+    caption: string,
+    extraLabel?: string
+  ): ReactElement {
+    return (
+      <button
+        key={runner}
+        type="button"
+        className={`sn-settings-runner-card ${active ? 'is-active' : ''}`.trim()}
+        onClick={() => void action()}
+        disabled={busy}
+      >
+        <div className="sn-settings-runner-card-head">
+          <div>
+            <div className="sn-settings-runner-name">{taskRunnerLabel(runner)}</div>
+            <div className="sn-settings-runner-backend">{taskRunnerBackendLabel(runner)}</div>
+          </div>
+          {active ? <StatusChip tone="preview-ready">{extraLabel ?? '当前选择'}</StatusChip> : null}
+        </div>
+        <div className="sn-settings-runner-copy">{caption}</div>
+      </button>
+    );
+  }
+
+  const effectiveGlobalRunner = appSettings?.defaultRunner ?? 'codex';
+  const currentProjectRunner = selectedProject?.preferredRunner ?? null;
+  const currentProjectEffectiveRunner = selectedProject?.effectiveRunner ?? effectiveGlobalRunner;
 
   if (isMobile) {
     return (
       <MobilePageSurface className="sn-mobile-settings-page">
         <div className="sn-mobile-page-body sn-mobile-settings-body">
-          <div className="sn-mobile-home-brand-row">
-            <MobileIconButton type="button" aria-label="菜单" onClick={onOpenMenu}>
-              <Menu className="size-4" />
-            </MobileIconButton>
-            <div className="sn-mobile-brand">设置与偏好</div>
-          </div>
-          <div className="sn-mobile-settings-spacer" />
+          <MobileCompactHeader title="设置与偏好" onMenu={onOpenMenu} />
+
+          {settingsError ? <div className="sn-settings-inline-error">{settingsError}</div> : null}
+
+          <section className="sn-panel sn-settings-section">
+            <header className="sn-section-head">
+              <div>
+                <p className="sn-section-kicker">Global Default</p>
+                <h2 className="sn-section-title">全局默认执行器</h2>
+              </div>
+              {settingsLoading ? <StatusChip tone="building">加载中</StatusChip> : <StatusChip tone="preview-ready">{taskRunnerLabel(effectiveGlobalRunner)}</StatusChip>}
+            </header>
+            <div className="sn-settings-runner-grid">
+              {(['codex', 'claude-code'] as const).map((runner) =>
+                renderRunnerCard(
+                  runner,
+                  effectiveGlobalRunner === runner,
+                  () => handleUpdateGlobalRunner(runner),
+                  savingDefaultRunner !== null,
+                  taskRunnerDescription(runner)
+                )
+              )}
+            </div>
+          </section>
+
+          {selectedProject ? (
+            <section className="sn-panel sn-settings-section">
+              <header className="sn-section-head">
+                <div>
+                  <p className="sn-section-kicker">Project Preference</p>
+                  <h2 className="sn-section-title">{selectedProject.displayName}</h2>
+                </div>
+                <StatusChip tone={statusTone(selectedProject.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                  {taskRunnerLabel(currentProjectEffectiveRunner)}
+                </StatusChip>
+              </header>
+              <div className="sn-settings-project-meta">
+                <div className="sn-settings-project-line">
+                  <span>当前生效</span>
+                  <strong>{taskRunnerLabel(currentProjectEffectiveRunner)} · {taskRunnerBackendLabel(currentProjectEffectiveRunner)}</strong>
+                </div>
+                <div className="sn-settings-project-line">
+                  <span>当前偏好</span>
+                  <strong>{currentProjectRunner ? taskRunnerLabel(currentProjectRunner) : '继承全局默认'}</strong>
+                </div>
+              </div>
+              <div className="sn-settings-runner-grid">
+                {renderRunnerCard(
+                  'codex',
+                  currentProjectRunner === 'codex',
+                  () => handleUpdateProjectRunner('codex'),
+                  savingProjectRunner !== null,
+                  taskRunnerDescription('codex')
+                )}
+                {renderRunnerCard(
+                  'claude-code',
+                  currentProjectRunner === 'claude-code',
+                  () => handleUpdateProjectRunner('claude-code'),
+                  savingProjectRunner !== null,
+                  taskRunnerDescription('claude-code')
+                )}
+                <button
+                  type="button"
+                  className={`sn-settings-runner-card ${currentProjectRunner === null ? 'is-active' : ''}`.trim()}
+                  onClick={() => void handleUpdateProjectRunner(null)}
+                  disabled={savingProjectRunner !== null}
+                >
+                  <div className="sn-settings-runner-card-head">
+                    <div>
+                      <div className="sn-settings-runner-name">继承全局默认</div>
+                      <div className="sn-settings-runner-backend">跟随系统默认</div>
+                    </div>
+                    {currentProjectRunner === null ? <StatusChip tone="preview-ready">当前选择</StatusChip> : null}
+                  </div>
+                  <div className="sn-settings-runner-copy">
+                    这个项目会自动使用全局默认执行器，适合统一管理。
+                  </div>
+                </button>
+              </div>
+            </section>
+          ) : null}
         </div>
         <HomeWorkspaceDrawer
           open={sidebarOpen}
@@ -1307,10 +1566,111 @@ function SettingsWorkspace({
   }
 
   return (
-    <div className="sn-page">
+    <div className="sn-page sn-settings-page">
       <div className="sn-page-backdrop" />
-      <div className="sn-page-shell">
-        <EmptyState title="设置与偏好" description="这里暂时留空。" icon={<Settings2 className="size-6" />} />
+      <div className="sn-page-shell sn-settings-shell">
+        <div className="sn-settings-hero">
+          <div>
+            <p className="sn-hero-kicker">Settings & Preferences</p>
+            <h1 className="sn-hero-title">设置与偏好</h1>
+            <p className="sn-hero-description">
+              在这里切换 ShipNow 的默认执行器，并按项目覆盖为 Codex 或 Claude Code。
+            </p>
+          </div>
+          <SnButton variant="icon" icon={<Settings2 className="size-4" />} title="设置" />
+        </div>
+
+        {settingsError ? <div className="sn-settings-inline-error">{settingsError}</div> : null}
+
+        <div className="sn-settings-layout">
+          <section className="sn-panel sn-settings-section">
+            <header className="sn-section-head">
+              <div>
+                <p className="sn-section-kicker">Global Default</p>
+                <h2 className="sn-section-title">全局默认执行器</h2>
+              </div>
+              {settingsLoading ? <StatusChip tone="building">加载中</StatusChip> : <StatusChip tone="preview-ready">{taskRunnerLabel(effectiveGlobalRunner)}</StatusChip>}
+            </header>
+            <div className="sn-settings-runner-grid">
+              {(['codex', 'claude-code'] as const).map((runner) =>
+                renderRunnerCard(
+                  runner,
+                  effectiveGlobalRunner === runner,
+                  () => handleUpdateGlobalRunner(runner),
+                  savingDefaultRunner !== null,
+                  taskRunnerDescription(runner)
+                )
+              )}
+            </div>
+          </section>
+
+          <section className="sn-panel sn-settings-section">
+            <header className="sn-section-head">
+              <div>
+                <p className="sn-section-kicker">Project Preference</p>
+                <h2 className="sn-section-title">{selectedProject ? selectedProject.displayName : '选择一个项目'}</h2>
+              </div>
+              {selectedProject ? (
+                <StatusChip tone={statusTone(selectedProject.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
+                  {taskRunnerLabel(currentProjectEffectiveRunner)}
+                </StatusChip>
+              ) : (
+                <StatusChip tone="building">无项目上下文</StatusChip>
+              )}
+            </header>
+            {selectedProject ? (
+              <>
+                <div className="sn-settings-project-meta">
+                  <div className="sn-settings-project-line">
+                    <span>当前生效</span>
+                    <strong>{taskRunnerLabel(currentProjectEffectiveRunner)} · {taskRunnerBackendLabel(currentProjectEffectiveRunner)}</strong>
+                  </div>
+                  <div className="sn-settings-project-line">
+                    <span>当前偏好</span>
+                    <strong>{currentProjectRunner ? taskRunnerLabel(currentProjectRunner) : '继承全局默认'}</strong>
+                  </div>
+                </div>
+                <div className="sn-settings-runner-grid">
+                  {renderRunnerCard(
+                    'codex',
+                    currentProjectRunner === 'codex',
+                    () => handleUpdateProjectRunner('codex'),
+                    savingProjectRunner !== null,
+                    taskRunnerDescription('codex')
+                  )}
+                  {renderRunnerCard(
+                    'claude-code',
+                    currentProjectRunner === 'claude-code',
+                    () => handleUpdateProjectRunner('claude-code'),
+                    savingProjectRunner !== null,
+                    taskRunnerDescription('claude-code')
+                  )}
+                  <button
+                    type="button"
+                    className={`sn-settings-runner-card ${currentProjectRunner === null ? 'is-active' : ''}`.trim()}
+                    onClick={() => void handleUpdateProjectRunner(null)}
+                    disabled={savingProjectRunner !== null}
+                  >
+                    <div className="sn-settings-runner-card-head">
+                      <div>
+                        <div className="sn-settings-runner-name">继承全局默认</div>
+                        <div className="sn-settings-runner-backend">跟随系统默认</div>
+                      </div>
+                      {currentProjectRunner === null ? <StatusChip tone="preview-ready">当前选择</StatusChip> : null}
+                    </div>
+                    <div className="sn-settings-runner-copy">这个项目会自动使用全局默认执行器，适合统一管理。</div>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                title="选择一个项目"
+                description="从项目页的“设置与偏好”菜单进入后，会显示该项目的覆盖设置。"
+                icon={<Folder className="size-6" />}
+              />
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -2018,10 +2378,12 @@ function ProjectWorkspace({
   canPublish,
   canAutoFix,
   activeAction,
+  pendingConversation,
   onRebuild,
   onPublish,
   onAutoFix,
   latestTask,
+  onViewLogs,
   conversationRef,
   onOpenStatus,
   onOpenPreview,
@@ -2034,7 +2396,7 @@ function ProjectWorkspace({
 }: {
   project: ProjectView;
   detail: ProjectDetailResponse | null;
-  timelineItems: TimelineItem[];
+  timelineItems: ConversationTimelineItem[];
   composerPrompt: string;
   setComposerPrompt: (value: string) => void;
   onSubmit: () => void;
@@ -2042,10 +2404,12 @@ function ProjectWorkspace({
   canPublish: boolean;
   canAutoFix: boolean;
   activeAction: string | null;
+  pendingConversation: PendingConversationState | null;
   onRebuild: () => void;
   onPublish: () => void;
   onAutoFix: () => void;
   latestTask: TaskView | null;
+  onViewLogs: () => void;
   conversationRef: RefObject<HTMLDivElement | null>;
   onOpenStatus: () => void;
   onOpenPreview: () => void;
@@ -2057,8 +2421,7 @@ function ProjectWorkspace({
   navigate: (path: string) => void;
 }) {
   const isMobileLayout = useMediaQuery('(max-width: 767px)');
-  const visibleTimelineItems = timelineItems.filter((item) => item.kind === 'message');
-  const renderedTimelineItems = isMobileLayout ? visibleTimelineItems.slice(-2) : visibleTimelineItems;
+  const renderedTimelineItems = isMobileLayout ? timelineItems.slice(-4) : timelineItems;
 
   if (isMobileLayout) {
     return (
@@ -2073,10 +2436,12 @@ function ProjectWorkspace({
         canPublish={canPublish}
         canAutoFix={canAutoFix}
         activeAction={activeAction}
+        pendingConversation={pendingConversation}
         onRebuild={onRebuild}
         onPublish={onPublish}
         onAutoFix={onAutoFix}
         latestTask={latestTask}
+        onViewLogs={onViewLogs}
         conversationRef={conversationRef}
         onOpenStatus={onOpenStatus}
         onOpenPreview={onOpenPreview}
@@ -2129,20 +2494,14 @@ function ProjectWorkspace({
                 renderedTimelineItems.length === 0 ? (
                   <div className="sn-project-workspace-empty">刚打开这个项目。先说一句你要改什么。</div>
                 ) : (
-                  renderedTimelineItems.map((item) => (
-                    <div key={item.id}>
-                      {item.role === 'user' ? (
-                        <ChatBubble role="user">{item.content}</ChatBubble>
-                      ) : (
-                        <ChatBubble role="assistant">{item.content}</ChatBubble>
-                      )}
-                    </div>
-                  ))
+                  renderedTimelineItems.map((item) => <TimelineEntry key={item.id} item={item} latestTask={latestTask} />)
                 )
               ) : (
                 <div className="sn-project-workspace-empty">正在加载项目…</div>
               )}
             </div>
+
+            <PendingConversationBubble pendingConversation={pendingConversation} />
 
             <div className="sn-project-workspace-chips">
               <QuickActionChip icon={<WandSparkles className="size-4" />} onClick={() => setComposerPrompt('把文案再简洁一点，突出价值和行动按钮。')}>
@@ -2234,10 +2593,12 @@ function ProjectWorkspaceMobile({
   canPublish,
   canAutoFix,
   activeAction,
+  pendingConversation,
   onRebuild,
   onPublish,
   onAutoFix,
   latestTask,
+  onViewLogs,
   conversationRef,
   onOpenStatus,
   onOpenPreview,
@@ -2250,7 +2611,7 @@ function ProjectWorkspaceMobile({
 }: {
   project: ProjectView;
   detail: ProjectDetailResponse | null;
-  timelineItems: TimelineItem[];
+  timelineItems: ConversationTimelineItem[];
   composerPrompt: string;
   setComposerPrompt: (value: string) => void;
   onSubmit: () => void;
@@ -2258,10 +2619,12 @@ function ProjectWorkspaceMobile({
   canPublish: boolean;
   canAutoFix: boolean;
   activeAction: string | null;
+  pendingConversation: PendingConversationState | null;
   onRebuild: () => void;
   onPublish: () => void;
   onAutoFix: () => void;
   latestTask: TaskView | null;
+  onViewLogs: () => void;
   conversationRef: RefObject<HTMLDivElement | null>;
   onOpenStatus: () => void;
   onOpenPreview: () => void;
@@ -2272,9 +2635,30 @@ function ProjectWorkspaceMobile({
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
 }) {
-  const visibleTimelineItems = timelineItems.filter(
-    (item): item is Extract<TimelineItem, { kind: 'message' }> => item.kind === 'message' && (item.role === 'user' || item.role === 'assistant')
-  );
+  const MOBILE_HISTORY_COLLAPSE_COUNT = 8;
+  const [isHistoryCollapsed, setHistoryCollapsed] = useState(false);
+  const canCollapseHistory = timelineItems.length > MOBILE_HISTORY_COLLAPSE_COUNT;
+  const visibleTimelineItems = isHistoryCollapsed
+    ? timelineItems.slice(-MOBILE_HISTORY_COLLAPSE_COUNT)
+    : timelineItems;
+  const hiddenTimelineCount = Math.max(0, timelineItems.length - visibleTimelineItems.length);
+
+  useEffect(() => {
+    const container = conversationRef.current;
+    if (!container) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const node = conversationRef.current;
+      if (!node) {
+        return;
+      }
+      node.scrollTop = node.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [conversationRef, isHistoryCollapsed, pendingConversation?.id, visibleTimelineItems.length]);
 
   return (
     <MobilePageSurface className="sn-mobile-project-page">
@@ -2310,17 +2694,45 @@ function ProjectWorkspaceMobile({
           </div>
         </div>
 
+        <div className="sn-mobile-chat-history-bar">
+          <div className="sn-mobile-chat-history-copy">
+            <div className="sn-mobile-chat-history-title">对话记录</div>
+            <div className="sn-mobile-chat-history-meta">
+              共 {timelineItems.length} 条
+              {canCollapseHistory ? ' · 默认展开全部' : ''}
+            </div>
+          </div>
+          {canCollapseHistory ? (
+            <button
+              className="sn-mobile-chat-history-toggle"
+              type="button"
+              onClick={() => setHistoryCollapsed((current) => !current)}
+              aria-pressed={isHistoryCollapsed}
+            >
+              {isHistoryCollapsed ? '展开早期记录' : '收起早期记录'}
+            </button>
+          ) : null}
+        </div>
+
+        {isHistoryCollapsed && canCollapseHistory ? (
+          <button
+            className="sn-mobile-chat-history-summary"
+            type="button"
+            onClick={() => setHistoryCollapsed(false)}
+          >
+            已收起 {hiddenTimelineCount} 条早期记录，点击展开全部
+          </button>
+        ) : null}
+
         <div className="sn-mobile-chat-stack">
           {visibleTimelineItems.length === 0 ? (
             <div className="sn-mobile-chat-empty">刚打开这个项目。先说一句你要改什么。</div>
           ) : (
-            visibleTimelineItems.map((message) => (
-              <ChatBubble key={message.id} role={message.role}>
-                {message.content}
-              </ChatBubble>
-            ))
+            visibleTimelineItems.map((item) => <TimelineEntry key={item.id} item={item} latestTask={latestTask} />)
           )}
         </div>
+
+        <PendingConversationBubble pendingConversation={pendingConversation} />
 
       </div>
 
@@ -2505,10 +2917,10 @@ function HomeWorkspaceDrawer({
             新建项目
           </SnActionButton>
           <div className="sn-mobile-drawer-user">
-            <div className="sn-chat-avatar">艾</div>
+            <div className="sn-chat-avatar">K</div>
             <div>
-              <div className="sn-mobile-drawer-user-name">艾米</div>
-              <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
+              <div className="sn-mobile-drawer-user-name">Knight</div>
+              <div className="sn-mobile-drawer-user-mail">knight@shipnow.com</div>
             </div>
           </div>
         </div>
@@ -2602,10 +3014,10 @@ function ProjectWorkspaceDrawer({
         </div>
         <div className="sn-mobile-drawer-footer">
           <div className="sn-mobile-drawer-user">
-            <div className="sn-chat-avatar">艾</div>
+            <div className="sn-chat-avatar">K</div>
             <div>
-              <div className="sn-mobile-drawer-user-name">艾米</div>
-              <div className="sn-mobile-drawer-user-mail">hello@shipnow.com</div>
+              <div className="sn-mobile-drawer-user-name">Knight</div>
+              <div className="sn-mobile-drawer-user-mail">knight@shipnow.com</div>
             </div>
           </div>
         </div>
@@ -2828,6 +3240,111 @@ function Chip({ tone, children }: { tone: string; children: ReactNode }): ReactE
     <Badge variant={variant as 'outline' | 'secondary' | 'destructive' | 'default'} className={tone === 'warm' ? 'border-amber-200 bg-amber-50 text-amber-800' : tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : tone === 'danger' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-border bg-background text-muted-foreground'}>
       {children}
     </Badge>
+  );
+}
+
+function TimelineEntry({ item, latestTask }: { item: ConversationTimelineItem; latestTask: TaskView | null }): ReactElement {
+  if (item.kind === 'message') {
+    const bubbleRole = item.role === 'user' ? 'user' : 'assistant';
+    return <ChatBubble role={bubbleRole} className={item.id.startsWith('local-') ? 'is-entering' : undefined}>{item.content}</ChatBubble>;
+  }
+
+  return <TimelineSystemBubble item={item} latestTask={latestTask} />;
+}
+
+function PendingConversationBubble({
+  pendingConversation,
+}: {
+  pendingConversation: PendingConversationState | null;
+}): ReactElement | null {
+  const [elapsedMs, setElapsedMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!pendingConversation) {
+      return;
+    }
+
+    const tick = window.setInterval(() => {
+      setElapsedMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(tick);
+  }, [pendingConversation?.id]);
+
+  if (!pendingConversation) {
+    return null;
+  }
+
+  const elapsed = formatElapsedTime(elapsedMs - Date.parse(pendingConversation.startedAt));
+
+  return (
+    <ChatBubble role="system" className="is-pending">
+      <div className="sn-pending-bubble">
+        <div className="sn-pending-bubble-text">
+          <span className="sn-pending-bubble-label">我在处理这个请求</span>
+          <span className="sn-pending-bubble-time">· {elapsed}</span>
+        </div>
+        <div className="sn-pending-bubble-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </ChatBubble>
+  );
+}
+
+function TimelineSystemBubble({
+  item,
+  latestTask,
+}: {
+  item: Extract<ConversationTimelineItem, { kind: 'event' }>;
+  latestTask: TaskView | null;
+}): ReactElement {
+  const typeLabel = item.type.replace(/_/g, ' ');
+  const isLiveTask = Boolean(
+    latestTask && ['pending', 'running'].includes(latestTask.status) && item.taskId && item.taskId === latestTask.id
+  );
+  const [elapsedMs, setElapsedMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!isLiveTask) {
+      return;
+    }
+
+    const tick = window.setInterval(() => {
+      setElapsedMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(tick);
+  }, [isLiveTask, item.createdAt, item.id]);
+
+  const liveElapsed = isLiveTask ? formatElapsedTime(elapsedMs - Date.parse(item.createdAt)) : null;
+
+  return (
+    <ChatBubble role="system">
+      <div className={`sn-system-event ${item.type === 'task_progress' ? 'is-progress' : ''} ${isLiveTask ? 'is-live' : ''}`.trim()}>
+        <div className="sn-system-event-head">
+          <div className="sn-system-event-copy">
+            <div className="sn-system-event-kicker">{typeLabel}</div>
+            <div className="sn-system-event-title">{item.title}</div>
+            {liveElapsed ? (
+              <div className="sn-system-event-live">
+                <span className="sn-system-event-live-dot" aria-hidden="true" />
+                <span>仍在处理 · {liveElapsed}</span>
+              </div>
+            ) : null}
+          </div>
+          <div className="sn-system-event-time">{formatTime(item.createdAt)}</div>
+        </div>
+        {item.detail ? (
+          <div className="sn-system-event-detail">
+            <RichTextMessage content={item.detail} />
+          </div>
+        ) : null}
+        {item.data ? <pre className="sn-system-event-data">{JSON.stringify(item.data, null, 2)}</pre> : null}
+      </div>
+    </ChatBubble>
   );
 }
 

@@ -10,12 +10,21 @@ import type {
   ProjectRecord,
   ProjectStatus,
   ProjectView,
+  ProjectActionResponse,
   ReleaseKind,
   ReleaseRecord,
   TaskRecord,
   TaskType,
   TaskView,
 } from './types.js';
+import {
+  buildConversationChatPrompt,
+  buildConversationRouterPrompt,
+  buildConversationTaskPrompt,
+  parseConversationIntent,
+  toConversationProjectContext,
+  type ConversationSessionContext,
+} from './conversationPrompts.js';
 import {
   projectIdSchema,
   slugifyProjectName,
@@ -34,6 +43,7 @@ import {
 } from './storage.js';
 import { runCommand } from './process.js';
 import type { AppSettingsView, ProjectSettingsView, TaskRunnerName } from './types.js';
+import { createTaskProgressEvent, projectTimelineBus } from './timelineBus.js';
 
 interface EnqueueInput {
   projectId: string;
@@ -62,20 +72,66 @@ function statusText(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
-function buildProjectTaskPrompt(project: ProjectRecord, requestPrompt: string): string {
-  return [
-    `当前项目为 ${project.display_name}（projectId: ${project.project_id}, handle: ${project.public_handle}）。`,
-    '这是 ShipNow 管理的静态站点项目。',
-    '职责分工：ShipNow/程序负责创建工作区、复制模板、安装依赖、运行 pnpm build、生成 dist、把 dist 复制到预览/正式目录、切换 current-preview/current-public、记录日志和发布状态；Codex 负责只在当前项目的 source/ 内实现用户需求。',
-    '请把所有实现限制在当前项目的 source/ 目录内。',
-    '可编辑范围包括 source/src、source/index.html、source/package.json、source/vite.config.ts、source/tsconfig.json，以及 source 里其他你需要的文件。',
-    '不要修改 ShipNow 仓库本体，也不要手工编辑项目根目录下的 preview/、releases/、current-preview/、current-public/、logs/，这些目录由 ShipNow 构建和发布流程管理。',
-    '如果需要新增依赖，只在 source/package.json 中调整，并让 pnpm install / pnpm build 处理锁文件和产物。',
-    '如果需要页面、组件、路由、样式、资源、游戏或其它交互，请在 source 内自行组织实现；先完成一个最小可运行版本，再按需要迭代。',
-    'ShipNow 会在 pnpm build 之后自动把 dist 复制到预览和正式发布目录，你不要直接往 preview/ 或 releases/ 写文件。',
-    '',
-    requestPrompt,
-  ].join('\n\n');
+function taskTypeText(type: TaskType): string {
+  switch (type) {
+    case 'create_project':
+      return '创建项目';
+    case 'apply_change':
+      return '修改项目';
+    case 'rebuild':
+      return '重新构建';
+    case 'publish':
+      return '发布项目';
+    case 'delete_project':
+      return '删除项目';
+    default:
+      return statusText(type);
+  }
+}
+
+interface ConversationDetailSnapshot {
+  project: { status: string };
+  tasks: Array<Pick<TaskView, 'type' | 'status' | 'errorMessage'>>;
+  events: Array<Pick<ProjectEventRecord, 'title' | 'detail'>>;
+  messages: Array<{
+    role: ProjectMessageRecord['role'];
+    taskId: string | null;
+    content: string;
+  }>;
+}
+
+function summarizeConversationText(content: string, maxLength = 80): string {
+  const normalized = content.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(1, maxLength - 1))}…`;
+}
+
+function buildConversationSessionContext(detail: ConversationDetailSnapshot): ConversationSessionContext {
+  const latestTask = detail.tasks[0] ?? null;
+  const recentEvents = detail.events.slice(-3).map((event) => {
+    const description = event.detail?.trim();
+    return description ? `${event.title}：${description}` : event.title;
+  });
+  const recentConversationTrail = detail.messages
+    .filter((message) => message.role === 'user' || (message.role === 'assistant' && message.taskId === null))
+    .slice(-4)
+    .map((message) => `${message.role === 'user' ? '用户' : '助手'}：${summarizeConversationText(message.content)}`);
+
+  return {
+    projectStatus: statusText(detail.project.status),
+    latestTaskSummary: latestTask
+      ? [
+          `${taskTypeText(latestTask.type)} · ${statusText(latestTask.status)}`,
+          latestTask.errorMessage ? latestTask.errorMessage : null,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(' · ')
+      : null,
+    recentEventSummaries: recentEvents,
+    recentConversationTrail,
+  };
 }
 
 function randomHandleSuffix(): string {
@@ -88,6 +144,10 @@ function randomHandleSuffix(): string {
 
 function isCodeTask(type: TaskType): boolean {
   return type === 'create_project' || type === 'apply_change';
+}
+
+function buildTaskQueueDetail(): string {
+  return '我会先准备工作区，再继续执行这次操作。';
 }
 
 export class ShipNowManager {
@@ -250,11 +310,6 @@ export class ShipNowManager {
       role: 'user',
       content: prompt,
     });
-    this.store.createMessage({
-      projectId,
-      role: 'assistant',
-      content: `已为你生成项目 ${displayName}，正在创建工作区并开始构建。`,
-    });
     this.store.createEvent({
       projectId,
       type: 'project_created',
@@ -262,11 +317,16 @@ export class ShipNowManager {
       detail: `已生成公开句柄 ${displayName}。`,
       data: { projectId, displayName, publicHandle: displayName, type },
     });
+    const creationDetail = this.getProjectDetail(projectId);
 
     const task = await this.enqueueTask({
       projectId,
       type: 'create_project',
-      prompt: buildProjectTaskPrompt(project, prompt),
+      prompt: buildConversationTaskPrompt(
+        toConversationProjectContext(project),
+        prompt,
+        buildConversationSessionContext(creationDetail)
+      ),
       runnerName,
     });
     this.store.updateProjectStatus(projectId, 'generating');
@@ -276,13 +336,13 @@ export class ShipNowManager {
       taskId: task.id,
       type: 'task_queued',
       title: '创建任务已排队',
-      detail: 'ShipNow 会先安装依赖，再开始执行选定的任务执行器。',
+      detail: buildTaskQueueDetail(),
       data: { taskId: task.id, taskType: task.type, runnerName, runnerSummary: taskRunnerSummary(runnerName) },
     });
     return { project: this.toProjectView(this.store.getProjectById(projectId) ?? project), taskId: task.id };
   }
 
-  async applyChange(projectId: string, prompt: string): Promise<{ project: ProjectView; taskId: string }> {
+  async applyChange(projectId: string, prompt: string): Promise<ProjectActionResponse> {
     const project = this.requireActiveProject(projectId);
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) {
@@ -293,22 +353,48 @@ export class ShipNowManager {
       role: 'user',
       content: normalizedPrompt,
     });
-    this.store.createMessage({
-      projectId: project.project_id,
-      role: 'assistant',
-      content: '收到，我会直接修改当前项目并重新构建预览。',
-    });
+    const runnerName = this.resolveEffectiveRunner(project);
+    const conversationContext = toConversationProjectContext(project);
+    const conversationDetail = this.getProjectDetail(project.project_id);
+    const conversationSession = buildConversationSessionContext(conversationDetail);
+    const intent = parseConversationIntent(
+      await this.runRunnerText(
+        runnerName,
+        buildConversationRouterPrompt(conversationContext, normalizedPrompt),
+        project.source_root,
+        this.env.taskTimeoutSeconds * 1000
+      )
+    );
+    if (intent === 'chat') {
+      const assistantReply = this.normalizeAssistantReply(
+        await this.runRunnerText(
+          runnerName,
+          buildConversationChatPrompt(conversationContext, normalizedPrompt, conversationSession),
+          project.source_root,
+          this.env.taskTimeoutSeconds * 1000
+        )
+      );
+      const assistantMessage = this.store.createMessage({
+        projectId: project.project_id,
+        role: 'assistant',
+        content: assistantReply,
+      });
+      return {
+        kind: 'chat',
+        project: this.toProjectView(this.requireProject(project.project_id)),
+        assistantMessage: this.toMessageView(assistantMessage),
+      };
+    }
     this.store.createEvent({
       projectId: project.project_id,
       type: 'change_requested',
       title: '收到修改请求',
       detail: normalizedPrompt,
     });
-    const runnerName = this.resolveEffectiveRunner(project);
     const task = await this.enqueueTask({
       projectId: project.project_id,
       type: 'apply_change',
-      prompt: buildProjectTaskPrompt(project, normalizedPrompt),
+      prompt: buildConversationTaskPrompt(conversationContext, normalizedPrompt, conversationSession),
       runnerName,
     });
     this.store.updateProjectStatus(project.project_id, 'generating');
@@ -317,24 +403,19 @@ export class ShipNowManager {
       taskId: task.id,
       type: 'task_queued',
       title: '修改任务已排队',
-      detail: 'ShipNow 会在当前工作区中执行修改。',
+      detail: '我会在当前工作区整理好环境，再继续执行这次修改。',
       data: { taskId: task.id, taskType: task.type, runnerName, runnerSummary: taskRunnerSummary(runnerName) },
     });
-    return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
+    return { kind: 'task', project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
   async rebuild(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
     const project = this.requireActiveProject(projectId);
-    this.store.createMessage({
-      projectId: project.project_id,
-      role: 'assistant',
-      content: '我会直接重新构建当前项目，保持现有方向不变。',
-    });
     this.store.createEvent({
       projectId: project.project_id,
       type: 'rebuild_requested',
       title: '开始重新构建',
-      detail: 'ShipNow 将不修改内容，只重新执行构建链路。',
+      detail: '我不会修改内容，只会重新执行构建链路。',
     });
     const task = await this.enqueueTask({
       projectId: project.project_id,
@@ -347,11 +428,6 @@ export class ShipNowManager {
 
   async publish(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
     const project = this.requireActiveProject(projectId);
-    this.store.createMessage({
-      projectId: project.project_id,
-      role: 'assistant',
-      content: `正在发布 ${project.display_name}，请确认公开地址。`,
-    });
     this.store.createEvent({
       projectId: project.project_id,
       type: 'publish_requested',
@@ -382,11 +458,6 @@ export class ShipNowManager {
     if (!next) {
       throw new Error(`Project ${projectId} not found.`);
     }
-    this.store.createMessage({
-      projectId,
-      role: 'assistant',
-      content: `项目名称已更新为 ${normalized}。`,
-    });
     this.store.createEvent({
       projectId,
       type: 'project_renamed',
@@ -408,7 +479,7 @@ export class ShipNowManager {
       projectId: project.project_id,
       type: 'delete_requested',
       title: '请求删除项目',
-      detail: 'ShipNow 会在任务执行后移除工作区。',
+      detail: '我会在任务执行后移除工作区。',
     });
     return { project: this.toProjectView(project), taskId: task.id };
   }
@@ -545,6 +616,15 @@ export class ShipNowManager {
     this.store.updateProjectTaskLink(project.project_id, task.id);
     const runnerSummary = input.runnerName ? ` using ${taskRunnerSummary(input.runnerName)}` : '';
     await this.store.appendTaskLogAsync(task.id, `Queued task ${task.type} for project ${project.display_name}${runnerSummary}.`);
+    projectTimelineBus.publish(
+      createTaskProgressEvent({
+        projectId: project.project_id,
+        taskId: task.id,
+        taskType: task.type,
+        phase: 'queued',
+        runnerName: input.runnerName ?? this.resolveEffectiveRunner(project),
+      })
+    );
     this.scheduleDrain();
     return task;
   }
@@ -608,6 +688,7 @@ export class ShipNowManager {
     const project = this.requireProject(task.project_id);
     const startedAt = nowIso();
     this.store.setTaskStatus(task.id, 'running', { started_at: startedAt });
+    this.publishTaskProgress(project, task, 'starting', { createdAt: startedAt });
     this.store.createEvent({
       projectId: project.project_id,
       taskId: task.id,
@@ -617,6 +698,7 @@ export class ShipNowManager {
       data: { taskId: task.id, taskType: task.type, runnerName: task.runner_name, runnerSummary: task.runner_name ? taskRunnerSummary(task.runner_name) : null },
     });
     await this.store.appendTaskLogAsync(task.id, `Starting ${task.type} for ${project.display_name}.`);
+    this.publishTaskProgress(project, task, 'running');
 
     const timeoutMs = this.env.taskTimeoutSeconds * 1000;
 
@@ -641,6 +723,7 @@ export class ShipNowManager {
           throw new Error(`Unsupported task type ${task.type}`);
       }
       this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
+      this.publishTaskProgress(project, task, 'completed');
       this.store.createEvent({
         projectId: project.project_id,
         taskId: task.id,
@@ -654,6 +737,7 @@ export class ShipNowManager {
       const message = error instanceof Error ? error.message : String(error);
       await this.store.appendTaskLogAsync(task.id, `Task ${task.id} failed: ${message}`);
       this.store.setTaskStatus(task.id, 'failed', { finished_at: nowIso(), error_message: message });
+      this.publishTaskProgress(project, task, 'failed', { errorMessage: message });
       this.store.createEvent({
         projectId: project.project_id,
         taskId: task.id,
@@ -661,12 +745,6 @@ export class ShipNowManager {
         title: '任务执行失败',
         detail: message,
         data: { taskId: task.id, taskType: task.type, error: message },
-      });
-      this.store.createMessage({
-        projectId: project.project_id,
-        taskId: task.id,
-        role: 'assistant',
-        content: `这次操作失败了：${message}`,
       });
       if (task.type === 'publish') {
         this.store.updateProjectStatus(project.project_id, 'publish_failed');
@@ -709,17 +787,12 @@ export class ShipNowManager {
     await this.store.appendTaskLogAsync(task.id, `Running ${taskRunnerSummary(runnerName)} in ${paths.sourceRoot}.`);
     await this.runTaskWithRunner(runnerName, task, project.prompt, paths.sourceRoot, timeoutMs);
 
+    this.publishTaskProgress(project, task, 'building', { runnerName });
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
     const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
     this.store.updateProjectBuildState(project.project_id, release.release_path, 'preview_ready');
     this.store.updateProjectTaskLink(project.project_id, task.id);
-    this.store.createMessage({
-      projectId: project.project_id,
-      taskId: task.id,
-      role: 'assistant',
-      content: '预览已经准备好了，你可以继续修改或直接发布。',
-    });
     this.store.createEvent({
       projectId: project.project_id,
       taskId: task.id,
@@ -740,16 +813,11 @@ export class ShipNowManager {
     const runnerName = task.runner_name ?? this.resolveEffectiveRunner(project);
     await this.store.appendTaskLogAsync(task.id, `Applying ${taskRunnerSummary(runnerName)} changes in ${paths.sourceRoot}.`);
     await this.runTaskWithRunner(runnerName, task, task.prompt, paths.sourceRoot, timeoutMs);
+    this.publishTaskProgress(project, task, 'building', { runnerName });
     await this.store.appendTaskLogAsync(task.id, 'Building project with pnpm build.');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
     const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
     this.store.updateProjectBuildState(project.project_id, release.release_path, 'preview_ready');
-    this.store.createMessage({
-      projectId: project.project_id,
-      taskId: task.id,
-      role: 'assistant',
-      content: '修改完成，新的预览已经更新。',
-    });
     this.store.createEvent({
       projectId: project.project_id,
       taskId: task.id,
@@ -768,15 +836,10 @@ export class ShipNowManager {
     this.store.updateProjectStatus(project.project_id, 'generating');
     await this.ensureGitRepository(paths.sourceRoot, task.id);
     await this.store.appendTaskLogAsync(task.id, `Rebuilding project in ${paths.sourceRoot}.`);
+    this.publishTaskProgress(project, task, 'building');
     await this.runBuild(task, paths.sourceRoot, timeoutMs);
     const release = await this.publishPreviewRelease(project, task.id, paths.sourceRoot);
     this.store.updateProjectBuildState(project.project_id, release.release_path, 'preview_ready');
-    this.store.createMessage({
-      projectId: project.project_id,
-      taskId: task.id,
-      role: 'assistant',
-      content: '重新构建完成，预览保持最新。',
-    });
     this.store.createEvent({
       projectId: project.project_id,
       taskId: task.id,
@@ -809,12 +872,6 @@ export class ShipNowManager {
     });
     this.store.updateProjectPublishState(project.project_id, publicRelease.release_path, 'published');
     this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
-    this.store.createMessage({
-      projectId: project.project_id,
-      taskId: task.id,
-      role: 'assistant',
-      content: `已经发布完成，公开地址是 ${project.public_handle}。`,
-    });
     this.store.createEvent({
       projectId: project.project_id,
       taskId: task.id,
@@ -836,12 +893,6 @@ export class ShipNowManager {
       type: 'deleted',
       title: '项目已删除',
       detail: '工作区和发布目录已清理。',
-    });
-    this.store.createMessage({
-      projectId: project.project_id,
-      taskId: task.id,
-      role: 'assistant',
-      content: '项目已经删除，相关工作区也已清理。',
     });
     await this.store.appendTaskLogAsync(task.id, `Deleted workspace for ${project.display_name}.`);
   }
@@ -881,6 +932,25 @@ export class ShipNowManager {
     }
   }
 
+  private publishTaskProgress(
+    project: ProjectRecord,
+    task: Pick<TaskRecord, 'id' | 'type' | 'runner_name'>,
+    phase: 'queued' | 'starting' | 'running' | 'building' | 'completed' | 'failed',
+    options: { createdAt?: string; runnerName?: TaskRunnerName | null; errorMessage?: string | null } = {}
+  ): void {
+    projectTimelineBus.publish(
+      createTaskProgressEvent({
+        projectId: project.project_id,
+        taskId: task.id,
+        taskType: task.type,
+        phase,
+        runnerName: options.runnerName ?? task.runner_name ?? this.resolveEffectiveRunner(project),
+        createdAt: options.createdAt,
+        errorMessage: options.errorMessage,
+      })
+    );
+  }
+
   private async ensureGitRepository(cwd: string, taskId: string): Promise<void> {
     if (existsSync(resolve(cwd, '.git'))) {
       return;
@@ -918,6 +988,86 @@ export class ShipNowManager {
       default:
         throw new Error(`Unsupported task runner ${runnerName}.`);
     }
+  }
+
+  private normalizeAssistantReply(reply: string): string {
+    const trimmed = reply.trim();
+    if (!trimmed) {
+      return '我已经看过这个请求了，但这次没有生成有效回复。';
+    }
+    return trimmed;
+  }
+
+  private async runRunnerText(
+    runnerName: TaskRunnerName,
+    prompt: string,
+    cwd: string,
+    timeoutMs: number
+  ): Promise<string> {
+    let stdout = '';
+    let stderr = '';
+
+    switch (runnerName) {
+      case 'codex': {
+        const result = await runCommand({
+          command: this.env.codexBin,
+          args: ['exec', '--full-auto', '--skip-git-repo-check', '--cd', cwd, prompt],
+          cwd,
+          timeoutMs,
+          onStdout: async (chunk) => {
+            stdout += chunk;
+          },
+          onStderr: async (chunk) => {
+            stderr += chunk;
+          },
+        });
+        if (result.code !== 0) {
+          throw new Error(`Codex failed with exit code ${result.code}.`);
+        }
+        break;
+      }
+      case 'claude-code': {
+        if (!this.env.claudeCodeAnthropicApiKey) {
+          throw new Error('Claude Code DeepSeek API key is not configured.');
+        }
+
+        const result = await runCommand({
+          command: this.env.claudeCodeBin,
+          args: [
+            '-p',
+            '--output-format',
+            'text',
+            '--model',
+            this.env.claudeCodeModel,
+            '--max-turns',
+            '8',
+            '--dangerously-skip-permissions',
+            prompt,
+          ],
+          cwd,
+          timeoutMs,
+          env: {
+            ANTHROPIC_BASE_URL: this.env.claudeCodeAnthropicBaseUrl,
+            ANTHROPIC_API_KEY: this.env.claudeCodeAnthropicApiKey,
+            ANTHROPIC_MODEL: this.env.claudeCodeModel,
+          },
+          onStdout: async (chunk) => {
+            stdout += chunk;
+          },
+          onStderr: async (chunk) => {
+            stderr += chunk;
+          },
+        });
+        if (result.code !== 0) {
+          throw new Error(`Claude Code failed with exit code ${result.code}.`);
+        }
+        break;
+      }
+      default:
+        throw new Error(`Unsupported task runner ${runnerName}.`);
+    }
+
+    return stdout.trim() || stderr.trim();
   }
 
   private async runCodex(task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {

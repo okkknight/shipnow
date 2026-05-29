@@ -1,4 +1,4 @@
-import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { type ButtonHTMLAttributes, type ReactNode } from 'react';
 import {
   ArrowUpRight,
   ChevronLeft,
@@ -36,68 +36,87 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import type { Tone } from './shipnow-ui';
+import {
+  AssistantActionCard,
+  ChatBubble,
+  Composer,
+  ConfirmationSheet,
+  DrawerMock,
+  EmptyState,
+  ProjectCard,
+  QuickActionChip,
+  SnButton,
+  StatusChip,
+  TopBar,
+} from './shipnow-ui';
 
-type Tone = 'preview-ready' | 'published' | 'building' | 'needs-fix';
 
-type SnButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'icon';
-
-export function SnButton({
+export function ReferenceVisualPhoneShell({
   children,
-  variant = 'secondary',
-  icon,
-  title,
   className,
-  type = 'button',
-  ...buttonProps
 }: {
-  children?: ReactNode;
-  variant?: SnButtonVariant;
-  icon?: ReactNode;
-  title?: string;
+  children: ReactNode;
   className?: string;
-  type?: 'button' | 'submit' | 'reset';
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const variantClass =
-    variant === 'primary'
-      ? 'sn-button-primary'
-      : variant === 'secondary'
-        ? 'sn-button-secondary'
-        : variant === 'ghost'
-          ? 'sn-button-ghost'
-          : variant === 'destructive'
-            ? 'sn-button-destructive'
-            : 'sn-button-icon';
-
+}) {
   return (
-    <button type={type} className={`sn-button ${variantClass} ${className ?? ''}`.trim()} title={title} {...buttonProps}>
-      {icon ? <span className="sn-button-icon-slot">{icon}</span> : null}
-      {children}
-    </button>
+    <div className={`sn-reference-phone ${className ?? ''}`.trim()}>
+      <div className="sn-reference-phone-device">
+        <div className="sn-reference-phone-screen">
+          <div className="sn-reference-phone-statusbar">
+            <span className="sn-reference-phone-time">9:41</span>
+            <div className="sn-reference-phone-indicators" aria-hidden="true">
+              <span className="sn-reference-phone-signal">
+                <span />
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className="sn-reference-phone-wifi" />
+              <span className="sn-reference-phone-battery">
+                <span />
+              </span>
+            </div>
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }
 
-export function StatusChip({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return <span className={`sn-status-chip ${tone}`}>{children}</span>;
+export function ReferenceVisualPhoneTopBar({
+  left,
+  title,
+  right,
+  className,
+}: {
+  left?: ReactNode;
+  title: ReactNode;
+  right?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`sn-reference-phone-topbar ${className ?? ''}`.trim()}>
+      <div className="sn-reference-phone-topbar-left">{left}</div>
+      <div className="sn-reference-phone-topbar-title">{title}</div>
+      <div className="sn-reference-phone-topbar-right">{right}</div>
+    </div>
+  );
 }
 
-export function QuickActionChip({
+export function SnActionButton({
   children,
-  icon,
+  variant = 'secondary',
   className,
-  type = 'button',
   ...buttonProps
 }: {
   children: ReactNode;
-  icon?: ReactNode;
+  variant?: 'primary' | 'secondary' | 'ghost';
   className?: string;
-  type?: 'button' | 'submit' | 'reset';
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button type={type} className={`sn-quick-chip ${className ?? ''}`.trim()} {...buttonProps}>
-      {icon ? <span className="sn-quick-chip-icon">{icon}</span> : null}
-      <span>{children}</span>
-    </button>
-  );
+  const variantClass = variant === 'primary' ? 'is-primary' : variant === 'ghost' ? 'is-ghost' : 'is-secondary';
+  return <button className={`sn-action-button ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
 }
 
 function Section({
@@ -199,6 +218,19 @@ const DESIGN_SYSTEM_TOKENS = [
   { name: '--sn-color-stone', value: '#E7E5E1', swatch: 'var(--sn-color-stone)' },
   { name: '--sn-color-ink', value: '#0F1115', swatch: 'var(--sn-color-ink)' },
 ] as const;
+
+function DrawerListItem({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle: string }) {
+  return (
+    <div className="sn-drawer-list-item">
+      <div className="sn-drawer-list-item-icon">{icon}</div>
+      <div className="sn-drawer-list-item-copy">
+        <div className="sn-drawer-list-item-title">{title}</div>
+        <div className="sn-drawer-list-item-subtitle">{subtitle}</div>
+      </div>
+      <MoreHorizontal className="size-4 sn-drawer-list-item-more" />
+    </div>
+  );
+}
 
 function MobileDesignSystemPage() {
   const iconSamples = [
@@ -427,317 +459,6 @@ function MobileDesignSystemPage() {
       </Section>
     </div>
   );
-}
-
-export function MobilePreviewPage({
-  projectName,
-  previewUrl,
-  onBackEdit,
-  onPublish,
-  embedded = false,
-}: {
-  projectName: string;
-  previewUrl: string;
-  onBackEdit: () => void;
-  onPublish: () => void;
-  embedded?: boolean;
-}) {
-  return (
-    <MobilePageSurface className={`sn-mobile-preview-page ${embedded ? 'sn-mobile-preview-page-embedded' : ''}`.trim()}>
-      <div className="sn-mobile-preview-visual">
-        <header className="sn-mobile-preview-nav">
-          <button className="sn-mobile-preview-nav-icon" type="button" aria-label="返回" onClick={onBackEdit}>
-            <ChevronLeft className="size-5" />
-          </button>
-          <div className="sn-mobile-preview-nav-copy">
-            <div className="sn-mobile-preview-nav-title">{projectName}</div>
-            <StatusChip tone="preview-ready">预览中</StatusChip>
-          </div>
-        </header>
-
-        <div className="sn-mobile-preview-body">
-          <div className="sn-mobile-preview-frame-shell">
-            <iframe
-              className="sn-mobile-preview-frame"
-              src={previewUrl}
-              title={`${projectName} 预览`}
-              loading="eager"
-            />
-          </div>
-
-          <div className="sn-mobile-preview-footer-actions">
-            <MobileActionButton variant="secondary" className="sn-mobile-preview-footer-secondary" onClick={onBackEdit}>
-              <Sparkles className="size-4" />
-              Continue editing
-            </MobileActionButton>
-            <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onPublish}>
-              <Upload className="size-4" />
-              Publish
-            </MobileActionButton>
-          </div>
-        </div>
-      </div>
-    </MobilePageSurface>
-  );
-}
-
-export function MobilePublishResultPage({
-  success,
-  publicUrl,
-  onOpenWebsite,
-  onCopyLink,
-  onContinueEditing,
-  onAutoFix,
-  onViewLogs,
-}: {
-  success: boolean;
-  publicUrl: string;
-  onOpenWebsite: () => void;
-  onCopyLink: () => void;
-  onContinueEditing: () => void;
-  onAutoFix: () => void;
-  onViewLogs: () => void;
-}) {
-  const [copyHint, setCopyHint] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!copyHint) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setCopyHint(null);
-    }, 1600);
-
-    return () => window.clearTimeout(timeout);
-  }, [copyHint]);
-
-  async function handleCopyLink(): Promise<void> {
-    await onCopyLink();
-    setCopyHint('链接已复制');
-  }
-
-  return (
-    <MobilePageSurface className="sn-mobile-result-page">
-      <div className="sn-mobile-result-content">
-        <div className={`sn-mobile-result-figure ${success ? 'is-success' : 'is-failure'}`}>
-          <div className="sn-mobile-result-cloud is-left" />
-          <div className="sn-mobile-result-cloud is-center" />
-          <div className="sn-mobile-result-cloud is-right" />
-          <div className={`sn-mobile-result-blob ${success ? 'is-success' : 'is-failure'}`}>
-            {success ? <CheckCircle2 className="size-6" /> : <CircleAlert className="size-6" />}
-          </div>
-        </div>
-        <div className="sn-mobile-result-title">{success ? '发布成功' : '发布失败'}</div>
-        <div className="sn-mobile-result-copy">
-          {success ? '你的网站已上线，全球都可以访问了！' : '部署过程中遇到了一些问题，但我们可以继续修复。'}
-        </div>
-        {success ? (
-          <div className="sn-mobile-result-card sn-mobile-result-address-card">
-            <div className="sn-mobile-result-label">线上地址</div>
-            <div className="sn-mobile-result-address-row">
-              <span>{publicUrl}</span>
-              <button className="sn-mobile-result-copy-icon" type="button" onClick={handleCopyLink} aria-label="复制线上地址">
-                <Copy className="size-4" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="sn-mobile-result-card sn-mobile-result-reasons-card">
-            <div className="sn-mobile-result-label">常见原因</div>
-            <ul className="sn-mobile-result-bullet-list">
-              <li>构建错误</li>
-              <li>依赖安装失败</li>
-              <li>配置文件问题</li>
-            </ul>
-          </div>
-        )}
-        <div className="sn-mobile-result-actions is-stacked">
-          {success ? (
-            <>
-              <MobileActionButton variant="primary" onClick={onOpenWebsite}>
-                <ArrowUpRight className="size-4" /> 打开网站
-              </MobileActionButton>
-              <MobileActionButton variant="secondary" onClick={handleCopyLink}>
-                <Copy className="size-4" /> 复制链接
-              </MobileActionButton>
-              <MobileActionButton variant="secondary" onClick={onContinueEditing}>
-                <Edit2 className="size-4" /> 继续编辑
-              </MobileActionButton>
-            </>
-          ) : (
-            <>
-              <MobileActionButton variant="primary" onClick={onAutoFix}>
-                <Zap className="size-4" /> ShipNow 自动修复
-              </MobileActionButton>
-              <MobileActionButton variant="secondary" onClick={onViewLogs}>
-                <Info className="size-4" /> 查看日志
-              </MobileActionButton>
-              <MobileActionButton variant="secondary" onClick={onContinueEditing}>
-                稍后再试
-              </MobileActionButton>
-            </>
-          )}
-        </div>
-      </div>
-      {copyHint ? (
-        <div className="sn-mobile-result-toast" role="status" aria-live="polite">
-          {copyHint}
-        </div>
-      ) : null}
-    </MobilePageSurface>
-  );
-}
-
-export function ReferenceVisualPhoneShell({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`sn-reference-phone ${className ?? ''}`.trim()}>
-      <div className="sn-reference-phone-device">
-        <div className="sn-reference-phone-screen">
-          <div className="sn-reference-phone-statusbar">
-            <span className="sn-reference-phone-time">9:41</span>
-            <div className="sn-reference-phone-indicators" aria-hidden="true">
-              <span className="sn-reference-phone-signal">
-                <span />
-                <span />
-                <span />
-                <span />
-              </span>
-              <span className="sn-reference-phone-wifi" />
-              <span className="sn-reference-phone-battery">
-                <span />
-              </span>
-            </div>
-          </div>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ReferenceVisualPhoneTopBar({
-  left,
-  title,
-  right,
-  className,
-}: {
-  left?: ReactNode;
-  title: ReactNode;
-  right?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`sn-reference-phone-topbar ${className ?? ''}`.trim()}>
-      <div className="sn-reference-phone-topbar-left">{left}</div>
-      <div className="sn-reference-phone-topbar-title">{title}</div>
-      <div className="sn-reference-phone-topbar-right">{right}</div>
-    </div>
-  );
-}
-
-export function SnActionButton({
-  children,
-  variant = 'secondary',
-  className,
-  ...buttonProps
-}: {
-  children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'ghost';
-  className?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const variantClass = variant === 'primary' ? 'is-primary' : variant === 'ghost' ? 'is-ghost' : 'is-secondary';
-  return <button className={`sn-action-button ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
-}
-
-export function MobilePageSurface({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <div className={`sn-mobile-page ${className ?? ''}`.trim()}>{children}</div>;
-}
-
-export function MobileCompactHeader({
-  title,
-  onMenu,
-  className,
-}: {
-  title: ReactNode;
-  onMenu: () => void;
-  className?: string;
-}) {
-  return (
-    <div className={`sn-mobile-page-header ${className ?? ''}`.trim()}>
-      <MobileIconButton type="button" aria-label="菜单" onClick={onMenu}>
-        <Menu className="size-4" />
-      </MobileIconButton>
-      <div className="sn-mobile-brand">{title}</div>
-    </div>
-  );
-}
-
-export function MobileTopBar({
-  left,
-  title,
-  right,
-  className,
-}: {
-  left?: ReactNode;
-  title: ReactNode;
-  right?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`sn-mobile-topbar ${className ?? ''}`.trim()}>
-      <div className="sn-mobile-topbar-left">{left}</div>
-      <div className="sn-mobile-topbar-title">{title}</div>
-      <div className="sn-mobile-topbar-right">{right}</div>
-    </div>
-  );
-}
-
-export function MobileIconButton({
-  children,
-  className,
-  ...buttonProps
-}: {
-  children: ReactNode;
-  className?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button className={`sn-mobile-icon-button ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
-}
-
-export function MobileStatusPill({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <div className={`sn-mobile-status-pill ${className ?? ''}`.trim()}>{children}</div>;
-}
-
-export function MobileActionButton({
-  children,
-  variant = 'secondary',
-  className,
-  ...buttonProps
-}: {
-  children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'ghost';
-  className?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const variantClass = variant === 'primary' ? 'is-primary' : variant === 'ghost' ? 'is-ghost' : 'is-secondary';
-  return <button className={`sn-mobile-action-button ${variantClass} ${className ?? ''}`.trim()} {...buttonProps}>{children}</button>;
 }
 
 function ReferencePreviewPhone() {
@@ -1235,308 +956,6 @@ function ReferenceChatWorkspacePhone() {
         </div>
       </div>
     </ReferenceVisualPhoneShell>
-  );
-}
-
-export function TopBar({
-  mode,
-}: {
-  mode: 'workspace' | 'project' | 'preview';
-}) {
-  return (
-    <div className="sn-topbar">
-      {mode === 'workspace' ? (
-        <>
-          <div className="sn-topbar-left">
-            <SnButton variant="icon" icon={<Menu className="size-4" />} title="打开菜单" />
-            <div className="sn-brand-stack">
-              <div className="sn-brand-mark">SN</div>
-              <div>
-                <div className="sn-brand-title">ShipNow</div>
-                <div className="sn-brand-subtitle">主工作台顶部栏</div>
-              </div>
-            </div>
-          </div>
-          <div className="sn-topbar-right">
-            <StatusChip tone="preview-ready">Preview ready</StatusChip>
-            <SnButton variant="icon" className="sn-button-icon-dark" icon={<Plus className="size-4" />} title="新建项目" />
-          </div>
-        </>
-      ) : null}
-
-      {mode === 'project' ? (
-        <>
-          <div className="sn-topbar-left">
-            <SnButton variant="icon" icon={<ChevronLeft className="size-4" />} title="返回" />
-            <div className="sn-brand-stack">
-              <div className="sn-brand-mark sn-brand-mark--compact">SN</div>
-              <div>
-                <div className="sn-brand-title sn-brand-title-inline">
-                  <span>bannercheck</span>
-                  <Edit2 className="size-3" />
-                </div>
-                <div className="sn-brand-subtitle">Marketing banner site</div>
-              </div>
-            </div>
-          </div>
-          <div className="sn-topbar-right">
-            <SnButton variant="icon" icon={<MoreHorizontal className="size-4" />} title="更多" />
-          </div>
-        </>
-      ) : null}
-
-      {mode === 'preview' ? (
-        <>
-          <div className="sn-topbar-left">
-            <SnButton variant="icon" icon={<X className="size-4" />} title="关闭" />
-            <div className="sn-brand-stack">
-              <div className="sn-brand-mark sn-brand-mark--compact">SN</div>
-              <div>
-                <div className="sn-brand-title sn-brand-title-inline">Preview - v1 · Home</div>
-                <div className="sn-brand-subtitle">预览页顶部栏</div>
-              </div>
-            </div>
-          </div>
-          <div className="sn-topbar-right">
-            <SnButton variant="icon" icon={<ArrowUpRight className="size-4" />} title="分享" />
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-function DrawerListItem({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle: string }) {
-  return (
-    <div className="sn-drawer-list-item">
-      <div className="sn-drawer-list-item-icon">{icon}</div>
-      <div className="sn-drawer-list-item-copy">
-        <div className="sn-drawer-list-item-title">{title}</div>
-        <div className="sn-drawer-list-item-subtitle">{subtitle}</div>
-      </div>
-      <MoreHorizontal className="size-4 sn-drawer-list-item-more" />
-    </div>
-  );
-}
-
-export function ChatBubble({
-  role,
-  children,
-}: {
-  role: 'user' | 'assistant' | 'thinking';
-  children: ReactNode;
-}) {
-  const roleClass =
-    role === 'user'
-      ? 'user'
-      : role === 'assistant'
-        ? 'assistant'
-        : 'thinking';
-
-  return (
-    <div className={`sn-chat-bubble ${roleClass}`}>
-      {role === 'assistant' ? (
-        <div className="sn-chat-avatar is-assistant" aria-hidden="true">
-          <Sparkles className="size-4" />
-        </div>
-      ) : null}
-      {role === 'user' ? (
-        <div className="sn-chat-avatar is-user" aria-hidden="true">
-          <User className="size-4" />
-        </div>
-      ) : null}
-      <div className="sn-chat-copy">{children}</div>
-    </div>
-  );
-}
-
-export function AssistantActionCard({
-  title,
-  summary,
-}: {
-  title: string;
-  summary: string;
-}) {
-  return (
-    <article className="sn-action-card">
-      <div className="sn-action-visual">
-        <div className="sn-action-thumb">
-          <div className="sn-action-mini">
-            <div className="sn-action-mini-top" />
-            <div className="sn-action-mini-content">
-              <div className="sn-action-mini-line sn-action-mini-line-lg" />
-              <div className="sn-action-mini-line" />
-              <div className="sn-action-mini-line sn-action-mini-line-sm" />
-              <div className="sn-action-mini-pill" />
-            </div>
-          </div>
-        </div>
-        <div className="sn-action-side">
-          <div className="sn-action-title">{title}</div>
-          <ul className="sn-action-checklist">
-            <li><CheckCircle2 className="size-4" /> Hero 区域</li>
-            <li><CheckCircle2 className="size-4" /> 核心优势</li>
-            <li><CheckCircle2 className="size-4" /> 操作指引</li>
-          </ul>
-          <div className="sn-action-section-count">4 sections</div>
-        </div>
-      </div>
-      <div className="sn-action-body">
-        <p className="sn-action-summary">{summary}</p>
-        <div className="sn-action-cta-row">
-          <SnButton variant="secondary" icon={<Eye className="size-4" />}>
-            Open preview
-          </SnButton>
-          <SnButton variant="primary" icon={<ArrowUpRight className="size-4" />}>
-            Publish
-          </SnButton>
-          <SnButton variant="ghost" icon={<Sparkles className="size-4" />}>
-            Continue editing
-          </SnButton>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-export function ProjectCard({
-  name,
-  description,
-  status,
-  updatedAt,
-  onClick,
-}: {
-  name: string;
-  description: string;
-  status: Tone;
-  updatedAt: string;
-  onClick?: () => void;
-}) {
-  return (
-    <article
-      className={`sn-project-card ${onClick ? 'is-clickable' : ''}`.trim()}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onClick={onClick}
-    >
-      <div className="sn-project-thumb">
-        <div className="sn-project-thumb-inner" />
-      </div>
-      <div className="sn-project-copy">
-        <div className="sn-project-head">
-          <div>
-            <h3 className="sn-project-name">{name}</h3>
-            <p className="sn-project-description">{description}</p>
-          </div>
-          <SnButton variant="icon" icon={<MoreHorizontal className="size-4" />} title="更多操作" />
-        </div>
-        <div className="sn-project-meta">
-          <span className="sn-project-avatar" />
-          <StatusChip tone={status}>
-            {status === 'preview-ready'
-              ? 'Preview ready'
-              : status === 'published'
-                ? 'Published'
-                : status === 'building'
-                  ? 'Building'
-                  : 'Needs fix'}
-          </StatusChip>
-          <span>{updatedAt}</span>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-export function Composer() {
-  return (
-    <div className="sn-composer">
-      <div className="sn-composer-rail">
-        <SnButton variant="icon" className="sn-composer-icon" icon={<Paperclip className="size-4" />} title="附件" />
-        <input
-          className="sn-composer-input"
-          type="text"
-          placeholder="告诉 ShipNow 你想做什么..."
-          readOnly
-        />
-        <SnButton variant="icon" className="sn-send-button" icon={<Send className="size-4" />} title="发送" />
-      </div>
-      <div className="sn-composer-actions">
-        <SnButton variant="secondary" className="sn-preview-button" icon={<Eye className="size-4" />}>
-          Preview
-        </SnButton>
-        <SnButton variant="secondary" className="sn-publish-button" icon={<Upload className="size-4" />}>
-          Publish
-        </SnButton>
-      </div>
-    </div>
-  );
-}
-
-export function DrawerMock({
-  side,
-  title,
-  children,
-}: {
-  side: 'left' | 'right';
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`sn-drawer ${side}`}>
-      <div className="sn-drawer-head">
-        <div>
-          <p className="sn-drawer-kicker">{side === 'left' ? 'Navigation' : 'Status'}</p>
-          <h3 className="sn-drawer-title">{title}</h3>
-        </div>
-        <SnButton variant="icon" icon={<ChevronDown className="size-4" />} title="折叠" />
-      </div>
-      <div className="sn-drawer-body">{children}</div>
-    </div>
-  );
-}
-
-export function ConfirmationSheet({
-  title,
-  description,
-  confirmLabel,
-  destructive = false,
-}: {
-  title: string;
-  description: string;
-  confirmLabel: string;
-  destructive?: boolean;
-}) {
-  return (
-    <div className="sn-confirmation-sheet">
-      <div className="sn-confirmation-head">
-        <div className="sn-confirmation-badge">{destructive ? 'Delete confirmation' : 'Publish confirmation'}</div>
-        <div className="sn-confirmation-title">{title}</div>
-        <p className="sn-confirmation-description">{description}</p>
-      </div>
-      <div className="sn-confirmation-footer">
-        <SnButton variant="secondary">Cancel</SnButton>
-        <SnButton variant={destructive ? 'destructive' : 'primary'}>{confirmLabel}</SnButton>
-      </div>
-    </div>
-  );
-}
-
-export function EmptyState({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: ReactNode;
-}) {
-  return (
-    <div className="sn-empty-state">
-      <div className="sn-empty-icon">{icon}</div>
-      <div className="sn-empty-title">{title}</div>
-      <p className="sn-empty-description">{description}</p>
-    </div>
   );
 }
 

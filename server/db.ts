@@ -4,7 +4,9 @@ import { dirname, resolve } from 'node:path';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { appendFile } from 'node:fs/promises';
 import { removePath } from './utils.js';
+import { isTaskRunnerName, parseTaskRunnerName, taskRunnerBackend } from './runners.js';
 import type {
+  AppSettingsView,
   ProjectAliasRecord,
   ProjectEventRecord,
   ProjectMessageRecord,
@@ -15,7 +17,9 @@ import type {
   ReleaseRecord,
   TaskRecord,
   TaskStatus,
+  TaskRunnerName,
   TaskType,
+  ProjectSettingsView,
 } from './types.js';
 
 type SqlDatabase = Database.Database;
@@ -76,99 +80,123 @@ export class ShipNowStore {
 
   private migrate(): void {
     const version = Number(this.db.pragma('user_version', { simple: true }) ?? 0);
-    if (version >= 2) {
+    if (version >= 3) {
+      return;
+    }
+
+    if (version < 2) {
+      this.db.exec(`
+        DROP TABLE IF EXISTS project_events;
+        DROP TABLE IF EXISTS project_messages;
+        DROP TABLE IF EXISTS project_aliases;
+        DROP TABLE IF EXISTS settings;
+        DROP TABLE IF EXISTS releases;
+        DROP TABLE IF EXISTS tasks;
+        DROP TABLE IF EXISTS projects;
+
+        CREATE TABLE projects (
+          project_id TEXT PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          public_handle TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          status TEXT NOT NULL,
+          source_root TEXT NOT NULL,
+          preferred_runner TEXT,
+          preview_release_path TEXT,
+          public_release_path TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_built_at TEXT,
+          last_published_at TEXT,
+          deleted_at TEXT,
+          latest_task_id TEXT
+        );
+
+        CREATE TABLE tasks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          runner_name TEXT,
+          started_at TEXT,
+          finished_at TEXT,
+          log_path TEXT NOT NULL,
+          error_message TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE releases (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          source TEXT NOT NULL,
+          release_path TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          published_at TEXT,
+          build_task_id TEXT,
+          is_current_preview INTEGER NOT NULL DEFAULT 0,
+          is_current_public INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE project_aliases (
+          alias_handle TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE project_messages (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          task_id TEXT,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE project_events (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          task_id TEXT,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          detail TEXT,
+          data_json TEXT,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE settings (
+          setting_key TEXT PRIMARY KEY,
+          setting_value TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_tasks_project_id ON tasks(project_id);
+        CREATE INDEX idx_tasks_status ON tasks(status);
+        CREATE INDEX idx_releases_project_kind ON releases(project_id, kind);
+        CREATE INDEX idx_project_aliases_project_id ON project_aliases(project_id);
+        CREATE INDEX idx_project_messages_project_id ON project_messages(project_id);
+        CREATE INDEX idx_project_events_project_id ON project_events(project_id);
+      `);
+      this.db.prepare('INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES (?, ?)').run('default_runner', 'codex');
+      this.db.pragma('user_version = 3');
       return;
     }
 
     this.db.exec(`
-      DROP TABLE IF EXISTS project_events;
-      DROP TABLE IF EXISTS project_messages;
-      DROP TABLE IF EXISTS project_aliases;
-      DROP TABLE IF EXISTS releases;
-      DROP TABLE IF EXISTS tasks;
-      DROP TABLE IF EXISTS projects;
-
-      CREATE TABLE projects (
-        project_id TEXT PRIMARY KEY,
-        display_name TEXT NOT NULL,
-        public_handle TEXT NOT NULL UNIQUE,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        status TEXT NOT NULL,
-        source_root TEXT NOT NULL,
-        preview_release_path TEXT,
-        public_release_path TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        last_built_at TEXT,
-        last_published_at TEXT,
-        deleted_at TEXT,
-        latest_task_id TEXT
+      ALTER TABLE projects ADD COLUMN preferred_runner TEXT;
+      ALTER TABLE tasks ADD COLUMN runner_name TEXT;
+      CREATE TABLE IF NOT EXISTS settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL
       );
-
-      CREATE TABLE tasks (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        status TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        started_at TEXT,
-        finished_at TEXT,
-        log_path TEXT NOT NULL,
-        error_message TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE releases (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        source TEXT NOT NULL,
-        release_path TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        published_at TEXT,
-        build_task_id TEXT,
-        is_current_preview INTEGER NOT NULL DEFAULT 0,
-        is_current_public INTEGER NOT NULL DEFAULT 0
-      );
-
-      CREATE TABLE project_aliases (
-        alias_handle TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE TABLE project_messages (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        task_id TEXT,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE TABLE project_events (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        task_id TEXT,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        detail TEXT,
-        data_json TEXT,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE INDEX idx_tasks_project_id ON tasks(project_id);
-      CREATE INDEX idx_tasks_status ON tasks(status);
-      CREATE INDEX idx_releases_project_kind ON releases(project_id, kind);
-      CREATE INDEX idx_project_aliases_project_id ON project_aliases(project_id);
-      CREATE INDEX idx_project_messages_project_id ON project_messages(project_id);
-      CREATE INDEX idx_project_events_project_id ON project_events(project_id);
+      INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES ('default_runner', 'codex');
     `);
 
-    this.db.pragma('user_version = 2');
+    this.db.prepare('UPDATE tasks SET runner_name = COALESCE(runner_name, ?)').run('codex');
+    this.db.pragma('user_version = 3');
   }
 
   close(): void {
@@ -234,6 +262,50 @@ export class ShipNowStore {
     return this.getProjectByHandle(handle) !== null;
   }
 
+  getAppSettings(): AppSettingsView {
+    const row = this.db
+      .prepare('SELECT setting_value FROM settings WHERE setting_key = ? LIMIT 1')
+      .get('default_runner') as { setting_value?: string } | undefined;
+    const defaultRunner = parseTaskRunnerName(row?.setting_value, 'codex');
+    return {
+      defaultRunner,
+      defaultRunnerBackend: taskRunnerBackend(defaultRunner),
+    };
+  }
+
+  setDefaultRunnerPreference(defaultRunner: TaskRunnerName): AppSettingsView {
+    this.db
+      .prepare('INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES (?, ?)')
+      .run('default_runner', defaultRunner);
+    return this.getAppSettings();
+  }
+
+  getProjectRunnerSettings(projectId: string): ProjectSettingsView | null {
+    const project = this.getProjectById(projectId);
+    if (!project) {
+      return null;
+    }
+    const appSettings = this.getAppSettings();
+    const effectiveRunner = project.preferred_runner ?? appSettings.defaultRunner;
+    return {
+      projectId: project.project_id,
+      preferredRunner: project.preferred_runner,
+      effectiveRunner,
+      effectiveRunnerBackend: taskRunnerBackend(effectiveRunner),
+      runnerSource: project.preferred_runner ? 'project' : 'global',
+    };
+  }
+
+  setProjectRunnerPreference(projectId: string, preferredRunner: TaskRunnerName | null): ProjectRecord | null {
+    const current = this.getProjectById(projectId);
+    if (!current) {
+      return null;
+    }
+    return this.updateProject(projectId, {
+      preferred_runner: preferredRunner,
+    });
+  }
+
   createProject(input: {
     projectId: string;
     displayName: string;
@@ -243,6 +315,7 @@ export class ShipNowStore {
     prompt: string;
     sourceRoot: string;
     status?: ProjectStatus;
+    preferredRunner?: TaskRunnerName | null;
   }): ProjectRecord {
     const createdAt = nowIso();
     const record: ProjectRecord = {
@@ -254,6 +327,7 @@ export class ShipNowStore {
       prompt: input.prompt,
       status: input.status ?? 'draft',
       source_root: input.sourceRoot,
+      preferred_runner: isTaskRunnerName(input.preferredRunner) ? input.preferredRunner : null,
       preview_release_path: null,
       public_release_path: null,
       created_at: createdAt,
@@ -268,11 +342,11 @@ export class ShipNowStore {
         `
         INSERT INTO projects (
           project_id, display_name, public_handle, type, title, prompt, status, source_root,
-          preview_release_path, public_release_path, created_at, updated_at,
+          preferred_runner, preview_release_path, public_release_path, created_at, updated_at,
           last_built_at, last_published_at, deleted_at, latest_task_id
         ) VALUES (
           @project_id, @display_name, @public_handle, @type, @title, @prompt, @status, @source_root,
-          @preview_release_path, @public_release_path, @created_at, @updated_at,
+          @preferred_runner, @preview_release_path, @public_release_path, @created_at, @updated_at,
           @last_built_at, @last_published_at, @deleted_at, @latest_task_id
         )
       `
@@ -298,6 +372,7 @@ export class ShipNowStore {
           prompt = @prompt,
           status = @status,
           source_root = @source_root,
+          preferred_runner = @preferred_runner,
           preview_release_path = @preview_release_path,
           public_release_path = @public_release_path,
           updated_at = @updated_at,
@@ -370,6 +445,7 @@ export class ShipNowStore {
     type: TaskType;
     prompt: string;
     logPath: string;
+    runnerName?: string | null;
   }): TaskRecord {
     const now = nowIso();
     const task: TaskRecord = {
@@ -378,6 +454,7 @@ export class ShipNowStore {
       type: input.type,
       status: 'pending',
       prompt: input.prompt,
+      runner_name: isTaskRunnerName(input.runnerName) ? input.runnerName : null,
       started_at: null,
       finished_at: null,
       log_path: input.logPath,
@@ -390,11 +467,11 @@ export class ShipNowStore {
         `
         INSERT INTO tasks (
           id, project_id, type, status, prompt,
-          started_at, finished_at, log_path, error_message,
+          runner_name, started_at, finished_at, log_path, error_message,
           created_at, updated_at
         ) VALUES (
           @id, @project_id, @type, @status, @prompt,
-          @started_at, @finished_at, @log_path, @error_message,
+          @runner_name, @started_at, @finished_at, @log_path, @error_message,
           @created_at, @updated_at
         )
       `
@@ -417,6 +494,7 @@ export class ShipNowStore {
           type = @type,
           status = @status,
           prompt = @prompt,
+          runner_name = @runner_name,
           started_at = @started_at,
           finished_at = @finished_at,
           log_path = @log_path,
@@ -435,6 +513,9 @@ export class ShipNowStore {
       return;
     }
     const entry = `[${nowIso()}] ${line}\n`;
+    // Deleted projects may have had their log directory removed by older cleanup code.
+    // Recreate the parent directory so task completion can always flush its final lines.
+    mkdirSync(dirname(task.log_path), { recursive: true });
     await appendFile(task.log_path, entry, 'utf8');
     this.db.prepare('UPDATE tasks SET updated_at = ? WHERE id = ?').run(nowIso(), id);
   }

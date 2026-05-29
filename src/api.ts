@@ -1,4 +1,12 @@
-import type { ProjectActionResponse, ProjectDetailResponse, ProjectListResponse, ProjectView, TaskView } from './types';
+import type {
+  AppSettingsResponse,
+  ProjectActionResponse,
+  ProjectDetailResponse,
+  ProjectListResponse,
+  ProjectSettingsResponse,
+  ProjectView,
+  TaskView,
+} from './types';
 
 function readRuntimeApiBase(): string | null {
   if (typeof document === 'undefined') {
@@ -33,6 +41,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function listProjects(): Promise<ProjectListResponse> {
   return request('/projects');
+}
+
+export function getAppSettings(): Promise<AppSettingsResponse> {
+  return request('/settings');
+}
+
+export function updateAppSettings(defaultRunner: 'codex' | 'claude-code'): Promise<AppSettingsResponse> {
+  return request('/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ defaultRunner }),
+  });
 }
 
 export function createProject(payload: {
@@ -71,6 +90,17 @@ export function renameProject(projectId: string, displayName: string): Promise<P
   return request(`/projects/${encodeURIComponent(projectId)}/rename`, {
     method: 'POST',
     body: JSON.stringify({ displayName }),
+  });
+}
+
+export function getProjectSettings(projectId: string): Promise<ProjectSettingsResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}/settings`);
+}
+
+export function updateProjectSettings(projectId: string, preferredRunner: 'codex' | 'claude-code' | null): Promise<ProjectSettingsResponse> {
+  return request(`/projects/${encodeURIComponent(projectId)}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ preferredRunner }),
   });
 }
 

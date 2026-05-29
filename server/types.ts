@@ -1,3 +1,7 @@
+import type { RunnerBackendName, TaskRunnerName } from './runners.js';
+
+export type { RunnerBackendName, TaskRunnerName } from './runners.js';
+
 export type ProjectType = 'landing' | 'tool' | 'showcase' | 'game';
 
 export type ProjectStatus =
@@ -14,6 +18,8 @@ export type TaskType = 'create_project' | 'apply_change' | 'rebuild' | 'publish'
 
 export type TaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
 
+export type RunnerSource = 'global' | 'project';
+
 export type ReleaseKind = 'preview' | 'public';
 
 export interface ProjectRecord {
@@ -25,6 +31,7 @@ export interface ProjectRecord {
   prompt: string;
   status: ProjectStatus;
   source_root: string;
+  preferred_runner: TaskRunnerName | null;
   preview_release_path: string | null;
   public_release_path: string | null;
   created_at: string;
@@ -44,6 +51,7 @@ export interface TaskRecord {
   started_at: string | null;
   finished_at: string | null;
   log_path: string;
+  runner_name: TaskRunnerName | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +78,10 @@ export interface ProjectView {
   title: string;
   prompt: string;
   status: ProjectStatus;
+  preferredRunner: TaskRunnerName | null;
+  effectiveRunner: TaskRunnerName;
+  effectiveRunnerBackend: RunnerBackendName;
+  runnerSource: RunnerSource;
   previewUrl: string;
   publicUrl: string;
   previewRoute: string;
@@ -97,6 +109,7 @@ export interface TaskView {
   createdAt: string;
   updatedAt: string;
   logPath: string;
+  runnerName: TaskRunnerName | null;
 }
 
 export interface ProjectMessageRecord {
@@ -117,6 +130,42 @@ export interface ProjectEventRecord {
   detail: string | null;
   data_json: string | null;
   created_at: string;
+}
+
+export interface ProjectMessageView {
+  id: string;
+  projectId: string;
+  taskId: string | null;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  createdAt: string;
+}
+
+export interface ProjectTaskActionResponse {
+  kind: 'task';
+  project: ProjectView;
+  taskId: string;
+}
+
+export interface ProjectChatActionResponse {
+  kind: 'chat';
+  project: ProjectView;
+  assistantMessage: ProjectMessageView;
+}
+
+export type ProjectActionResponse = ProjectTaskActionResponse | ProjectChatActionResponse;
+
+export interface AppSettingsView {
+  defaultRunner: TaskRunnerName;
+  defaultRunnerBackend: RunnerBackendName;
+}
+
+export interface ProjectSettingsView {
+  projectId: string;
+  preferredRunner: TaskRunnerName | null;
+  effectiveRunner: TaskRunnerName;
+  effectiveRunnerBackend: RunnerBackendName;
+  runnerSource: RunnerSource;
 }
 
 export interface ProjectAliasRecord {

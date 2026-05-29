@@ -1,4 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { TaskRunnerName } from './runners.js';
 
 export interface ShipNowEnv {
   port: number;
@@ -10,6 +12,11 @@ export interface ShipNowEnv {
   publicStaticRoot: string;
   dbPath: string;
   codexBin: string;
+  claudeCodeBin: string;
+  claudeCodeAnthropicBaseUrl: string;
+  claudeCodeAnthropicApiKey: string;
+  claudeCodeModel: string;
+  defaultRunner: TaskRunnerName;
   taskTimeoutSeconds: number;
   shipnowAppPrefix: string;
 }
@@ -39,19 +46,87 @@ function envPrefix(name: string, fallback: string): string {
   return raw.trim();
 }
 
+function envRunner(name: string, fallback: TaskRunnerName): TaskRunnerName {
+  const raw = process.env[name]?.trim();
+  return raw === 'claude-code' ? 'claude-code' : fallback;
+}
+
+function envValue(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function parseEnvLine(line: string): [string, string] | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) {
+    return null;
+  }
+
+  const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const key = match[1];
+  let value = match[2].trim();
+
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1);
+  }
+
+  value = value.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t');
+  return [key, value];
+}
+
+function loadEnvFile(filePath: string, lockedKeys: Set<string>): void {
+  if (!existsSync(filePath)) {
+    return;
+  }
+
+  const contents = readFileSync(filePath, 'utf8');
+  for (const line of contents.split(/\r?\n/)) {
+    const parsed = parseEnvLine(line);
+    if (!parsed) {
+      continue;
+    }
+    const [key, value] = parsed;
+    if (lockedKeys.has(key)) {
+      continue;
+    }
+    process.env[key] = value;
+  }
+}
+
+const lockedEnvKeys = new Set(Object.keys(process.env));
+loadEnvFile(resolve(process.cwd(), '.env'), lockedEnvKeys);
+loadEnvFile(resolve(process.cwd(), '.env.local'), lockedEnvKeys);
+
 export function loadEnv(): ShipNowEnv {
   const workspaceRoot = envPath('SHIPNOW_WORKSPACE_ROOT', 'workspace');
   const publicStaticRoot = envPath('SHIPNOW_PUBLIC_STATIC_ROOT', 'workspace/public');
   return {
     port: envInt('SHIPNOW_PORT', 3000),
-    publicBaseUrl: process.env.SHIPNOW_PUBLIC_BASE_URL?.trim() || 'http://localhost:3000',
-    previewBaseUrl: process.env.SHIPNOW_PREVIEW_BASE_URL?.trim() || 'http://localhost:3000/preview',
-    shipnowApiBaseUrl: process.env.SHIPNOW_API_BASE_URL?.trim() || '/api',
+    publicBaseUrl: envValue('SHIPNOW_PUBLIC_BASE_URL') || 'http://localhost:3000',
+    previewBaseUrl: envValue('SHIPNOW_PREVIEW_BASE_URL') || 'http://localhost:3000/preview',
+    shipnowApiBaseUrl: envValue('SHIPNOW_API_BASE_URL') || '/api',
     workspaceRoot,
     templateRoot: envPath('SHIPNOW_TEMPLATE_ROOT', 'templates'),
     publicStaticRoot,
     dbPath: envPath('SHIPNOW_DB_PATH', 'workspace/shipnow.sqlite'),
-    codexBin: process.env.SHIPNOW_CODEX_BIN?.trim() || 'codex',
+    codexBin: envValue('SHIPNOW_CODEX_BIN') || 'codex',
+    claudeCodeBin: envValue('SHIPNOW_CLAUDE_CODE_BIN', 'CLAUDE_CODE_BIN') || 'claude',
+    claudeCodeAnthropicBaseUrl: envValue('SHIPNOW_CLAUDE_ANTHROPIC_BASE_URL', 'ANTHROPIC_BASE_URL') || 'https://api.deepseek.com/anthropic',
+    claudeCodeAnthropicApiKey: envValue('SHIPNOW_CLAUDE_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY') || '',
+    claudeCodeModel: envValue('SHIPNOW_CLAUDE_MODEL', 'ANTHROPIC_MODEL') || 'deepseek-v4-flash',
+    defaultRunner: envRunner('SHIPNOW_DEFAULT_RUNNER', 'codex'),
     taskTimeoutSeconds: envInt('SHIPNOW_TASK_TIMEOUT_SECONDS', 1800),
     shipnowAppPrefix: envPrefix('SHIPNOW_APP_PREFIX', '/shipnow'),
   };
