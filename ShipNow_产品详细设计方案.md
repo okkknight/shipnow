@@ -27,7 +27,7 @@ ShipNow 本身也是 `boringmax.com` 下的一个独立管理后台入口。
 预览地址：
 
 ```text
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 ```
 
 正式地址：
@@ -39,7 +39,7 @@ https://boringmax.com/{projectName}
 示例：
 
 ```text
-https://preview.boringmax.com/gongde-basketball
+https://shipnow.boringmax.com/preview/gongde-basketball
 https://boringmax.com/gongde-basketball
 ```
 
@@ -176,10 +176,17 @@ Cloudflare Access 或 Caddy Basic Auth 至少启用一个。
 
 ### 3.10 当前 VPS 入口形态
 
-在当前主机部署里，Caddy 的实际转发边界如下：
+在当前主机部署里，应用内部的路径模型和公网入口要分开看：
+
+- ShipNow 代码里仍然存在 `/preview/:projectHandle` 这类预览路由，用来描述“项目预览页”的业务语义。
+- 但在实际 VPS 上，公网预览域名已经单独切到 `shipnow.boringmax.com/preview/{projectName}`，不再通过 `boringmax.com/preview*` 暴露。
+- 站点正式页则直接由 `boringmax.com/{projectName}` 的主站静态目录提供。
+
+Caddy 的实际转发边界如下：
 
 - `boringmax.com/shipnow` 进入 ShipNow 管理后台。
-- `boringmax.com/preview*` 进入 ShipNow 进程，由 ShipNow 负责预览静态内容响应；`boringmax.com/{projectName}` 由主站静态目录提供正式发布内容。
+- `shipnow.boringmax.com/preview/{projectName}` 进入预览静态目录。
+- `boringmax.com/{projectName}` 由主站静态目录提供正式发布内容。
 - `shipnow.boringmax.com/api` 进入 ShipNow API。
 
 这条入口形态是当前 VPS 的事实状态，后续实现和排障都应以此为准。
@@ -206,7 +213,7 @@ https://boringmax.com/shipnow
 ShipNow 创建项目目录，复制默认模板，调用 Codex 根据需求生成页面，构建成功后给出预览地址：
 
 ```text
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 ```
 
 用户满意后点击发布，得到正式地址：
@@ -294,7 +301,7 @@ ShipNow 将最近一次构建成功的预览版本发布到正式地址。
 
 ```text
 正式路径：https://boringmax.com/{projectName}
-预览路径：https://preview.boringmax.com/{projectName}
+预览路径：https://shipnow.boringmax.com/preview/{projectName}
 项目目录标识
 数据库唯一标识
 静态产物目录标识
@@ -580,7 +587,7 @@ export const projectConfig = {
   type: "landing",
   author: "BoringMax",
   publicUrl: "https://boringmax.com/project-name",
-  previewUrl: "https://preview.boringmax.com/project-name",
+  previewUrl: "https://shipnow.boringmax.com/preview/project-name",
 };
 ```
 
@@ -788,7 +795,7 @@ Codex 根据用户 prompt 和内容方向选择对应 Layout。
 
 ```text
 https://boringmax.com/{projectName}
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 ```
 
 所以模板必须满足：
@@ -1035,7 +1042,7 @@ SHIPNOW_TASK_TIMEOUT_SECONDS
 
 ```text
 SHIPNOW_PUBLIC_BASE_URL=https://boringmax.com
-SHIPNOW_PREVIEW_BASE_URL=https://preview.boringmax.com
+SHIPNOW_PREVIEW_BASE_URL=https://shipnow.boringmax.com/preview
 SHIPNOW_API_BASE_URL=https://shipnow.boringmax.com/api
 SHIPNOW_APP_PREFIX=/shipnow
 ```
@@ -1301,7 +1308,7 @@ POST /api/projects
   "project": {
     "name": "gongde-basketball",
     "status": "generating",
-    "previewUrl": "https://preview.boringmax.com/gongde-basketball",
+    "previewUrl": "https://shipnow.boringmax.com/preview/gongde-basketball",
     "publicUrl": "https://boringmax.com/gongde-basketball"
   },
   "taskId": "task_xxx"
@@ -1536,7 +1543,7 @@ ShipNow 第一版开发流程必须本地优先：
 12. 调用 Codex CLI 生成项目。
 13. 执行 `pnpm build`。
 14. 构建成功后创建 preview release。
-15. 将 preview release 暴露到 `preview.boringmax.com/{projectName}`。
+15. 将 preview release 暴露到 `shipnow.boringmax.com/preview/{projectName}`。
 16. 更新项目状态为 `preview_ready`。
 17. 任务状态改为 `success`。
 18. 前端展示预览地址。
@@ -1614,7 +1621,7 @@ dist
 ### 20.1 预览地址
 
 ```text
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 ```
 
 ### 20.2 预览发布规则
@@ -1712,7 +1719,7 @@ https://shipnow.boringmax.com/api
 https://boringmax.com/{projectName}
 → 对应项目正式静态产物
 
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 → 对应项目预览静态产物
 ```
 
@@ -2092,7 +2099,7 @@ Prompt: 做一个极简高级的个人独立站首页，包含标题、介绍、
 - 使用 `default-static-site` 模板。
 - Codex 生成页面。
 - `pnpm build` 成功。
-- 可以访问 `https://preview.boringmax.com/hello-shipnow`。
+- 可以访问 `https://shipnow.boringmax.com/preview/hello-shipnow`。
 - 正式地址尚未更新，直到点击 Publish。
 
 ### 27.3 创建 Phaser 小游戏项目
@@ -2113,7 +2120,7 @@ Prompt: 做一个反直觉功德篮球小游戏，玩家通过蓄力投篮获得
 - 移动端有触摸操作方式。
 - 结算页有结果展示和复制分享。
 - `pnpm build` 成功。
-- 可以访问 `https://preview.boringmax.com/gongde-basketball`。
+- 可以访问 `https://shipnow.boringmax.com/preview/gongde-basketball`。
 
 ### 27.4 修改项目
 
@@ -2358,7 +2365,7 @@ https://boringmax.com/shipnow
 ShipNow 生成项目的预览地址为：
 
 ```text
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 ```
 
 正式地址为：

@@ -2449,6 +2449,10 @@
     align-self: flex-start;
   }
 
+  .sn-chat-bubble.is-pending {
+    align-items: center;
+  }
+
   .sn-chat-avatar {
     display: inline-flex;
     align-items: center;
@@ -2711,58 +2715,58 @@
     color: var(--sn-color-muted);
   }
 
-  .sn-chat-bubble.is-pending .sn-chat-copy {
-    background: rgba(245, 244, 239, 0.76);
-  }
-
-  .sn-pending-bubble {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-  }
-
-  .sn-pending-bubble-text {
+  .sn-pending-inline-copy {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
-    color: var(--sn-color-muted);
-    font-size: 0.92rem;
+    color: rgba(13, 107, 80, 0.86);
+    font-size: 0.86rem;
     font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.45;
   }
 
-  .sn-pending-bubble-label {
+  .sn-pending-inline-label {
     min-width: 0;
   }
 
-  .sn-pending-bubble-time {
+  .sn-pending-inline-time {
     flex: 0 0 auto;
     white-space: nowrap;
-    color: rgba(13, 107, 80, 0.78);
+    color: rgba(13, 107, 80, 0.72);
   }
 
-  .sn-pending-bubble-dots {
+  .sn-pending-inline-dots {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     flex: 0 0 auto;
+    transform: translateY(0);
   }
 
-  .sn-pending-bubble-dots span {
-    width: 8px;
-    height: 8px;
+  .sn-pending-inline-dots span {
+    width: 5px;
+    height: 5px;
     border-radius: 999px;
-    background: rgba(13, 107, 80, 0.65);
+    background: rgba(13, 107, 80, 0.38);
     animation: sn-pending-dot 1s ease-in-out infinite;
   }
 
-  .sn-pending-bubble-dots span:nth-child(2) {
+  .sn-pending-inline-dots span:nth-child(2) {
     animation-delay: 0.14s;
   }
 
-  .sn-pending-bubble-dots span:nth-child(3) {
+  .sn-pending-inline-dots span:nth-child(3) {
     animation-delay: 0.28s;
+  }
+
+  .sn-chat-bubble.is-pending .sn-chat-copy {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    line-height: 1.3;
   }
 
   @keyframes sn-system-event-live-pulse {
@@ -4310,6 +4314,7 @@
     padding: calc(64px + env(safe-area-inset-top)) 30px 320px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: calc(260px + env(safe-area-inset-bottom));
   }
 
   .sn-mobile-settings-page {
@@ -6294,13 +6299,14 @@
     .sn-template-thumb,
     .sn-mobile-template-thumb {
       position: relative;
-      min-height: 82px;
+      min-height: 72px;
+      height: 72px;
       border-radius: 14px;
       overflow: hidden;
     background:
       radial-gradient(circle at 20% 0%, rgba(183, 241, 223, 0.88), transparent 34%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 252, 0.98));
-    border: 1px solid rgba(15, 17, 21, 0.05);
+      border: 1px solid rgba(15, 17, 21, 0.05);
   }
 
     .sn-template-thumb-art,
@@ -6673,6 +6679,7 @@
     width: 100%;
     height: 1px;
     pointer-events: none;
+    scroll-margin-bottom: calc(260px + env(safe-area-inset-bottom));
   }
 
   .sn-mobile-project-page .sn-mobile-project-card.is-compact-header {
@@ -7454,7 +7461,8 @@
 
     .sn-template-thumb,
     .sn-reference-template-thumb {
-      min-height: 96px;
+      min-height: 72px;
+      height: 72px;
     }
 
     .sn-template-title,

@@ -31,7 +31,7 @@ For a site named `test`, the canonical layout is:
 ## What each entry means
 
 - `index.html` and `assets/` are the current public entrypoint for `https://boringmax.com/test`
-- `preview/index.html` and `preview/assets/` are the current preview entrypoint for `https://preview.boringmax.com/test`
+- `preview/index.html` and `preview/assets/` are the current preview entrypoint for `https://shipnow.boringmax.com/preview/test`
 - `source/` is the editable working tree that Codex modifies
 - `releases/preview/` stores immutable preview snapshots
 - `releases/public/` stores immutable public snapshots

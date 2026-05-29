@@ -395,7 +395,7 @@ function MobileDesignSystemPage() {
             <div className="sn-drawer-list">
               <div className="sn-drawer-metric">
                 <span>预览地址</span>
-                <strong>preview.boringmax.com/bannercheck</strong>
+                <strong>shipnow.boringmax.com/preview/bannercheck</strong>
               </div>
               <div className="sn-drawer-metric">
                 <span>线上地址</span>
@@ -1096,7 +1096,7 @@ function DesignSystemPage() {
                 <div className="sn-drawer-list">
                   <div className="sn-drawer-metric">
                     <span>预览地址</span>
-                    <strong>preview.boringmax.com/bannercheck</strong>
+                    <strong>shipnow.boringmax.com/preview/bannercheck</strong>
                   </div>
                   <div className="sn-drawer-metric">
                     <span>线上地址</span>

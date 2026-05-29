@@ -63,7 +63,7 @@ WorkingDirectory=/opt/boringmax/shipnow
 Environment=NODE_ENV=production
 Environment=SHIPNOW_PORT=8090
 Environment=SHIPNOW_PUBLIC_BASE_URL=https://boringmax.com
-Environment=SHIPNOW_PREVIEW_BASE_URL=https://preview.boringmax.com
+Environment=SHIPNOW_PREVIEW_BASE_URL=https://shipnow.boringmax.com/preview
 Environment=SHIPNOW_API_BASE_URL=https://shipnow.boringmax.com/api
 Environment=SHIPNOW_APP_PREFIX=/shipnow
 Environment=SHIPNOW_WORKSPACE_ROOT=/opt/boringmax/site/shipnow
@@ -86,6 +86,7 @@ The VPS now also has the Claude Code CLI installed for the `claude-code` runner:
 
 - Binary: `/usr/bin/claude`
 - Version: `2.1.156`
+- The `shipnow` systemd service runs as the dedicated `shipnow` user, so Claude Code can use its full permission-bypass mode without inheriting root restrictions
 - Runtime env is loaded from `/etc/shipnow/shipnow.env` through a systemd drop-in at `/etc/systemd/system/shipnow.service.d/10-claude-code.conf`
 - The env file carries both ShipNow-specific keys and Claude-compatible keys:
   - `SHIPNOW_CLAUDE_CODE_BIN=/usr/bin/claude`
@@ -99,6 +100,7 @@ The VPS now also has the Claude Code CLI installed for the `claude-code` runner:
 Notes:
 
 - Keep the env file root-only readable, because it stores the DeepSeek API key used by Claude Code
+- Keep `/opt/boringmax/site` owned by `shipnow:shipnow` so the `claude-code` runner can edit project workspaces under full access
 - ShipNow reads the `SHIPNOW_*` values directly, and Claude Code also accepts the `ANTHROPIC_*` aliases
 - After updating the env file, run `systemctl daemon-reload && systemctl restart shipnow`
 
@@ -112,26 +114,32 @@ Recommended public routing:
   - `file_server`
 - `boringmax.com/shipnow`
   - reverse proxy to `127.0.0.1:8090`
-- `preview.boringmax.com`
+- `shipnow.boringmax.com/preview`
   - `root * /opt/boringmax/site`
   - `try_files {path}/preview/index.html {path}.html {path} /index.html`
   - `file_server`
 - `shipnow.boringmax.com/api`
   - reverse proxy to `127.0.0.1:8090`
 
+Notes:
+
+- The public VPS no longer uses `boringmax.com/preview*` or `boringmax.com/site*` as ShipNow entrypoints.
+- `shipnow.boringmax.com/preview/<siteName>` is the real public preview URL, while the `/preview` directory under each site is only the filesystem layout that backs it.
+- ShipNow still understands preview concepts internally, but that internal route model is not the same thing as the live Caddy entrypoint.
+
 ## Why this works
 
 - Published sites are fully static and live under their own site directory
 - Preview sites are also static and live under the same site directory
 - ShipNow can disappear after publishing and the site still has everything it needs
-- Preview release HTML is written with a `/siteName/preview/` base so `preview.boringmax.com/<siteName>` can load its own assets directly from the site tree
+- Preview release HTML is written with a `/siteName/preview/` base so `shipnow.boringmax.com/preview/<siteName>` can load its own assets directly from the site tree
 
 ## Validation
 
 ```bash
 systemctl status shipnow
 curl -I https://boringmax.com/test
-curl -I https://preview.boringmax.com/test
+curl -I https://shipnow.boringmax.com/preview/test
 ls -la /opt/boringmax/site/test
 ls -la /opt/boringmax/site/test/preview
 ```

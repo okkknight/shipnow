@@ -18,12 +18,13 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The app can create a project, apply a Codex-driven change, rebuild it, publish a preview release, and promote that preview to the public release.
 - The create flow now uses one default template instead of a visible project-type picker; game projects are inferred from the prompt and can still switch to Phaser through Codex.
 - The current implementation now enforces reserved project-name checks, explicit delete confirmation, and log-preserving deletion behavior.
-- VPS acceptance is live on the host-native deployment: the public ShipNow app runs at `/shipnow`, `preview.boringmax.com` serves preview releases from each site's own `preview/` subdirectory, public releases are served from `boringmax.com/{projectName}`, the API is served from `shipnow.boringmax.com/api`, and the acceptance project `vps-accept-20260525` is fully published.
+- VPS acceptance is live on the host-native deployment: the public ShipNow app runs at `/shipnow`, `shipnow.boringmax.com/preview` serves preview releases from each site's own `preview/` subdirectory, public releases are served from `boringmax.com/{projectName}`, the API is served from `shipnow.boringmax.com/api`, and the acceptance project `vps-accept-20260525` is fully published.
 - Project workspaces are initialized as git repositories before Codex runs, and the default static template builds with Vite's `--configLoader runner` mode to avoid the read-only temp-file issue on the VPS layout.
 - Generated static sites now use a relative Vite base, so preview and public releases resolve assets correctly when served from `/preview/<project>` and `/project`.
 - The active VPS layout now keeps each site self-contained under `/opt/boringmax/site/<siteName>`: source, preview snapshots, public snapshots, logs, and the current entrypoints all live inside the site directory, and the shared `.shipnow` bucket has been removed.
 - ShipNow's own app-private workspace and database now live under `/opt/boringmax/site/shipnow`, while managed site assets stay inside each site directory.
 - The VPS now also has Claude Code CLI installed at `/usr/bin/claude`, and `shipnow.service` loads `/etc/shipnow/shipnow.env` through a drop-in so the `claude-code` runner can use the configured DeepSeek-compatible Anthropic endpoint and API key.
+- The `shipnow.service` now runs as the dedicated `shipnow` user, and `/opt/boringmax/site` is owned by that user so Claude Code can use its full permission-bypass mode on writable workspaces without hitting root restrictions.
 - The `test` project has been migrated to the per-site layout and verified end-to-end again after the move.
 - The build-failure recovery path has been verified and the reference project is back in `preview_ready`.
 - The default `game` template now builds as a playable Phaser power-charge basketball mini game.

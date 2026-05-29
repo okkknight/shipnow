@@ -2,6 +2,8 @@
 
 # 2026-05-29
 
+- Clarified the VPS route split in the design and deployment docs: `boringmax.com/preview*` and `boringmax.com/site*` are no longer treated as live ShipNow entrypoints, and the real preview surface is `shipnow.boringmax.com/preview/<project>`.
+- Moved `shipnow.service` onto the dedicated `shipnow` user and handed ownership of `/opt/boringmax/site` to that user, so the Claude Code runner can use its full permission-bypass mode without hitting the root restriction on `--dangerously-skip-permissions`.
 - Installed Claude Code CLI on the VPS, added a root-only ShipNow env file for Claude Code / DeepSeek configuration, and wired it into `shipnow.service` through a systemd drop-in.
 - Added automatic conversation follow in the project workbench so new messages and system events now scroll the view to the latest entry on both desktop and mobile.
 - Verified the follow behavior in Playwright CLI by scrolling the workbench back up, sending a test conversation, and confirming the page scrolled back to the latest conversation entry.
@@ -48,8 +50,8 @@
 - Upgraded the default `game` template into a playable power-charge basketball mini game and verified it builds in an isolated temp copy.
 - Deployed ShipNow to the host-native VPS layout, fixed template builds with Vite's runner config loader, and initialized project workspaces as git repos before Codex tasks run.
 - Verified the full VPS acceptance loop with `vps-accept-20260525`: create, build, preview, publish, and public site access all completed successfully.
-- Split the ShipNow runtime boundary so the UI stays on `boringmax.com/shipnow` while the API moves to `shipnow.boringmax.com/api`, and preview/public releases are served from `preview.boringmax.com/{project}` and `boringmax.com/{project}`.
-- Added `preview.boringmax.com` as the public preview host and pointed ShipNow's preview base URL to it.
+- Split the ShipNow runtime boundary so the UI stays on `boringmax.com/shipnow` while the API moves to `shipnow.boringmax.com/api`, and preview/public releases are served from `shipnow.boringmax.com/preview/{project}` and `boringmax.com/{project}`.
+- Added `shipnow.boringmax.com/preview` as the public preview host and pointed ShipNow's preview base URL to it.
 - Switched generated static sites to a relative Vite base so preview and public releases resolve assets correctly under `/preview/<project>` and `/project`, then rebuilt and republished `vps-accept-20260525` to verify both routes serve 200s.
 - Simplified project creation to a single default template flow: removed the visible project-type picker, and now infer game projects from the prompt so Codex can switch them to Phaser when needed.
 - Added a live overview banner that shows the current task status plus the latest task log excerpt while a project is generating or publishing.

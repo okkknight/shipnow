@@ -505,6 +505,7 @@ function App() {
   );
 
   const timelineItems = useMemo(() => buildConversationTimeline(detail), [detail]);
+  const latestTimelineItemId = timelineItems.length > 0 ? timelineItems[timelineItems.length - 1]!.id : null;
 
   const activeTasks = projects.filter((project) => ['generating', 'publishing'].includes(project.status)).length;
   const publishedProjects = projects.filter((project) => project.status === 'published').length;
@@ -628,7 +629,7 @@ function App() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [isEnhancedRoute, pendingConversation?.id, route.kind, routeProjectId, timelineItems.length]);
+  }, [isEnhancedRoute, latestTimelineItemId, pendingConversation?.id, route.kind, routeProjectId]);
 
   useEffect(() => {
     if (isEnhancedRoute) {
@@ -647,7 +648,7 @@ function App() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [isEnhancedRoute, timelineItems.length, pendingConversation?.id, route.kind, routeProjectId]);
+  }, [isEnhancedRoute, latestTimelineItemId, pendingConversation?.id, route.kind, routeProjectId]);
 
   const createFromComposer = route.kind === 'home';
   const canSubmitComposer = composerPrompt.trim().length > 0 && activeAction === null;
@@ -1215,6 +1216,13 @@ function HomeWorkspace({
               placeholder="你想做什么？"
               value={composerPrompt}
               onChange={(event) => setComposerPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+                  return;
+                }
+                event.preventDefault();
+                void onSubmit();
+              }}
             />
             <div className="sn-mobile-home-composer-actions">
               <button className="icon-button h-10 w-10" type="button" aria-label="附件">
@@ -1550,20 +1558,20 @@ function TemplatesWorkspace({
           </linearGradient>
         </defs>
 
-        <g transform="matrix(0.5 0 0 0.5 60 35)">
+        <g>
           <rect x="0" y="0" width="240" height="140" rx="18" fill={`url(#${gradientId})`} />
           <rect x="0" y="0" width="240" height="140" rx="18" fill={`url(#${glowId})`} opacity="0.6" />
 
           {kind === 'blank' ? (
             <>
-              <rect x="28" y="24" width="184" height="22" rx="11" fill="rgba(255,255,255,0.4)" />
-              <rect x="28" y="54" width="98" height="14" rx="7" fill="rgba(15,17,21,0.1)" />
-              <rect x="28" y="74" width="126" height="14" rx="7" fill="rgba(15,17,21,0.08)" />
-              <rect x="28" y="96" width="72" height="24" rx="12" fill="rgba(255,255,255,0.72)" />
-              <path d="M178 30h22M189 19v22" stroke="rgba(13,107,80,0.45)" strokeWidth="2" strokeLinecap="round" />
-              <circle cx="187" cy="101" r="15" fill="rgba(255,255,255,0.56)" />
-              <path d="M187 93v16M179 101h16" stroke="#0d6b50" strokeWidth="2.2" strokeLinecap="round" />
-              <rect x="160" y="64" width="48" height="10" rx="5" fill="rgba(183,241,223,0.5)" />
+              <rect x="38" y="50" width="164" height="48" rx="15" fill="rgba(255,255,255,0.48)" stroke="rgba(255,255,255,0.34)" />
+              <rect x="56" y="62" width="90" height="10" rx="5" fill="rgba(255,255,255,0.72)" />
+              <rect x="56" y="78" width="66" height="8" rx="4" fill="rgba(15,17,21,0.12)" />
+              <rect x="56" y="90" width="82" height="8" rx="4" fill="rgba(15,17,21,0.08)" />
+              <rect x="156" y="60" width="28" height="28" rx="14" fill="rgba(255,255,255,0.68)" />
+              <path d="M170 66v16M162 74h16" stroke="#0d6b50" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M176 50h16M184 42v16" stroke="rgba(13,107,80,0.4)" strokeWidth="2" strokeLinecap="round" />
+              <rect x="170" y="96" width="24" height="8" rx="4" fill="rgba(183,241,223,0.48)" />
             </>
           ) : null}
 
@@ -1628,7 +1636,7 @@ function TemplatesWorkspace({
                 <button
                 key={template.title}
                 type="button"
-                className={`sn-mobile-template-card ${template.title === '产品官网' ? 'is-active' : ''}`}
+                className={`sn-mobile-template-card ${template.title === '产品官网' ? 'is-active' : ''}`.trim()}
                 onClick={() => {
                   onSelectTemplate(template.prompt);
                   onBackHome();
@@ -2188,6 +2196,7 @@ function ProjectWorkspaceMobile({
   const visibleTimelineItems = isHistoryCollapsed
     ? timelineItems.slice(-MOBILE_HISTORY_COLLAPSE_COUNT)
     : timelineItems;
+  const latestVisibleTimelineItemId = visibleTimelineItems.length > 0 ? visibleTimelineItems[visibleTimelineItems.length - 1]!.id : null;
   const hiddenTimelineCount = Math.max(0, timelineItems.length - visibleTimelineItems.length);
   const canOpenLive = hasEverPublishedProject(project);
 
@@ -2206,7 +2215,7 @@ function ProjectWorkspaceMobile({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [conversationRef, isHistoryCollapsed, pendingConversation?.id, visibleTimelineItems.length]);
+  }, [conversationRef, isHistoryCollapsed, latestVisibleTimelineItemId, pendingConversation?.id]);
 
   return (
     <MobilePageSurface className="sn-mobile-project-page">
@@ -2289,6 +2298,13 @@ function ProjectWorkspaceMobile({
             placeholder="你想做什么？"
             value={composerPrompt}
             onChange={(event) => setComposerPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+                return;
+              }
+              event.preventDefault();
+              void onSubmit();
+            }}
           />
           <div className="sn-mobile-home-composer-actions">
             <MobileIconButton className="is-soft" type="button" aria-label="附件">
@@ -2833,17 +2849,15 @@ function PendingConversationBubble({
   const elapsed = formatElapsedTime(elapsedMs - Date.parse(pendingConversation.startedAt));
 
   return (
-    <ChatBubble role="system" className="is-pending">
-      <div className="sn-pending-bubble">
-        <div className="sn-pending-bubble-text">
-          <span className="sn-pending-bubble-label">思考中</span>
-          <span className="sn-pending-bubble-time">· {elapsed}</span>
-        </div>
-        <div className="sn-pending-bubble-dots" aria-hidden="true">
+    <ChatBubble role="system" className="is-pending thinking">
+      <div className="sn-pending-inline-copy" role="status" aria-live="polite">
+        <span className="sn-pending-inline-label">思考中</span>
+        <span className="sn-pending-inline-time">· {elapsed}</span>
+        <span className="sn-pending-inline-dots" aria-hidden="true">
           <span />
           <span />
           <span />
-        </div>
+        </span>
       </div>
     </ChatBubble>
   );

@@ -873,7 +873,7 @@ placeholder：
 预览地址使用：
 
 ```text
-https://preview.boringmax.com/{projectName}
+https://shipnow.boringmax.com/preview/{projectName}
 ```
 
 不要在主界面展示完整 URL，除非用户点击“复制预览链接”或进入状态抽屉。
@@ -1090,7 +1090,7 @@ bannercheck
 预览已就绪
 
 链接
-预览：preview.boringmax.com/bannercheck
+预览：shipnow.boringmax.com/preview/bannercheck
 线上：boringmax.com/bannercheck
 
 最近任务
@@ -1815,7 +1815,7 @@ ShipNow：已完成修改。
 预览已就绪
 
 链接
-预览：preview.boringmax.com/bannercheck
+预览：shipnow.boringmax.com/preview/bannercheck
 线上：boringmax.com/bannercheck
 
 最近任务
