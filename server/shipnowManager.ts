@@ -49,6 +49,7 @@ interface EnqueueInput {
   projectId: string;
   type: TaskType;
   prompt: string;
+  autoDrain?: boolean;
 }
 
 interface CreateProjectInput {
@@ -328,6 +329,7 @@ export class ShipNowManager {
         buildConversationSessionContext(creationDetail)
       ),
       runnerName,
+      autoDrain: false,
     });
     this.store.updateProjectStatus(projectId, 'generating');
     this.store.updateProjectTaskLink(projectId, task.id);
@@ -339,6 +341,7 @@ export class ShipNowManager {
       detail: buildTaskQueueDetail(),
       data: { taskId: task.id, taskType: task.type },
     });
+    this.scheduleDrain();
     return { project: this.toProjectView(this.store.getProjectById(projectId) ?? project), taskId: task.id };
   }
 
@@ -396,6 +399,7 @@ export class ShipNowManager {
       type: 'apply_change',
       prompt: buildConversationTaskPrompt(conversationContext, normalizedPrompt, conversationSession),
       runnerName,
+      autoDrain: false,
     });
     this.store.updateProjectStatus(project.project_id, 'generating');
     this.store.createEvent({
@@ -406,6 +410,7 @@ export class ShipNowManager {
       detail: '我会在当前工作区整理好环境，再继续执行这次修改。',
       data: { taskId: task.id, taskType: task.type },
     });
+    this.scheduleDrain();
     return { kind: 'task', project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
@@ -421,8 +426,10 @@ export class ShipNowManager {
       projectId: project.project_id,
       type: 'rebuild',
       prompt: 'Rebuild the current project without changing the intended product direction.',
+      autoDrain: false,
     });
     this.store.updateProjectStatus(project.project_id, 'generating');
+    this.scheduleDrain();
     return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
@@ -444,8 +451,10 @@ export class ShipNowManager {
       projectId: project.project_id,
       type: 'publish',
       prompt: 'Publish the latest successful preview release to the public release.',
+      autoDrain: false,
     });
     this.store.updateProjectStatus(project.project_id, 'publishing');
+    this.scheduleDrain();
     return { project: this.toProjectView(this.requireProject(project.project_id)), taskId: task.id };
   }
 
@@ -479,6 +488,7 @@ export class ShipNowManager {
       projectId: project.project_id,
       type: 'delete_project',
       prompt: 'Delete the project and remove its workspace artifacts.',
+      autoDrain: false,
     });
     this.store.createEvent({
       projectId: project.project_id,
@@ -486,6 +496,7 @@ export class ShipNowManager {
       title: '请求删除项目',
       detail: '我会在任务执行后移除工作区。',
     });
+    this.scheduleDrain();
     return { project: this.toProjectView(project), taskId: task.id };
   }
 
@@ -630,7 +641,9 @@ export class ShipNowManager {
         runnerName: input.runnerName ?? this.resolveEffectiveRunner(project),
       })
     );
-    this.scheduleDrain();
+    if (input.autoDrain !== false) {
+      this.scheduleDrain();
+    }
     return task;
   }
 
