@@ -26,6 +26,8 @@ export interface ProjectRecord {
   project_id: string;
   display_name: string;
   public_handle: string;
+  pending_public_handle: string | null;
+  pending_public_handle_set_at: string | null;
   type: ProjectType;
   title: string;
   prompt: string;
@@ -74,6 +76,8 @@ export interface ProjectView {
   projectId: string;
   displayName: string;
   publicHandle: string;
+  pendingPublicHandle: string | null;
+  pendingPublicHandleSetAt: string | null;
   type: ProjectType;
   title: string;
   prompt: string;

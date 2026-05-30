@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-05-30
+
+- Changed project handle rename into a staged flow: edits now create a pending handle that is shown in the UI as "发布后生效", while preview and public access keep using the current live handle until the next successful publish.
+- Made publish finalize any pending handle rename by switching the live handle, clearing the staged value, and dropping the old handle from the live project view.
+- Verified the new rename/publish behavior with the full local test suite, the server test suite, and a fresh `pnpm build`.
+
 ## 2026-05-29
 
 - Added the new `boringapi` standalone gateway project with a registry-driven proxy layer and real `api.boringmax.com/<app>/api/*` plus `api.boringmax.com/<app>/preview/*` forwarding.

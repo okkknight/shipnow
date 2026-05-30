@@ -16,6 +16,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The product specification is complete enough to implement the MVP.
 - The workspace now contains a working ShipNow app skeleton, backend API, task runner, and default static template.
 - The app can create a project, apply a Codex-driven change, rebuild it, publish a preview release, and promote that preview to the public release.
+- Project handle edits now stage a pending rename until the next successful publish; the UI shows the new handle immediately with a "发布后生效" hint, while the live public handle stays unchanged until publish succeeds.
 - The shared BoringAPI registry now freezes ShipNow's dynamic path contract as `api.boringmax.com/shipnow/api/*` for API traffic and `api.boringmax.com/shipnow/preview/*` for preview traffic, while the static UI is published to `boringmax.com/shipnow`.
 - The create flow now uses one default template instead of a visible project-type picker; game projects are inferred from the prompt and can still switch to Phaser through Codex.
 - The current implementation now enforces reserved project-name checks, explicit delete confirmation, and log-preserving deletion behavior.

@@ -4,31 +4,60 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { ShipNowStore } from './db.js';
+import { ShipNowManager } from './shipnowManager.js';
+import type { ShipNowEnv } from './env.js';
 
-test('renaming a project keeps the old handle as an alias', () => {
+function createTestEnv(root: string): ShipNowEnv {
+  const dbPath = join(root, 'shipnow.sqlite');
+  const publicStaticRoot = join(root, 'public');
+  const workspaceRoot = join(root, 'workspace');
+  const templateRoot = join(root, 'templates');
+  return {
+    port: 3000,
+    publicBaseUrl: 'http://localhost:3000',
+    previewBaseUrl: 'http://localhost:3000/preview',
+    shipnowApiBaseUrl: '/api',
+    workspaceRoot,
+    templateRoot,
+    publicStaticRoot,
+    dbPath,
+    codexBin: 'codex',
+    claudeCodeBin: 'claude',
+    claudeCodeAnthropicBaseUrl: 'https://api.deepseek.com/anthropic',
+    claudeCodeAnthropicApiKey: '',
+    claudeCodeModel: 'deepseek-v4-flash',
+    defaultRunner: 'codex',
+    taskTimeoutSeconds: 1800,
+    shipnowAppPrefix: '/shipnow',
+  };
+}
+
+test('renaming a project stages the new handle without changing the live handle', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-rename-project-'));
   try {
-    const dbPath = join(root, 'shipnow.sqlite');
-    const publicStaticRoot = join(root, 'public');
-    const store = new ShipNowStore(dbPath, publicStaticRoot);
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const manager = new ShipNowManager(store, createTestEnv(root));
 
     const project = store.createProject({
-      projectId: 'proj_123',
+      projectId: 'proj_123456ab12cd',
       displayName: 'untitle-r837',
       publicHandle: 'untitle-r837',
       type: 'landing',
       title: 'Demo project',
       prompt: 'Build a simple landing page.',
-      sourceRoot: join(root, 'workspace'),
+      sourceRoot: join(root, 'workspace', 'proj_123456ab12cd'),
     });
 
-    const renamed = store.renameProject(project.project_id, 'knight-space', 'knight-space');
+    const renamed = await manager.renameProject({
+      projectId: project.project_id,
+      displayName: 'moon-diary',
+    });
 
-    assert.equal(renamed?.display_name, 'knight-space');
-    assert.equal(renamed?.public_handle, 'knight-space');
-    assert.equal(store.getProjectByHandle('knight-space')?.project_id, project.project_id);
+    assert.equal(renamed.displayName, 'moon-diary');
+    assert.equal(renamed.publicHandle, 'untitle-r837');
+    assert.equal(renamed.pendingPublicHandle, 'moon-diary');
     assert.equal(store.getProjectByHandle('untitle-r837')?.project_id, project.project_id);
-    assert.equal(store.resolveProjectHandle('untitle-r837')?.redirected, true);
+    assert.equal(store.getProjectByHandle('moon-diary'), null);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

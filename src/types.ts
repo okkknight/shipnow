@@ -22,6 +22,8 @@ export interface ProjectView {
   projectId: string;
   displayName: string;
   publicHandle: string;
+  pendingPublicHandle: string | null;
+  pendingPublicHandleSetAt: string | null;
   type: ProjectType;
   title: string;
   prompt: string;

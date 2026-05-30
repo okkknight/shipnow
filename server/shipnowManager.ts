@@ -462,23 +462,42 @@ export class ShipNowManager {
     const projectId = projectIdSchema.parse(input.projectId);
     const project = this.requireProject(projectId);
     const normalized = validateProjectHandle(slugifyProjectName(input.displayName));
-    if (normalized === project.public_handle && normalized === project.display_name) {
+    const currentCanonical = project.pending_public_handle ?? project.public_handle;
+    if (normalized === currentCanonical && normalized === project.display_name) {
       return this.toProjectView(project);
     }
-    if (normalized !== project.public_handle && this.store.handleExists(normalized)) {
+    if (normalized !== project.public_handle && this.store.handleExists(normalized, projectId)) {
       throw new Error(`Project handle ${normalized} already exists.`);
     }
     const next = this.store.renameProject(projectId, normalized, normalized);
     if (!next) {
       throw new Error(`Project ${projectId} not found.`);
     }
-    this.store.createEvent({
-      projectId,
-      type: 'project_renamed',
-      title: '项目名称已更新',
-      detail: `公开地址改为 ${normalized}。`,
-      data: { displayName: normalized, publicHandle: normalized },
-    });
+    if (next.pending_public_handle) {
+      this.store.createEvent({
+        projectId,
+        type: 'project_rename_pending',
+        title: '项目名称已更新',
+        detail: `新公开地址 ${next.pending_public_handle} 将在发布后生效。`,
+        data: {
+          displayName: next.display_name,
+          publicHandle: next.public_handle,
+          pendingPublicHandle: next.pending_public_handle,
+        },
+      });
+    } else {
+      this.store.createEvent({
+        projectId,
+        type: 'project_rename_cleared',
+        title: '项目名称已恢复',
+        detail: `已恢复为当前线上地址 ${next.public_handle}。`,
+        data: {
+          displayName: next.display_name,
+          publicHandle: next.public_handle,
+          pendingPublicHandle: null,
+        },
+      });
+    }
     return this.toProjectView(next);
   }
 
@@ -536,6 +555,8 @@ export class ShipNowManager {
       projectId: project.project_id,
       displayName: project.display_name,
       publicHandle: project.public_handle,
+      pendingPublicHandle: project.pending_public_handle,
+      pendingPublicHandleSetAt: project.pending_public_handle_set_at,
       type: project.type,
       title: project.title,
       prompt: project.prompt,
@@ -874,10 +895,12 @@ export class ShipNowManager {
       throw new Error(`No successful preview release found for ${project.display_name}.`);
     }
     const paths = projectPaths(this.env, project.project_id);
+    const finalHandle = project.pending_public_handle ?? project.public_handle;
+    const handleCutover = project.pending_public_handle !== null && project.pending_public_handle !== project.public_handle;
     await mkdir(paths.publicReleasesRoot, { recursive: true });
     const releasePath = resolve(paths.publicReleasesRoot, `${previewRelease.id}-${randomBytes(4).toString('hex')}`);
     await this.copyDirectory(previewRelease.release_path, releasePath);
-    await injectBaseHref(resolve(releasePath, 'index.html'), `/${project.public_handle}/`);
+    await injectBaseHref(resolve(releasePath, 'index.html'), `/${finalHandle}/`);
     await updateCurrentReleaseLink(releasePath, paths.publicCurrentRoot);
     const publicRelease = this.store.createRelease({
       projectId: project.project_id,
@@ -888,15 +911,40 @@ export class ShipNowManager {
       publishedAt: nowIso(),
       current: true,
     });
-    this.store.updateProjectPublishState(project.project_id, publicRelease.release_path, 'published');
+    this.store.updateProjectPublishState(
+      project.project_id,
+      publicRelease.release_path,
+      'published',
+      nowIso(),
+      handleCutover
+        ? {
+            publicHandle: finalHandle,
+            pendingPublicHandle: null,
+            pendingPublicHandleSetAt: null,
+          }
+        : {}
+    );
+    if (handleCutover) {
+      this.store.createEvent({
+        projectId: project.project_id,
+        taskId: task.id,
+        type: 'project_rename_applied',
+        title: '重命名已生效',
+        detail: `公开地址已切换到 ${finalHandle}。`,
+        data: {
+          displayName: project.display_name,
+          publicHandle: finalHandle,
+        },
+      });
+    }
     this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
     this.store.createEvent({
       projectId: project.project_id,
       taskId: task.id,
       type: 'published',
       title: '发布成功',
-      detail: `公开地址已切换到 ${project.public_handle}。`,
-      data: { publicHandle: project.public_handle, publicReleasePath: publicRelease.release_path },
+      detail: `公开地址已切换到 ${finalHandle}。`,
+      data: { publicHandle: finalHandle, publicReleasePath: publicRelease.release_path },
     });
     await this.store.appendTaskLogAsync(task.id, `Published ${project.display_name} to ${releasePath}.`);
   }

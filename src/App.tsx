@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -198,6 +198,22 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+function useAutoSizingTextarea(value: string) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [value]);
+
+  return textareaRef;
+}
+
 function useDrawerTransition(open: boolean, durationMs = 320): { shouldRender: boolean; isOpen: boolean } {
   const [shouldRender, setShouldRender] = useState(open);
   const [isOpen, setIsOpen] = useState(open);
@@ -373,6 +389,14 @@ function statusDescription(status: string): string {
   }
 }
 
+function replaceUrlHandle(url: string, handle: string): string {
+  const parsed = new URL(url);
+  parsed.pathname = `/${handle}`;
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString().replace(/\/$/, '');
+}
+
 function taskRunnerLabel(runner: TaskRunnerName): string {
   return TASK_RUNNER_META[runner].label;
 }
@@ -423,6 +447,12 @@ function eventTitle(type: string): string {
       return '预览已更新';
     case 'publish_requested':
       return '请求发布';
+    case 'project_rename_pending':
+      return '重命名待生效';
+    case 'project_rename_applied':
+      return '重命名已生效';
+    case 'project_rename_cleared':
+      return '重命名已恢复';
     case 'published':
       return '发布成功';
     case 'delete_requested':
@@ -657,7 +687,8 @@ function App() {
   const canAutoFix = Boolean(currentProject && detail && ['build_failed', 'publish_failed', 'failed'].includes(currentProject.status));
   const renameNormalized = slugifyHandle(renameDraft);
   const renameValidation = renameDraft.trim().length > 0 ? validateHandle(renameNormalized) : '名称不能为空。';
-  const renameDirty = Boolean(currentProject && renameNormalized !== currentProject.publicHandle);
+  const renameBaseline = currentProject?.pendingPublicHandle ?? currentProject?.publicHandle ?? '';
+  const renameDirty = Boolean(currentProject && renameNormalized !== renameBaseline);
   const publishSheetOpen = publishConfirmOpen || previewConfirmDebug;
   const actionSheetOpen = publishSheetOpen || renameSheetOpen;
 
@@ -1085,7 +1116,14 @@ function App() {
           canPublish={canPublish && activeAction === null}
           onCancel={() => setPublishConfirmOpen(false)}
           onConfirm={handlePublish}
-          onCopyLink={() => void handleCopy(currentProject.publicUrl, '线上地址已复制')}
+          onCopyLink={() =>
+            void handleCopy(
+              currentProject.pendingPublicHandle
+                ? replaceUrlHandle(currentProject.publicUrl, currentProject.pendingPublicHandle)
+                : currentProject.publicUrl,
+              '线上地址已复制'
+            )
+          }
         />
       ) : null}
 
@@ -1157,6 +1195,8 @@ function HomeWorkspace({
   sidebarOpen: boolean;
   setSidebarOpen: (value: boolean) => void;
 }) {
+  const composerTextareaRef = useAutoSizingTextarea(composerPrompt);
+
   return (
       <MobilePageSurface className="sn-mobile-home-page">
         <div className="sn-mobile-page-body sn-mobile-entry-welcome">
@@ -1213,7 +1253,9 @@ function HomeWorkspace({
 
           <div className="sn-mobile-home-composer-card is-bottom">
             <textarea
+              ref={composerTextareaRef}
               className="sn-mobile-home-composer-input"
+              rows={1}
               placeholder="你想做什么？"
               value={composerPrompt}
               onChange={(event) => setComposerPrompt(event.target.value)}
@@ -1792,6 +1834,9 @@ function MobilePublishConfirmSheet({
     return null;
   }
 
+  const targetHandle = project.pendingPublicHandle ?? project.publicHandle;
+  const targetUrl = project.pendingPublicHandle ? replaceUrlHandle(project.publicUrl, targetHandle) : project.publicUrl;
+
   return (
     <div className={`sn-mobile-confirm-shell ${isOpen ? 'is-open' : ''}`.trim()} role="presentation">
       <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭确认发布" onClick={onCancel} />
@@ -1815,7 +1860,7 @@ function MobilePublishConfirmSheet({
             onClick={onCopyLink}
             aria-label="复制目标线上地址"
           >
-            <span>{project.publicUrl}</span>
+            <span>{targetUrl}</span>
             <Copy className="size-4" />
           </button>
           <div className="sn-mobile-confirm-list">
@@ -2002,7 +2047,18 @@ function ProjectRenameSheet({
             />
           </div>
           <div className="sn-mobile-note">
-            {error ?? validation ?? '这个名称会同步到公开地址和项目标题。'}
+            {error ?? validation ?? '这个名称会先显示在页面上，但会在下次发布后真正切换成正式公开地址。'}
+          </div>
+          <div className="sn-mobile-note">
+            当前线上地址：{project.publicHandle}
+          </div>
+          {project.pendingPublicHandle ? (
+            <div className="sn-mobile-note">
+              待生效地址：{project.pendingPublicHandle}（发布后生效）
+            </div>
+          ) : null}
+          <div className="sn-mobile-note">
+            未发布前，预览和正式站点仍然沿用当前线上地址。
           </div>
         </form>
         <div className="sn-mobile-confirm-footer">
@@ -2014,7 +2070,7 @@ function ProjectRenameSheet({
               取消
             </button>
           </div>
-          <div className="sn-mobile-confirm-footnote">修改后会保留旧地址别名，方便继续访问。</div>
+          <div className="sn-mobile-confirm-footnote">重命名只会进入待生效状态，发布成功后才会切换正式公开地址。</div>
         </div>
       </div>
     </div>
@@ -2192,6 +2248,7 @@ function ProjectWorkspaceMobile({
   navigate: (path: string) => void;
 }) {
   const MOBILE_HISTORY_COLLAPSE_COUNT = 8;
+  const composerTextareaRef = useAutoSizingTextarea(composerPrompt);
   const [isHistoryCollapsed, setHistoryCollapsed] = useState(true);
   const canCollapseHistory = timelineItems.length > MOBILE_HISTORY_COLLAPSE_COUNT;
   const visibleTimelineItems = isHistoryCollapsed
@@ -2249,6 +2306,7 @@ function ProjectWorkspaceMobile({
             </div>
           </div>
           <div className="sn-mobile-project-header-right">
+            {project.pendingPublicHandle ? <StatusChip tone="building">发布后生效</StatusChip> : null}
             <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
               {statusLabel(project.status)}
             </StatusChip>
@@ -2295,7 +2353,9 @@ function ProjectWorkspaceMobile({
         </div>
         <div className="sn-mobile-home-composer-card is-bottom">
           <textarea
+            ref={composerTextareaRef}
             className="sn-mobile-home-composer-input"
+            rows={1}
             placeholder="你想做什么？"
             value={composerPrompt}
             onChange={(event) => setComposerPrompt(event.target.value)}
@@ -2647,6 +2707,15 @@ function ProjectStatusContent({
           <div className="sn-reference-note">尚未发布到正式版本</div>
         )}
       </div>
+
+      {project.pendingPublicHandle ? (
+        <div className="sn-reference-status-block">
+          <div className="sn-reference-label">待生效公开地址</div>
+          <div className="sn-reference-note">
+            {project.pendingPublicHandle} 将在下次发布后成为正式公开地址。
+          </div>
+        </div>
+      ) : null}
 
       <div className="sn-reference-status-block">
         <div className="sn-reference-block-head">

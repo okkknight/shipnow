@@ -80,7 +80,7 @@ export class ShipNowStore {
 
   private migrate(): void {
     const version = Number(this.db.pragma('user_version', { simple: true }) ?? 0);
-    if (version >= 3) {
+    if (version >= 4) {
       return;
     }
 
@@ -98,6 +98,8 @@ export class ShipNowStore {
           project_id TEXT PRIMARY KEY,
           display_name TEXT NOT NULL,
           public_handle TEXT NOT NULL UNIQUE,
+          pending_public_handle TEXT,
+          pending_public_handle_set_at TEXT,
           type TEXT NOT NULL,
           title TEXT NOT NULL,
           prompt TEXT NOT NULL,
@@ -181,22 +183,31 @@ export class ShipNowStore {
         CREATE INDEX idx_project_events_project_id ON project_events(project_id);
       `);
       this.db.prepare('INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES (?, ?)').run('default_runner', 'codex');
-      this.db.pragma('user_version = 3');
+      this.db.pragma('user_version = 4');
       return;
     }
 
+    if (version < 3) {
+      this.db.exec(`
+        ALTER TABLE projects ADD COLUMN preferred_runner TEXT;
+        ALTER TABLE tasks ADD COLUMN runner_name TEXT;
+        CREATE TABLE IF NOT EXISTS settings (
+          setting_key TEXT PRIMARY KEY,
+          setting_value TEXT NOT NULL
+        );
+        INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES ('default_runner', 'codex');
+      `);
+
+      this.db.prepare('UPDATE tasks SET runner_name = COALESCE(runner_name, ?)').run('codex');
+      this.db.pragma('user_version = 3');
+    }
+
     this.db.exec(`
-      ALTER TABLE projects ADD COLUMN preferred_runner TEXT;
-      ALTER TABLE tasks ADD COLUMN runner_name TEXT;
-      CREATE TABLE IF NOT EXISTS settings (
-        setting_key TEXT PRIMARY KEY,
-        setting_value TEXT NOT NULL
-      );
-      INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES ('default_runner', 'codex');
+      ALTER TABLE projects ADD COLUMN pending_public_handle TEXT;
+      ALTER TABLE projects ADD COLUMN pending_public_handle_set_at TEXT;
     `);
 
-    this.db.prepare('UPDATE tasks SET runner_name = COALESCE(runner_name, ?)').run('codex');
-    this.db.pragma('user_version = 3');
+    this.db.pragma('user_version = 4');
   }
 
   close(): void {
@@ -217,22 +228,7 @@ export class ShipNowStore {
 
   getProjectByHandle(handle: string): ProjectRecord | null {
     const direct = this.db.prepare('SELECT * FROM projects WHERE public_handle = ?').get(handle);
-    if (direct) {
-      return direct as ProjectRecord;
-    }
-
-    const alias = this.db
-      .prepare(
-        `
-        SELECT p.*
-        FROM project_aliases a
-        INNER JOIN projects p ON p.project_id = a.project_id
-        WHERE a.alias_handle = ?
-        LIMIT 1
-      `
-      )
-      .get(handle);
-    return (alias as ProjectRecord | undefined) ?? null;
+    return (direct as ProjectRecord | undefined) ?? null;
   }
 
   resolveProjectHandle(handle: string): { project: ProjectRecord; redirected: boolean } | null {
@@ -240,26 +236,35 @@ export class ShipNowStore {
     if (direct) {
       return { project: direct as ProjectRecord, redirected: false };
     }
-
-    const alias = this.db
-      .prepare(
-        `
-        SELECT p.*
-        FROM project_aliases a
-        INNER JOIN projects p ON p.project_id = a.project_id
-        WHERE a.alias_handle = ?
-        LIMIT 1
-      `
-      )
-      .get(handle);
-    if (!alias) {
-      return null;
-    }
-    return { project: alias as ProjectRecord, redirected: true };
+    return null;
   }
 
-  handleExists(handle: string): boolean {
-    return this.getProjectByHandle(handle) !== null;
+  handleExists(handle: string, excludeProjectId?: string): boolean {
+    const row = excludeProjectId
+      ? this.db
+          .prepare(
+            `
+            SELECT 1
+            FROM projects
+            WHERE deleted_at IS NULL
+              AND project_id != ?
+              AND (public_handle = ? OR pending_public_handle = ?)
+            LIMIT 1
+          `
+          )
+          .get(excludeProjectId, handle, handle)
+      : this.db
+          .prepare(
+            `
+            SELECT 1
+            FROM projects
+            WHERE deleted_at IS NULL
+              AND (public_handle = ? OR pending_public_handle = ?)
+            LIMIT 1
+          `
+          )
+          .get(handle, handle);
+    return row !== undefined;
   }
 
   getAppSettings(): AppSettingsView {
@@ -322,6 +327,8 @@ export class ShipNowStore {
       project_id: input.projectId,
       display_name: input.displayName,
       public_handle: input.publicHandle,
+      pending_public_handle: null,
+      pending_public_handle_set_at: null,
       type: input.type,
       title: input.title,
       prompt: input.prompt,
@@ -341,11 +348,11 @@ export class ShipNowStore {
       .prepare(
         `
         INSERT INTO projects (
-          project_id, display_name, public_handle, type, title, prompt, status, source_root,
+          project_id, display_name, public_handle, pending_public_handle, pending_public_handle_set_at, type, title, prompt, status, source_root,
           preferred_runner, preview_release_path, public_release_path, created_at, updated_at,
           last_built_at, last_published_at, deleted_at, latest_task_id
         ) VALUES (
-          @project_id, @display_name, @public_handle, @type, @title, @prompt, @status, @source_root,
+          @project_id, @display_name, @public_handle, @pending_public_handle, @pending_public_handle_set_at, @type, @title, @prompt, @status, @source_root,
           @preferred_runner, @preview_release_path, @public_release_path, @created_at, @updated_at,
           @last_built_at, @last_published_at, @deleted_at, @latest_task_id
         )
@@ -367,6 +374,8 @@ export class ShipNowStore {
         UPDATE projects SET
           display_name = @display_name,
           public_handle = @public_handle,
+          pending_public_handle = @pending_public_handle,
+          pending_public_handle_set_at = @pending_public_handle_set_at,
           type = @type,
           title = @title,
           prompt = @prompt,
@@ -396,28 +405,24 @@ export class ShipNowStore {
     const changedHandle = current.public_handle !== publicHandle;
     const now = nowIso();
     const transaction = this.db.transaction(() => {
-      if (changedHandle) {
-        this.db
-          .prepare(
-            `
-            INSERT OR REPLACE INTO project_aliases (alias_handle, project_id, created_at)
-            VALUES (?, ?, ?)
-          `
-          )
-          .run(current.public_handle, projectId, now);
-      }
-
       this.db
         .prepare(
           `
           UPDATE projects SET
             display_name = ?,
-            public_handle = ?,
+            pending_public_handle = ?,
+            pending_public_handle_set_at = ?,
             updated_at = ?
           WHERE project_id = ?
         `
         )
-        .run(displayName, publicHandle, now, projectId);
+        .run(
+          displayName,
+          changedHandle ? publicHandle : null,
+          changedHandle ? now : null,
+          now,
+          projectId
+        );
     });
     transaction();
     return this.getProjectById(projectId);
@@ -658,11 +663,24 @@ export class ShipNowStore {
     });
   }
 
-  updateProjectPublishState(projectId: string, publicReleasePath: string | null, status: ProjectStatus, publishedAt = nowIso()): ProjectRecord | null {
+  updateProjectPublishState(
+    projectId: string,
+    publicReleasePath: string | null,
+    status: ProjectStatus,
+    publishedAt = nowIso(),
+    patch: {
+      publicHandle?: string;
+      pendingPublicHandle?: string | null;
+      pendingPublicHandleSetAt?: string | null;
+    } = {}
+  ): ProjectRecord | null {
     return this.updateProject(projectId, {
       status,
       public_release_path: publicReleasePath,
       last_published_at: publishedAt,
+      ...(patch.publicHandle !== undefined ? { public_handle: patch.publicHandle } : {}),
+      ...(patch.pendingPublicHandle !== undefined ? { pending_public_handle: patch.pendingPublicHandle } : {}),
+      ...(patch.pendingPublicHandleSetAt !== undefined ? { pending_public_handle_set_at: patch.pendingPublicHandleSetAt } : {}),
     });
   }
 
