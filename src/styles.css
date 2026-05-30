@@ -5777,7 +5777,7 @@
     flex-direction: column;
     width: min(288px, calc(100vw - 20px));
     min-height: 100%;
-    padding: 18px 30px 14px;
+    padding: 18px 26px 14px;
     background: rgba(255, 255, 252, 0.98);
     border-radius: 0 28px 28px 0;
     box-shadow: 24px 0 40px rgba(15, 17, 21, 0.14);
@@ -5791,7 +5791,7 @@
 
   .sn-mobile-drawer-sheet.sn-reference-sheet {
     width: min(288px, calc(100vw - 20px));
-    padding: 18px 30px 14px;
+    padding: 18px 26px 14px;
     background: rgba(255, 255, 252, 0.9);
     border-radius: 0 28px 28px 0;
     box-shadow: var(--sn-shadow-card);
