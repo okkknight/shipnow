@@ -36,6 +36,7 @@ import {
   ensureWorkspaceRoots,
   prepareProjectWorkspace,
   projectPaths,
+  publicSitePath,
   removeProjectWorkspace,
   injectBaseHref,
   updateCurrentReleaseLink,
@@ -983,11 +984,17 @@ export class ShipNowManager {
     const paths = projectPaths(this.env, project.project_id);
     const finalHandle = project.pending_public_handle ?? project.public_handle;
     const handleCutover = project.pending_public_handle !== null && project.pending_public_handle !== project.public_handle;
+    const publicRoot = publicSitePath(this.env, finalHandle);
+    const previousPublicRoot = handleCutover ? publicSitePath(this.env, project.public_handle) : null;
     await mkdir(paths.publicReleasesRoot, { recursive: true });
     const releasePath = resolve(paths.publicReleasesRoot, `${previewRelease.id}-${randomBytes(4).toString('hex')}`);
     await this.copyDirectory(previewRelease.release_path, releasePath);
     await injectBaseHref(resolve(releasePath, 'index.html'), `/${finalHandle}/`);
-    await updateCurrentReleaseLink(releasePath, paths.publicCurrentRoot);
+    await rm(resolve(paths.projectRoot, 'index.html'), { recursive: true, force: true });
+    await rm(resolve(paths.projectRoot, 'assets'), { recursive: true, force: true });
+    await rm(resolve(paths.projectRoot, 'current-public'), { recursive: true, force: true });
+    await rm(publicRoot, { recursive: true, force: true });
+    await this.copyDirectory(releasePath, publicRoot);
     const publicRelease = this.store.createRelease({
       projectId: project.project_id,
       kind: 'public',
@@ -999,7 +1006,7 @@ export class ShipNowManager {
     });
     this.store.updateProjectPublishState(
       project.project_id,
-      publicRelease.release_path,
+      publicRoot,
       'published',
       nowIso(),
       handleCutover
@@ -1011,6 +1018,7 @@ export class ShipNowManager {
         : {}
     );
     if (handleCutover) {
+      await rm(previousPublicRoot!, { recursive: true, force: true });
       this.store.createEvent({
         projectId: project.project_id,
         taskId: task.id,
@@ -1030,14 +1038,14 @@ export class ShipNowManager {
       type: 'published',
       title: '发布成功',
       detail: `公开地址已切换到 ${finalHandle}。`,
-      data: { publicHandle: finalHandle, publicReleasePath: publicRelease.release_path },
+      data: { publicHandle: finalHandle, publicReleasePath: publicRoot },
     });
-    await this.store.appendTaskLogAsync(task.id, `Published ${project.display_name} to ${releasePath}.`);
+    await this.store.appendTaskLogAsync(task.id, `Published ${project.display_name} to ${publicRoot}.`);
   }
 
   private async executeDelete(project: ProjectRecord, task: TaskRecord): Promise<void> {
     const paths = projectPaths(this.env, project.project_id);
-    await removeProjectWorkspace(paths);
+    await removeProjectWorkspace(this.env, paths, project.public_handle);
     this.store.markProjectDeleted(project.project_id);
     this.store.createEvent({
       projectId: project.project_id,

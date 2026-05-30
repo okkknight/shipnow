@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -99,6 +99,124 @@ test('publishing finalizes a pending handle rename and clears the staging state'
     const publicRelease = store.getCurrentRelease(project.project_id, 'public');
     assert.ok(publicRelease);
     assert.match(readFileSync(join(publicRelease!.release_path, 'index.html'), 'utf8'), /<base href="\/moon-diary\/">/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('publishing writes the public site to the current public handle directory', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'shipnow-public-handle-release-'));
+  try {
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const manager = new ShipNowManager(store, createTestEnv(root));
+    const project = store.createProject({
+      projectId: 'proj_123456ab98cd',
+      displayName: 'untitle-r837',
+      publicHandle: 'untitle-r837',
+      type: 'landing',
+      title: 'Demo project',
+      prompt: 'Build a simple landing page.',
+      sourceRoot: join(root, 'workspace', 'proj_123456ab98cd'),
+      status: 'preview_ready',
+    });
+
+    const previewReleasePath = join(root, 'public', project.project_id, 'releases', 'preview', 'release-preview');
+    mkdirSync(join(root, 'public', project.project_id, 'logs'), { recursive: true });
+    mkdirSync(join(root, 'public', project.project_id, 'releases', 'preview'), { recursive: true });
+    mkdirSync(join(root, 'public', project.project_id, 'releases', 'public'), { recursive: true });
+    mkdirSync(previewReleasePath, { recursive: true });
+    writeFileSync(join(previewReleasePath, 'index.html'), '<html><head></head><body>preview</body></html>');
+    store.createRelease({
+      projectId: project.project_id,
+      kind: 'preview',
+      source: project.source_root,
+      releasePath: previewReleasePath,
+      buildTaskId: 'task_preview_1',
+      current: true,
+    });
+
+    const task = {
+      id: 'task_publish_public_handle_1',
+      project_id: project.project_id,
+      type: 'publish' as const,
+      status: 'pending' as const,
+      prompt: 'Publish the latest successful preview release to the public release.',
+      started_at: null,
+      finished_at: null,
+      log_path: join(root, 'public', project.project_id, 'logs', 'task.log'),
+      runner_name: null,
+      error_message: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await (manager as unknown as { executePublish: (project: any, task: any) => Promise<void> }).executePublish(
+      store.getProjectById(project.project_id),
+      task
+    );
+
+    const liveIndex = join(root, 'public', 'untitle-r837', 'index.html');
+    assert.equal(readFileSync(liveIndex, 'utf8').includes('<base href="/untitle-r837/">'), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('publishing does not leave public handle aliases under the project workspace', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'shipnow-public-alias-cleanup-'));
+  try {
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const manager = new ShipNowManager(store, createTestEnv(root));
+    const project = store.createProject({
+      projectId: 'proj_123456ab99cd',
+      displayName: 'untitle-r837',
+      publicHandle: 'untitle-r837',
+      type: 'landing',
+      title: 'Demo project',
+      prompt: 'Build a simple landing page.',
+      sourceRoot: join(root, 'workspace', 'proj_123456ab99cd'),
+      status: 'preview_ready',
+    });
+
+    const previewReleasePath = join(root, 'public', project.project_id, 'releases', 'preview', 'release-preview');
+    mkdirSync(join(root, 'public', project.project_id, 'logs'), { recursive: true });
+    mkdirSync(join(root, 'public', project.project_id, 'releases', 'preview'), { recursive: true });
+    mkdirSync(join(root, 'public', project.project_id, 'releases', 'public'), { recursive: true });
+    mkdirSync(previewReleasePath, { recursive: true });
+    writeFileSync(join(previewReleasePath, 'index.html'), '<html><head></head><body>preview</body></html>');
+    store.createRelease({
+      projectId: project.project_id,
+      kind: 'preview',
+      source: project.source_root,
+      releasePath: previewReleasePath,
+      buildTaskId: 'task_preview_1',
+      current: true,
+    });
+
+    const task = {
+      id: 'task_publish_public_handle_2',
+      project_id: project.project_id,
+      type: 'publish' as const,
+      status: 'pending' as const,
+      prompt: 'Publish the latest successful preview release to the public release.',
+      started_at: null,
+      finished_at: null,
+      log_path: join(root, 'public', project.project_id, 'logs', 'task.log'),
+      runner_name: null,
+      error_message: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await (manager as unknown as { executePublish: (project: any, task: any) => Promise<void> }).executePublish(
+      store.getProjectById(project.project_id),
+      task
+    );
+
+    const projectRoot = join(root, 'public', project.project_id);
+    assert.equal(existsSync(join(projectRoot, 'index.html')), false);
+    assert.equal(existsSync(join(projectRoot, 'assets')), false);
+    assert.equal(existsSync(join(projectRoot, 'current-public')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

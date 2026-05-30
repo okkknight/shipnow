@@ -64,6 +64,8 @@ Notes:
 - `/opt/boringmax/site/shipnow` is the source of truth for the public UI assets served by Caddy.
 - `/opt/boringmax/shipnow/workspace` must stay writable by the `shipnow` service user; after syncing the repo or touching the workspace on the VPS, re-`chown` it and restart the service before testing create/publish flows.
 - When only the frontend changes, syncing `dist/client/` to `/opt/boringmax/site/shipnow/` is enough for public UI freshness, but backend changes still require a ShipNow service restart.
+- VPS deployments are production deployments: the systemd service runs with `NODE_ENV=production`, the backend defaults to the production preview/public base URLs, and the preview release HTML is published with a base path derived from that environment's `SHIPNOW_PREVIEW_BASE_URL`.
+- Local development keeps the local preview base (`http://localhost:3000/preview`) so the same code can still render preview assets against the local server without changing the production route contract.
 
 ### Site root
 
@@ -75,32 +77,61 @@ Notes:
 
 ### Per-site layout
 
-For each site, ShipNow uses this structure:
+For each ShipNow-managed site, the VPS now uses two layers:
+
+1. The internal project workspace under the project id:
 
 ```text
-/opt/boringmax/site/<siteName>/
-  index.html
-  assets/
+/opt/boringmax/site/proj_<projectId>/
+  source/
   preview/
     index.html
     assets/
-  source/
   releases/
     preview/
     public/
   logs/
   current-preview
-  current-public
+```
+
+2. The actual live public site under the public handle:
+
+```text
+/opt/boringmax/site/<publicHandle>/
+  index.html
+  assets/
 ```
 
 Meaning:
 
-- `index.html` and `assets/` are the current public entrypoint
-- `preview/index.html` and `preview/assets/` are the current preview entrypoint
+- `/opt/boringmax/site/<publicHandle>/` is the current public entrypoint and the path Caddy serves directly
+- `index.html` and `assets/` under the public handle directory are the current public entrypoint
+- `preview/index.html` and `preview/assets/` under the project id tree are the current preview entrypoint
 - `source/` is the editable project source tree
-- `releases/preview/` and `releases/public/` store immutable build snapshots
+- `releases/preview/` and `releases/public/` store immutable build snapshots inside the project workspace
 - `logs/` stores task logs
-- `current-preview` and `current-public` point to the active release snapshot
+- `current-preview` points to the active preview snapshot
+- the public handle directory itself is the live public site directory, so there is no separate `current-public` alias layer
+
+### Test reset / cleanup rules
+
+When you want a clean ShipNow test environment on the VPS:
+
+1. Delete ShipNow-managed projects through the API first:
+   - `DELETE /api/projects/:projectId`
+   - wait for the delete task to finish successfully
+2. Remove any leftover ShipNow project directories under `/opt/boringmax/site`:
+   - the disposable project trees are the `proj_*` directories
+   - remove those directories directly if the API delete left stale files behind
+3. Keep the ordinary static sites untouched:
+   - `shipnow/` is the public UI publication and must stay
+   - plain static sites such as `test/`, `loveadventure/`, and `shootman/` are not part of the ShipNow reset flow
+4. Do not move the ShipNow app-private files into `/opt/boringmax/site`:
+   - the app code stays in `/opt/boringmax/shipnow`
+   - the sqlite database stays under `/opt/boringmax/shipnow/workspace`
+   - only the public client build is synced to `/opt/boringmax/site/shipnow`
+
+This keeps the reset path predictable: managed ShipNow projects are disposable, while the shared static site roots remain stable.
 
 ## systemd environment
 
@@ -126,8 +157,9 @@ Notes:
 
 - `SHIPNOW_PUBLIC_STATIC_ROOT` is the site root and must stay at `/opt/boringmax/site`
 - The ShipNow app database is app-private and lives under `/opt/boringmax/shipnow/workspace`
-- The ShipNow workspace remains under the ShipNow site directory at `/opt/boringmax/site/shipnow`
-- The managed site assets themselves must live inside each site directory, not in a shared bucket
+- The ShipNow workspace remains under the ShipNow app directory at `/opt/boringmax/shipnow/workspace`
+- The managed site assets themselves must live inside each public handle directory, not in a shared bucket
+- The public ShipNow UI is the only thing that belongs in `/opt/boringmax/site/shipnow`; do not place sqlite, logs, or app-private workspace data there
 
 ## Claude Code runner
 
@@ -179,6 +211,8 @@ Notes:
 - `api.boringmax.com/shipnow/preview/<siteName>` is the real public preview URL, while the `/preview` directory under each site is only the filesystem layout that backs it.
 - `boringmax.com/preview*` and `boringmax.com/site*` are left to the normal static `file_server` fallback; they do not need bespoke 404 handling if the requested file does not exist.
 - ShipNow still understands preview concepts internally, but that internal route model is not the same thing as the live Caddy entrypoint.
+- The preview release HTML base is derived from the active `previewBaseUrl` path, so local preview builds still use `/preview/<project>` while the VPS uses `/shipnow/preview/<project>` through the production env values.
+- The public release path is the public handle directory under `/opt/boringmax/site/<publicHandle>/`, while the internal `projectId` tree keeps the release snapshots and logs.
 
 ## Why this works
 

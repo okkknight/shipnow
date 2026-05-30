@@ -5,10 +5,7 @@ import type { ShipNowEnv } from './env.js';
 export interface ProjectPaths {
   projectRoot: string;
   sourceRoot: string;
-  publicIndexPath: string;
-  publicAssetsPath: string;
   previewCurrentRoot: string;
-  publicCurrentRoot: string;
   previewIndexPath: string;
   previewAssetsPath: string;
   previewReleasesRoot: string;
@@ -21,16 +18,17 @@ export function projectPaths(env: ShipNowEnv, projectId: string): ProjectPaths {
   return {
     projectRoot,
     sourceRoot: join(projectRoot, 'source'),
-    publicIndexPath: resolve(projectRoot, 'index.html'),
-    publicAssetsPath: resolve(projectRoot, 'assets'),
     previewCurrentRoot: resolve(projectRoot, 'current-preview'),
-    publicCurrentRoot: resolve(projectRoot, 'current-public'),
     previewIndexPath: resolve(projectRoot, 'preview', 'index.html'),
     previewAssetsPath: resolve(projectRoot, 'preview', 'assets'),
     previewReleasesRoot: resolve(projectRoot, 'releases', 'preview'),
     publicReleasesRoot: resolve(projectRoot, 'releases', 'public'),
     logPath: resolve(projectRoot, 'logs', `${projectId}.log`),
   };
+}
+
+export function publicSitePath(env: ShipNowEnv, publicHandle: string): string {
+  return resolve(env.publicStaticRoot, publicHandle);
 }
 
 export async function ensureWorkspaceRoots(env: ShipNowEnv): Promise<void> {
@@ -52,11 +50,11 @@ export async function prepareProjectWorkspace(env: ShipNowEnv, projectName: stri
     ensureDir(paths.previewReleasesRoot),
     ensureDir(paths.publicReleasesRoot),
     ensureDir(resolve(paths.projectRoot, 'current-preview')),
-    ensureDir(resolve(paths.projectRoot, 'current-public')),
+    removePath(resolve(paths.projectRoot, 'index.html')),
+    removePath(resolve(paths.projectRoot, 'assets')),
+    removePath(resolve(paths.projectRoot, 'current-public')),
   ]);
   await Promise.all([
-    updateCurrentReleaseLink(resolve(paths.publicCurrentRoot, 'index.html'), paths.publicIndexPath),
-    updateCurrentReleaseLink(resolve(paths.publicCurrentRoot, 'assets'), paths.publicAssetsPath),
     updateCurrentReleaseLink(resolve(paths.previewCurrentRoot, 'index.html'), paths.previewIndexPath),
     updateCurrentReleaseLink(resolve(paths.previewCurrentRoot, 'assets'), paths.previewAssetsPath),
   ]);
@@ -119,19 +117,20 @@ export async function injectBaseHref(indexPath: string, baseHref: string): Promi
   await writeText(indexPath, rendered);
 }
 
-export async function removeProjectWorkspace(paths: ProjectPaths): Promise<void> {
+export async function removeProjectWorkspace(env: ShipNowEnv, paths: ProjectPaths, publicHandle: string): Promise<void> {
   // Preserve the task log directory so delete jobs can finish writing their final status.
   await Promise.all([
+    removePath(publicSitePath(env, publicHandle)),
     removePath(paths.sourceRoot),
-    removePath(paths.publicIndexPath),
-    removePath(paths.publicAssetsPath),
     removePath(paths.previewIndexPath),
     removePath(paths.previewAssetsPath),
     removePath(paths.previewCurrentRoot),
-    removePath(paths.publicCurrentRoot),
     removePath(paths.previewReleasesRoot),
     removePath(paths.publicReleasesRoot),
     removePath(resolve(paths.projectRoot, 'preview')),
     removePath(resolve(paths.projectRoot, 'releases')),
+    removePath(resolve(paths.projectRoot, 'current-public')),
+    removePath(resolve(paths.projectRoot, 'index.html')),
+    removePath(resolve(paths.projectRoot, 'assets')),
   ]);
 }
