@@ -11,6 +11,7 @@ test('loadEnv defaults to codex and exposes claude/deepseek runner settings', ()
 
   assert.equal(env.codexBin, 'codex');
   assert.equal(env.defaultRunner, 'codex');
+  assert.equal(env.previewBaseUrl, 'http://localhost:3000/preview');
   assert.equal(env.claudeCodeBin, 'claude');
   assert.equal(env.claudeCodeAnthropicBaseUrl, 'https://api.deepseek.com/anthropic');
   assert.equal(env.claudeCodeModel, 'deepseek-v4-flash');

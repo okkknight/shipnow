@@ -146,6 +146,41 @@ describe('buildConversationTimeline', () => {
     assert.equal(items[0].kind, 'message');
   });
 
+  it('filters out queued task events from the timeline', () => {
+    const detail: ProjectDetailResponse = {
+      project: {} as ProjectDetailResponse['project'],
+      tasks: [],
+      messages: [
+        {
+          id: 'message-1',
+          projectId: 'project-1',
+          taskId: null,
+          role: 'assistant',
+          content: '这个方案可以，先把导航栏收紧，再统一按钮层级。',
+          createdAt: '2026-05-29T10:00:01.000Z',
+        },
+      ],
+      events: [
+        {
+          id: 'event-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          type: 'task_queued',
+          title: '创建任务已排队',
+          detail: '我会先准备工作区，再继续执行这次操作。',
+          data: null,
+          createdAt: '2026-05-29T10:00:00.000Z',
+        },
+      ],
+      releases: [],
+    };
+
+    const items = buildConversationTimeline(detail);
+
+    assert.equal(items.length, 1);
+    assert.equal(items[0].kind, 'message');
+  });
+
   it('returns an empty timeline when no detail is available', () => {
     assert.deepEqual(buildConversationTimeline(null), []);
   });

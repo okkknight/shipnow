@@ -75,7 +75,9 @@ export function buildConversationTimeline(detail: ConversationTimelineSource): C
     type: event.type,
     data: event.data,
     order,
-  }) as ConversationTimelineEventItem & { order: number }).filter((event) => event.type !== 'chat_replied');
+  }) as ConversationTimelineEventItem & { order: number }).filter(
+    (event) => event.type !== 'chat_replied' && event.type !== 'task_queued'
+  );
 
   return [...messageItems, ...eventItems]
     .sort((left, right) => {

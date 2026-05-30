@@ -112,10 +112,13 @@ loadEnvFile(resolve(process.cwd(), '.env.local'), lockedEnvKeys);
 export function loadEnv(): ShipNowEnv {
   const workspaceRoot = envPath('SHIPNOW_WORKSPACE_ROOT', 'workspace');
   const publicStaticRoot = envPath('SHIPNOW_PUBLIC_STATIC_ROOT', 'workspace/public');
+  const isProduction = process.env.NODE_ENV === 'production';
   return {
     port: envInt('SHIPNOW_PORT', 3000),
     publicBaseUrl: envValue('SHIPNOW_PUBLIC_BASE_URL') || 'http://localhost:3000',
-    previewBaseUrl: envValue('SHIPNOW_PREVIEW_BASE_URL') || 'https://api.boringmax.com/shipnow/preview',
+    previewBaseUrl:
+      envValue('SHIPNOW_PREVIEW_BASE_URL') ||
+      (isProduction ? 'https://api.boringmax.com/shipnow/preview' : 'http://localhost:3000/preview'),
     shipnowApiBaseUrl: envValue('SHIPNOW_API_BASE_URL') || 'https://api.boringmax.com/shipnow/api',
     workspaceRoot,
     templateRoot: envPath('SHIPNOW_TEMPLATE_ROOT', 'templates'),

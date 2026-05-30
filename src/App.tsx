@@ -2316,28 +2316,30 @@ function ProjectWorkspaceMobile({
           </div>
         </div>
 
-        {isHistoryCollapsed && canCollapseHistory ? (
-          <button
-            className="sn-mobile-chat-history-summary"
-            type="button"
-            onClick={() => setHistoryCollapsed(false)}
-          >
-            已收起 {hiddenTimelineCount} 条早期记录，点击展开全部
-          </button>
-        ) : null}
+        <div className="sn-mobile-project-body">
+          {isHistoryCollapsed && canCollapseHistory ? (
+            <button
+              className="sn-mobile-chat-history-summary"
+              type="button"
+              onClick={() => setHistoryCollapsed(false)}
+            >
+              已收起 {hiddenTimelineCount} 条早期记录，点击展开全部
+            </button>
+          ) : null}
 
-        <div className="sn-mobile-chat-stack">
-          {visibleTimelineItems.length === 0 ? (
-            <div className="sn-mobile-chat-empty">刚打开这个项目。先说一句你要改什么。</div>
-          ) : (
-            visibleTimelineItems.map((item) => (
-              <TimelineEntry key={item.id} item={item} liveTimelineEventId={liveTimelineEventId} />
-            ))
-          )}
+          <div className="sn-mobile-chat-stack">
+            {visibleTimelineItems.length === 0 ? (
+              <div className="sn-mobile-chat-empty">刚打开这个项目。先说一句你要改什么。</div>
+            ) : (
+              visibleTimelineItems.map((item) => (
+                <TimelineEntry key={item.id} item={item} liveTimelineEventId={liveTimelineEventId} />
+              ))
+            )}
+          </div>
+
+          <PendingConversationBubble pendingConversation={pendingConversation} />
+          <div ref={conversationEndRef} className="sn-conversation-end-anchor" aria-hidden="true" />
         </div>
-
-        <PendingConversationBubble pendingConversation={pendingConversation} />
-        <div ref={conversationEndRef} className="sn-conversation-end-anchor" aria-hidden="true" />
       </div>
 
       <div className="sn-mobile-project-composer-fixed">
@@ -2990,7 +2992,7 @@ function findLiveTimelineEventId(
     return null;
   }
 
-  const liveTypes = new Set(['task_queued', 'task_started', 'task_progress']);
+  const liveTypes = new Set(['task_started', 'task_progress']);
   for (let index = timelineItems.length - 1; index >= 0; index -= 1) {
     const item = timelineItems[index];
     if (item.kind !== 'event') {
