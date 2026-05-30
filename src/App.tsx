@@ -257,6 +257,20 @@ function RouteEnterTransition({ children }: { children: ReactNode }): ReactEleme
   return <div className={`sn-route-enter ${isEntered ? 'is-entered' : ''}`.trim()}>{children}</div>;
 }
 
+function RouteFadeTransition({ children }: { children: ReactNode }): ReactElement {
+  const [isEntered, setIsEntered] = useState(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setIsEntered(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return <div className={`sn-route-fade ${isEntered ? 'is-entered' : ''}`.trim()}>{children}</div>;
+}
+
 function slugifyHandle(value: string): string {
   return value
     .trim()
@@ -517,6 +531,7 @@ function App() {
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
   const renameSheetOpenRef = useRef(false);
+  const createTransitionProjectIdRef = useRef<string | null>(null);
   const routeProjectId =
     route.kind === 'project' ||
     route.kind === 'project-preview' ||
@@ -616,12 +631,37 @@ function App() {
       return;
     }
     if (routeProjectId) {
+      if (createTransitionProjectIdRef.current === routeProjectId) {
+        if (detail?.project?.projectId === routeProjectId) {
+          setDetailLoading(false);
+          return;
+        }
+        return;
+      }
+      if (detail?.project?.projectId === routeProjectId) {
+        setDetailLoading(false);
+        return;
+      }
       setDetail(null);
       void refreshDetail(routeProjectId);
     } else {
       setDetail(null);
     }
   }, [isEnhancedRoute, route.kind, routeProjectId]);
+
+  useEffect(() => {
+    if (!createTransitionProjectIdRef.current) {
+      return;
+    }
+    if (routeProjectId !== createTransitionProjectIdRef.current) {
+      return;
+    }
+    if (detail?.project?.projectId !== createTransitionProjectIdRef.current) {
+      return;
+    }
+
+    createTransitionProjectIdRef.current = null;
+  }, [detail?.project?.projectId, routeProjectId]);
 
   useEffect(() => {
     if (isEnhancedRoute) {
@@ -650,19 +690,15 @@ function App() {
     };
   }, [isEnhancedRoute, refreshDetail, routeProjectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isEnhancedRoute) {
       return;
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      conversationEndRef.current?.scrollIntoView({ block: 'end' });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
+    conversationEndRef.current?.scrollIntoView({ block: 'end' });
   }, [isEnhancedRoute, latestTimelineItemId, pendingConversation?.id, route.kind, routeProjectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isEnhancedRoute) {
       return;
     }
@@ -670,15 +706,12 @@ function App() {
       return;
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      const container = conversationRef.current;
-      if (!container) {
-        return;
-      }
-      container.scrollTop = container.scrollHeight;
-    });
+    const container = conversationRef.current;
+    if (!container) {
+      return;
+    }
 
-    return () => window.cancelAnimationFrame(frame);
+    container.scrollTop = container.scrollHeight;
   }, [isEnhancedRoute, latestTimelineItemId, pendingConversation?.id, route.kind, routeProjectId]);
 
   const createFromComposer = route.kind === 'home';
@@ -762,7 +795,9 @@ function App() {
       setActiveAction('create');
       try {
         const result = await createProject({ prompt });
+        createTransitionProjectIdRef.current = result.project.projectId;
         await refreshProjects();
+        await refreshDetail(result.project.projectId);
         navigate(`/project/${result.project.projectId}`);
         setSidebarOpen(false);
         setError(null);
@@ -944,9 +979,11 @@ function App() {
     route.kind === 'project-live' ||
     route.kind === 'publish-success' ||
     route.kind === 'publish-failure';
+  const shouldFadeProjectRoute = route.kind === 'project';
   const routeAnimationKey = shouldAnimateRoute
     ? `${route.kind}:${'projectId' in route ? route.projectId : ''}`
     : null;
+  const projectRouteAnimationKey = shouldFadeProjectRoute ? `project:${routeProjectId ?? ''}` : null;
 
   if (route.kind === 'design-system') {
     return <ShipNowDesignSystemPage />;
@@ -1035,14 +1072,7 @@ function App() {
       />
     );
   } else if (detailLoading && !detail) {
-    page = (
-      <div className="sn-page">
-        <div className="sn-page-backdrop" />
-        <div className="sn-page-shell">
-          <EmptyState title="正在读取项目详情…" description="稍等一下，ShipNow 正在把当前项目和最近任务加载出来。" icon={<Sparkles className="size-6" />} />
-        </div>
-      </div>
-    );
+    page = <ProjectWorkspaceLoadingScreen />;
   } else if (currentProject) {
     page = (
       <ProjectWorkspace
@@ -1091,6 +1121,8 @@ function App() {
 
   const renderedPage = shouldAnimateRoute && routeAnimationKey ? (
     <RouteEnterTransition key={routeAnimationKey}>{page}</RouteEnterTransition>
+  ) : shouldFadeProjectRoute && projectRouteAnimationKey ? (
+    <RouteFadeTransition key={projectRouteAnimationKey}>{page}</RouteFadeTransition>
   ) : (
     page
   );
@@ -2172,6 +2204,56 @@ function ProjectWorkspace({
       recentProjects={recentProjects}
       navigate={navigate}
     />
+  );
+}
+
+function ProjectWorkspaceLoadingScreen() {
+  return (
+    <MobilePageSurface className="sn-mobile-project-page">
+      <div className="sn-mobile-project-content sn-mobile-chat-page">
+        <div className="sn-mobile-project-header">
+          <div className="sn-mobile-project-header-left">
+            <Skeleton className="size-8 rounded-full" />
+            <div className="grid gap-2">
+              <Skeleton className="h-5 w-40 rounded-full" />
+              <Skeleton className="h-4 w-20 rounded-full" />
+            </div>
+          </div>
+          <div className="sn-mobile-project-header-right">
+            <Skeleton className="h-7 w-20 rounded-full" />
+            <Skeleton className="h-7 w-24 rounded-full" />
+            <Skeleton className="size-8 rounded-full" />
+          </div>
+        </div>
+
+        <div className="sn-mobile-project-body">
+          <div className="grid gap-3">
+            <Skeleton className="h-20 w-full rounded-[24px]" />
+            <Skeleton className="h-20 w-[88%] rounded-[24px]" />
+            <Skeleton className="h-16 w-[74%] rounded-[24px]" />
+            <Skeleton className="h-16 w-[62%] rounded-[24px]" />
+          </div>
+
+          <div className="grid gap-3">
+            <Skeleton className="h-24 w-full rounded-[24px]" />
+            <Skeleton className="h-20 w-[92%] rounded-[24px]" />
+          </div>
+        </div>
+      </div>
+
+      <div className="sn-mobile-project-composer-fixed">
+        <div className="sn-mobile-project-composer-actions has-single-action">
+          <Skeleton className="h-11 w-full rounded-[16px]" />
+        </div>
+        <div className="sn-mobile-home-composer-card is-bottom">
+          <Skeleton className="h-10 w-full rounded-[18px]" />
+          <div className="sn-mobile-home-composer-actions">
+            <Skeleton className="size-10 rounded-full" />
+            <Skeleton className="size-10 rounded-full" />
+          </div>
+        </div>
+      </div>
+    </MobilePageSurface>
   );
 }
 

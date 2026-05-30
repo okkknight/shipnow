@@ -96,10 +96,27 @@
     transform: translate3d(0, 0, 0);
   }
 
+  .sn-route-fade {
+    width: 100%;
+    min-height: 100vh;
+    opacity: 0;
+    transition: opacity 180ms ease;
+    will-change: opacity;
+  }
+
+  .sn-route-fade.is-entered {
+    opacity: 1;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .sn-route-enter {
       opacity: 1;
       transform: none;
+      transition: none;
+    }
+
+    .sn-route-fade {
+      opacity: 1;
       transition: none;
     }
   }

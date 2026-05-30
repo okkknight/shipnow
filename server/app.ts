@@ -41,6 +41,28 @@ function normalizeAssetPath(pathname: string, prefix: string): string {
   return stripped.replace(/^\/+/, '');
 }
 
+function basePathFromUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed.replace(/\/+$/, '');
+  }
+
+  try {
+    return new URL(trimmed).pathname.replace(/\/+$/, '');
+  } catch {
+    return trimmed.replace(/\/+$/, '');
+  }
+}
+
+function previewRouteBaseHref(previewBaseUrl: string, publicHandle: string): string {
+  const basePath = basePathFromUrl(previewBaseUrl);
+  return `${basePath}/${publicHandle}/`;
+}
+
 function injectHeadContent(html: string, headContent: string): string {
   const headMatch = html.match(/<head[^>]*>/i);
   if (!headMatch) {
@@ -382,7 +404,7 @@ export async function createShipNowApp(
     }
     const projectRoot = resolve(publicRoot, resolution.project.projectId, 'preview');
     const rest = requestPath.slice((previewPrefix + handle).length);
-    if (!(await serveRelease(`/preview/${handle}`, projectRoot, rest, reply, `/preview/${resolution.project.publicHandle}/`))) {
+    if (!(await serveRelease(`/preview/${handle}`, projectRoot, rest, reply, previewRouteBaseHref(shellOptions.previewBaseUrl, resolution.project.publicHandle)))) {
       reply.code(404).send('Preview not found.');
     }
     return true;
@@ -406,7 +428,7 @@ export async function createShipNowApp(
       await maybeRedirect(reply, redirectedPath);
       return true;
     }
-    const projectRoot = resolve(publicRoot, resolution.project.projectId);
+    const projectRoot = resolve(publicRoot, resolution.project.publicHandle);
     const rest = requestPath.slice(1 + handle.length);
     if (!(await serveRelease(`/${handle}`, projectRoot, rest, reply, `/${resolution.project.publicHandle}/`))) {
       reply.code(404).send('Site not found.');
