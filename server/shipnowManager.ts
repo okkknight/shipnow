@@ -44,6 +44,11 @@ import {
 import { runCommand } from './process.js';
 import type { AppSettingsView, ProjectSettingsView, TaskRunnerName } from './types.js';
 import { createTaskProgressEvent, projectTimelineBus } from './timelineBus.js';
+import {
+  buildTaskCompletionSummaryPrompt,
+  normalizeTaskCompletionSummary,
+  summarizeText,
+} from './taskCompletionSummary.js';
 
 interface EnqueueInput {
   projectId: string;
@@ -101,24 +106,16 @@ interface ConversationDetailSnapshot {
   }>;
 }
 
-function summarizeConversationText(content: string, maxLength = 80): string {
-  const normalized = content.replace(/\s+/g, ' ').trim();
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-  return `${normalized.slice(0, Math.max(1, maxLength - 1))}…`;
-}
-
 function buildConversationSessionContext(detail: ConversationDetailSnapshot): ConversationSessionContext {
   const latestTask = detail.tasks[0] ?? null;
   const recentEvents = detail.events.slice(-3).map((event) => {
     const description = event.detail?.trim();
-    return description ? `${event.title}：${description}` : event.title;
+    return description ? `${event.title}：${summarizeText(description)}` : event.title;
   });
   const recentConversationTrail = detail.messages
     .filter((message) => message.role === 'user' || (message.role === 'assistant' && message.taskId === null))
     .slice(-4)
-    .map((message) => `${message.role === 'user' ? '用户' : '助手'}：${summarizeConversationText(message.content)}`);
+    .map((message) => `${message.role === 'user' ? '用户' : '助手'}：${summarizeText(message.content, 80)}`);
 
   return {
     projectStatus: statusText(detail.project.status),
@@ -763,13 +760,21 @@ export class ShipNowManager {
       }
       this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
       this.publishTaskProgress(project, task, 'completed');
+      const summary = await this.generateTaskCompletionSummary(project, task);
       this.store.createEvent({
         projectId: project.project_id,
         taskId: task.id,
         type: 'task_completed',
         title: '任务执行完成',
-        detail: `任务 ${task.id} 已成功完成。`,
-        data: { taskId: task.id, taskType: task.type },
+        detail: summary.summaryText,
+        data: {
+          taskId: task.id,
+          taskType: task.type,
+          runnerName: task.runner_name ?? this.resolveEffectiveRunner(project),
+          summary: summary.summaryText,
+          summaryRawOutput: summary.rawOutput,
+          summarySource: summary.summarySource,
+        },
       });
       await this.store.appendTaskLogAsync(task.id, `Task ${task.id} completed successfully.`);
     } catch (error) {
@@ -790,6 +795,58 @@ export class ShipNowManager {
       } else if (task.type !== 'delete_project') {
         this.store.updateProjectStatus(project.project_id, 'build_failed');
       }
+    }
+  }
+
+  private async generateTaskCompletionSummary(
+    project: ProjectRecord,
+    task: TaskRecord
+  ): Promise<{
+    summaryText: string;
+    rawOutput: string | null;
+    summarySource: 'llm' | 'fallback';
+  }> {
+    const runnerName = task.runner_name ?? this.resolveEffectiveRunner(project);
+    const summaryTimeoutMs = Math.min(this.env.taskTimeoutSeconds * 1000, 45_000);
+    const fallbackSummary = `任务 ${task.id} 已成功完成。`;
+    const logTail = this.store.getTaskLogText(task.id).slice(-12_000);
+
+    try {
+      const rawOutput = await this.runRunnerText(
+        runnerName,
+        buildTaskCompletionSummaryPrompt({
+          runnerName,
+          taskId: task.id,
+          taskType: task.type,
+          projectDisplayName: project.display_name,
+          taskPrompt: task.prompt,
+          taskLogTail: logTail,
+          finalOutcome: 'success',
+        }),
+        project.source_root,
+        summaryTimeoutMs
+      );
+      const summaryText = normalizeTaskCompletionSummary(rawOutput);
+      if (summaryText) {
+        return {
+          summaryText,
+          rawOutput,
+          summarySource: 'llm',
+        };
+      }
+
+      return {
+        summaryText: fallbackSummary,
+        rawOutput,
+        summarySource: 'fallback',
+      };
+    } catch (error) {
+      await this.store.appendTaskLogAsync(task.id, `Summary generation failed: ${String(error)}`);
+      return {
+        summaryText: fallbackSummary,
+        rawOutput: null,
+        summarySource: 'fallback',
+      };
     }
   }
 
