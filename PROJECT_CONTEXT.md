@@ -24,7 +24,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - Project workspaces are initialized as git repositories before Codex runs, and the default static template builds with Vite's `--configLoader runner` mode to avoid the read-only temp-file issue on the VPS layout.
 - Generated static sites now use a relative Vite base, so preview and public releases resolve assets correctly when served from `/preview/<project>` and `/project`.
 - The active VPS layout now keeps each site self-contained under `/opt/boringmax/site/<siteName>`: source, preview snapshots, public snapshots, logs, and the current entrypoints all live inside the site directory, and the shared `.shipnow` bucket has been removed.
-- ShipNow's own app-private workspace and database now live under `/opt/boringmax/site/shipnow`, while managed site assets stay inside each site directory.
+- ShipNow's own app-private workspace remains under `/opt/boringmax/site/shipnow`, while its sqlite database now lives under `/opt/boringmax/shipnow/workspace/shipnow.sqlite`; managed site assets stay inside each site directory.
 - The VPS now also has Claude Code CLI installed at `/usr/bin/claude`, and `shipnow.service` loads `/etc/shipnow/shipnow.env` through a drop-in so the `claude-code` runner can use the configured DeepSeek-compatible Anthropic endpoint and API key.
 - The `shipnow.service` now runs as the dedicated `shipnow` user, and `/opt/boringmax/site` is owned by that user so Claude Code can use its full permission-bypass mode on writable workspaces without hitting root restrictions.
 - The `test` project has been migrated to the per-site layout and verified end-to-end again after the move.
@@ -37,6 +37,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The project workbench now auto-follows new conversation entries to the latest message on both desktop and mobile; the behavior was verified in Playwright CLI after scrolling the view back up and sending a test conversation.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md`.
 - ShipNow's sqlite database now lives under `/opt/boringmax/shipnow/workspace/shipnow.sqlite` instead of the public `site/` tree; the public ShipNow UI remains at `/opt/boringmax/site/shipnow`.
+- ShipNow deployment now explicitly splits backend and frontend publication: the app code and server bundle stay in `/opt/boringmax/shipnow`, while the latest `dist/client/` output is synced to `/opt/boringmax/site/shipnow` so the public `/shipnow` page always shows the newest UI.
 
 ## Latest task
 

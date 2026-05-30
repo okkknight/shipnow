@@ -2,6 +2,7 @@
 
 ## 2026-05-30
 
+- Documented the split ShipNow deployment flow: backend code and server bundle stay in `/opt/boringmax/shipnow`, while the generated `dist/client/` assets are synced to `/opt/boringmax/site/shipnow` so the public `/shipnow` page always serves the latest frontend build.
 - Migrated ShipNow's sqlite database out of the public `site/shipnow` tree into `/opt/boringmax/shipnow/workspace/shipnow.sqlite`, updated the service path, and cleaned the deployment docs so only the static UI stays under `/opt/boringmax/site/shipnow`.
 - Changed project handle rename into a staged flow: edits now create a pending handle that is shown in the UI as "发布后生效", while preview and public access keep using the current live handle until the next successful publish.
 - Made publish finalize any pending handle rename by switching the live handle, clearing the staged value, and dropping the old handle from the live project view.

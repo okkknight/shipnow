@@ -24,6 +24,43 @@ This note records the live VPS shape for ShipNow and the site layout standard it
 - App-private data dir: `/opt/boringmax/shipnow/workspace`
 - Public ShipNow UI site: `/opt/boringmax/site/shipnow`
 
+### ShipNow deployment split
+
+ShipNow is deployed in two parts:
+
+1. The application code and server bundle live in `/opt/boringmax/shipnow`.
+2. The latest client-side build output is published to `/opt/boringmax/site/shipnow`.
+
+Recommended release flow:
+
+```bash
+# 1) build locally
+pnpm build
+
+# 2) sync the application repo and server bundle
+rsync -az --delete \
+  --exclude '.git' \
+  --exclude 'node_modules' \
+  --exclude 'output' \
+  --exclude '.playwright-cli' \
+  -e 'ssh -o StrictHostKeyChecking=no' \
+  ./ root@89.208.242.44:/opt/boringmax/shipnow/
+
+# 3) sync the generated public client assets
+rsync -az --delete \
+  -e 'ssh -o StrictHostKeyChecking=no' \
+  dist/client/ root@89.208.242.44:/opt/boringmax/site/shipnow/
+
+# 4) reload the service if the backend changed
+ssh root@89.208.242.44 'systemctl restart shipnow'
+```
+
+Notes:
+
+- `/opt/boringmax/shipnow` is the source of truth for the backend and server bundle.
+- `/opt/boringmax/site/shipnow` is the source of truth for the public UI assets served by Caddy.
+- When only the frontend changes, syncing `dist/client/` to `/opt/boringmax/site/shipnow/` is enough for public UI freshness, but backend changes still require a ShipNow service restart.
+
 ### Site root
 
 - Public site root: `/opt/boringmax/site`
