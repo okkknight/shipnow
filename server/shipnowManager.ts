@@ -308,7 +308,8 @@ export class ShipNowManager {
     }
 
     const projectId = this.generateProjectId();
-    const displayName = await this.generateProjectHandle();
+    const publicHandle = await this.generateProjectHandle();
+    const displayName = publicHandle;
     const title = prompt;
     const type = 'landing';
     const paths = await prepareProjectWorkspace(this.env, projectId);
@@ -316,7 +317,7 @@ export class ShipNowManager {
     const project = this.store.createProject({
       projectId,
       displayName,
-      publicHandle: displayName,
+      publicHandle,
       type,
       title,
       prompt,
@@ -335,7 +336,7 @@ export class ShipNowManager {
       type: 'project_created',
       title: '项目已创建',
       detail: `已生成公开站点ID ${displayName}。`,
-      data: { projectId, displayName, publicHandle: displayName, type },
+      data: { projectId, displayName, publicHandle, type },
     });
     const creationDetail = this.getProjectDetail(projectId);
 
@@ -550,7 +551,7 @@ export class ShipNowManager {
 
   private async generateProjectHandle(): Promise<string> {
     for (let i = 0; i < 256; i += 1) {
-      const candidate = `untitle-${randomHandleSuffix()}`;
+      const candidate = `untitled-${randomHandleSuffix()}`;
       if (!this.store.handleExists(candidate)) {
         return candidate;
       }

@@ -64,7 +64,7 @@ export function slugifyProjectName(value: string): string {
     .replace(/^-+/, '')
     .replace(/-+$/, '')
     .replace(/-{2,}/g, '-');
-  return normalized || 'untitle';
+  return normalized || 'untitled';
 }
 
 export function isValidProjectName(value: string): boolean {

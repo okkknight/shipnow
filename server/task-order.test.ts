@@ -60,6 +60,26 @@ test('queues project tasks before allowing the task runner to drain', async () =
   }
 });
 
+test('new projects use the Untitled prefix for display names and untitled handles', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'shipnow-task-order-handle-'));
+  try {
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const manager = new ShipNowManager(store, createTestEnv(root));
+
+    (manager as unknown as { enqueueTask: (input: unknown) => Promise<{ id: string }> }).enqueueTask = async () => ({
+      id: 'task_queued_1',
+    });
+    (manager as unknown as { scheduleDrain: () => void }).scheduleDrain = () => undefined;
+
+    const result = await manager.createProject({ prompt: 'Build a simple landing page.' });
+
+    assert.match(result.project.displayName, /^untitled-[a-z0-9]{4}$/);
+    assert.match(result.project.publicHandle, /^untitled-[a-z0-9]{4}$/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('defers delete task execution until the delete request event is recorded', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-delete-order-'));
   try {
