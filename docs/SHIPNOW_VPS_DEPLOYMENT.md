@@ -51,7 +51,10 @@ rsync -az --delete \
   -e 'ssh -o StrictHostKeyChecking=no' \
   dist/client/ root@89.208.242.44:/opt/boringmax/site/shipnow/
 
-# 4) reload the service if the backend changed
+# 4) make sure the workspace stays writable by the shipnow user
+ssh root@89.208.242.44 'chown -R shipnow:shipnow /opt/boringmax/shipnow/workspace'
+
+# 5) reload the service if the backend changed or if the workspace ownership changed
 ssh root@89.208.242.44 'systemctl restart shipnow'
 ```
 
@@ -59,6 +62,7 @@ Notes:
 
 - `/opt/boringmax/shipnow` is the source of truth for the backend and server bundle.
 - `/opt/boringmax/site/shipnow` is the source of truth for the public UI assets served by Caddy.
+- `/opt/boringmax/shipnow/workspace` must stay writable by the `shipnow` service user; after syncing the repo or touching the workspace on the VPS, re-`chown` it and restart the service before testing create/publish flows.
 - When only the frontend changes, syncing `dist/client/` to `/opt/boringmax/site/shipnow/` is enough for public UI freshness, but backend changes still require a ShipNow service restart.
 
 ### Site root
