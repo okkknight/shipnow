@@ -3417,72 +3417,6 @@
     }
   }
 
-  @media (min-width: 1024px) {
-    .sn-home-entry-list,
-    .sn-template-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .sn-home-entry-card,
-    .sn-template-card,
-    .sn-project-workspace-card {
-      align-items: center;
-      padding: 16px;
-      border-radius: 22px;
-      text-align: left;
-      justify-items: start;
-    }
-
-    .sn-home-entry-card > div,
-    .sn-template-card > div,
-    .sn-project-workspace-card > div {
-      text-align: left;
-      justify-items: start;
-    }
-
-    .sn-home-entry-title,
-    .sn-template-title,
-    .sn-project-workspace-title {
-      font-size: 1rem;
-    }
-
-    .sn-home-entry-desc,
-    .sn-template-desc,
-    .sn-project-workspace-desc {
-      font-size: 0.8rem;
-    }
-
-    .sn-home-footer-actions {
-      grid-template-columns: repeat(2, max-content);
-      justify-content: start;
-    }
-
-    .sn-home-footer-actions .sn-mobile-action-button {
-      width: auto;
-      min-width: 164px;
-      padding-inline: 18px;
-    }
-
-    .sn-home-quick-chip-row .sn-quick-chip {
-      width: auto;
-      min-width: 160px;
-    }
-
-    .sn-template-projects-head,
-    .sn-home-projects-head,
-    .sn-projects-head,
-    .sn-project-workspace-status-head {
-      align-items: center;
-    }
-
-  .sn-reference-import-btn,
-  .sn-mobile-import-btn {
-    width: auto;
-    min-width: 220px;
-  }
-}
-
   .sn-empty-state {
     display: grid;
     gap: 10px;
@@ -3913,84 +3847,6 @@
     margin-top: 4px;
   }
 
-  .sn-reference-workspace-grid,
-  .sn-home-workspace-grid,
-  .sn-template-workspace-grid,
-  .sn-project-workspace-grid,
-  .sn-project-preview-grid {
-    display: grid;
-    grid-template-columns: minmax(300px, 0.82fr) minmax(420px, 1.18fr);
-    gap: 18px;
-    align-items: start;
-  }
-
-  .sn-home-workspace-aside {
-    display: grid;
-    gap: 16px;
-    align-self: start;
-    position: sticky;
-    top: 24px;
-  }
-
-  .sn-home-projects-panel,
-  .sn-home-shortcuts-panel {
-    display: grid;
-    gap: 14px;
-    padding: 18px;
-  }
-
-  .sn-home-project-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .sn-home-projects-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .sn-home-projects-head > div {
-    min-width: 0;
-  }
-
-  .sn-home-projects-section-copy {
-    color: var(--sn-color-ink);
-    font-size: 0.92rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-  }
-
-  .sn-home-projects-note {
-    color: var(--sn-color-muted);
-    font-size: 0.82rem;
-    line-height: 1.5;
-  }
-
-  .sn-home-shortcuts-grid {
-    display: grid;
-    gap: 10px;
-  }
-
-  .sn-home-shortcuts-grid .sn-button {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .sn-project-workspace-entry {
-    min-width: 0;
-  }
-
-  .sn-project-workspace-status {
-    min-width: 0;
-    position: sticky;
-    top: 24px;
-    align-self: start;
-    max-height: calc(100dvh - 48px);
-    overflow: auto;
-  }
-
   .sn-reference-desktop-head {
     max-width: 1680px;
     margin: 0 auto 12px;
@@ -4397,7 +4253,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: calc(56px + env(safe-area-inset-top)) 30px 320px;
+    padding: calc(56px + env(safe-area-inset-top)) 16px 320px;
   }
 
   .sn-mobile-settings-page {
@@ -4869,7 +4725,6 @@
 
     .sn-reference-section-copy,
     .sn-home-section-copy,
-    .sn-project-workspace-section-copy,
     .sn-mobile-section-copy {
       color: var(--sn-color-ink);
       font-size: 0.92rem;
@@ -4878,7 +4733,6 @@
     }
 
     .sn-reference-label,
-    .sn-project-workspace-label,
     .sn-home-note,
     .sn-mobile-result-label {
       color: var(--sn-color-muted);
@@ -4889,8 +4743,7 @@
       margin-bottom: 8px;
     }
 
-    .sn-reference-note,
-    .sn-project-workspace-note {
+    .sn-reference-note {
       color: var(--sn-color-muted);
       font-size: 0.84rem;
       line-height: 1.55;
@@ -4905,10 +4758,8 @@
     margin-bottom: 0;
   }
 
-  .sn-project-workspace-row,
   .sn-mobile-status-row,
   .sn-reference-status-block,
-  .sn-project-workspace-block,
   .sn-mobile-status-block {
     display: grid;
     gap: 10px;
@@ -4971,7 +4822,6 @@
   }
 
     .sn-reference-drawer-empty,
-    .sn-project-workspace-empty,
     .sn-mobile-drawer-empty,
     .sn-mobile-empty {
       @apply rounded-[18px] border border-dashed border-[rgb(var(--line))] bg-[rgba(255,255,255,0.7)] px-4 py-4 text-sm text-[rgb(var(--muted))];
@@ -4982,7 +4832,6 @@
   }
 
   .sn-reference-address,
-  .sn-project-workspace-address,
   .sn-mobile-confirm-address,
   .sn-mobile-result-address {
     display: flex;
@@ -5050,7 +4899,6 @@
   }
 
   .sn-reference-task-list,
-  .sn-project-workspace-history,
   .sn-mobile-task-list,
   .sn-reference-history-list,
   .sn-mobile-history-list {
@@ -5059,7 +4907,6 @@
   }
 
   .sn-reference-task-item,
-  .sn-project-workspace-task,
   .sn-mobile-task-item {
     display: grid;
     gap: 4px;
@@ -5072,7 +4919,6 @@
     align-items: center;
   }
 
-  .sn-project-workspace-history-item,
   .sn-mobile-history-item {
     display: grid;
     gap: 4px;
@@ -5677,7 +5523,6 @@
     .sn-reference-entry-welcome,
     .sn-home-entry-welcome,
     .sn-template-entry-welcome,
-    .sn-project-workspace-entry,
     .sn-mobile-entry-welcome {
       gap: 14px;
     }
@@ -5685,7 +5530,6 @@
     .sn-reference-welcome-title,
     .sn-home-welcome-title,
     .sn-template-welcome-title,
-    .sn-project-workspace-title,
   .sn-mobile-home-title {
     font-family: 'Plus Jakarta Sans', Inter, ui-sans-serif, system-ui, sans-serif;
     font-size: 1.7rem;
@@ -5697,7 +5541,6 @@
   .sn-reference-welcome-copy,
   .sn-home-welcome-copy,
   .sn-template-welcome-copy,
-  .sn-project-workspace-copy,
   .sn-mobile-home-copy {
     display: grid;
     gap: 2px;
@@ -5715,7 +5558,6 @@
     .sn-reference-entry-list,
     .sn-home-entry-list,
     .sn-template-grid,
-    .sn-project-workspace-chips,
   .sn-mobile-home-entry-list {
       display: grid;
       gap: 10px;
@@ -5724,7 +5566,6 @@
 
     .sn-reference-entry-card,
     .sn-home-entry-card,
-    .sn-project-workspace-card,
     .sn-mobile-home-entry-card {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -5738,7 +5579,6 @@
 
     .sn-reference-entry-icon,
     .sn-home-entry-icon,
-    .sn-project-workspace-icon,
     .sn-mobile-home-entry-icon {
       display: inline-flex;
       align-items: center;
@@ -5752,7 +5592,6 @@
 
     .sn-reference-entry-title,
     .sn-home-entry-title,
-    .sn-project-workspace-title,
     .sn-mobile-home-entry-title {
       font-weight: 700;
       letter-spacing: -0.03em;
@@ -5762,7 +5601,6 @@
 
     .sn-reference-entry-desc,
     .sn-home-entry-desc,
-    .sn-project-workspace-desc,
     .sn-mobile-home-entry-desc {
       color: var(--sn-color-muted);
       font-size: 0.76rem;
@@ -5772,7 +5610,6 @@
 
     .sn-reference-composer-card,
     .sn-home-composer-card,
-    .sn-project-workspace-composer,
     .sn-mobile-home-composer-card,
     .sn-mobile-composer-card {
       display: grid;
@@ -5786,7 +5623,6 @@
 
   .sn-reference-composer-rail,
   .sn-home-composer-rail,
-  .sn-project-workspace-composer-rail,
   .sn-mobile-home-composer-rail,
   .sn-mobile-composer-rail {
     display: grid;
@@ -5810,7 +5646,6 @@
 
     .sn-reference-composer-input,
     .sn-home-composer-input,
-    .sn-project-workspace-composer-input,
     .sn-mobile-home-composer-input,
     .sn-mobile-composer-input {
       width: 100%;
@@ -5824,7 +5659,6 @@
 
     .sn-reference-send-button,
     .sn-home-send-button,
-    .sn-project-workspace-send-button,
     .sn-mobile-home-send-button,
     .sn-mobile-send-button {
       display: inline-flex;
@@ -5842,7 +5676,6 @@
     .sn-reference-sample-row,
     .sn-reference-quick-chip-row,
     .sn-home-quick-chip-row,
-    .sn-project-workspace-chips,
     .sn-mobile-home-quick-chip-row,
     .sn-mobile-quick-chip-row {
       display: flex;
@@ -6474,27 +6307,11 @@
     .sn-reference-project-list,
     .sn-home-project-list,
     .sn-template-project-list,
-    .sn-project-workspace-list,
-    .sn-project-workspace-status-list,
     .sn-mobile-project-list {
       display: grid;
       gap: 10px;
     }
 
-    .sn-project-workspace-status-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: flex-start;
-    }
-
-    .sn-project-workspace-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-    }
-
-    .sn-home-projects-head,
     .sn-template-projects-head,
     .sn-projects-head {
       display: flex;
@@ -6528,13 +6345,6 @@
       line-height: 1.5;
     }
 
-    .sn-template-workspace-grid {
-      display: grid;
-      grid-template-columns: minmax(300px, 0.88fr) minmax(340px, 1.12fr);
-      gap: 18px;
-      align-items: start;
-    }
-
     .sn-home-projects,
     .sn-template-projects {
       display: grid;
@@ -6555,7 +6365,6 @@
     }
 
     .sn-reference-project-card,
-    .sn-project-workspace-card,
     .sn-mobile-project-card {
       display: grid;
       grid-template-columns: 52px minmax(0, 1fr);
@@ -6569,7 +6378,6 @@
   }
 
     .sn-reference-project-card.is-active,
-    .sn-project-workspace-card.is-active,
     .sn-mobile-project-card.is-active {
       background: rgba(183, 241, 223, 0.18);
       border-color: rgba(97, 206, 180, 0.26);
@@ -6577,8 +6385,6 @@
 
     .sn-reference-project-thumb,
     .sn-reference-project-thumb.is-mini,
-    .sn-project-workspace-thumb,
-    .sn-project-workspace-thumb.is-mini,
     .sn-mobile-project-thumb,
     .sn-mobile-project-thumb.is-mini {
       width: 52px;
@@ -6591,7 +6397,6 @@
   }
 
     .sn-reference-project-head,
-    .sn-project-workspace-head,
     .sn-mobile-project-head {
       display: flex;
       justify-content: space-between;
@@ -6646,7 +6451,6 @@
     }
 
     .sn-reference-project-title-row,
-    .sn-project-workspace-title-row,
     .sn-mobile-project-title-row {
       display: inline-flex;
       align-items: center;
@@ -6654,21 +6458,18 @@
     }
 
     .sn-reference-project-edit,
-    .sn-project-workspace-edit,
     .sn-mobile-project-edit {
       color: var(--sn-color-muted);
       flex-shrink: 0;
     }
 
     .sn-reference-project-copy,
-    .sn-project-workspace-copy,
     .sn-mobile-project-copy {
       display: grid;
       gap: 8px;
     }
 
     .sn-reference-project-meta,
-    .sn-project-workspace-meta,
     .sn-mobile-project-meta {
       display: flex;
       flex-wrap: wrap;
@@ -6705,13 +6506,11 @@
   }
 
     .sn-reference-chat-phone,
-    .sn-project-workspace-chat,
   .sn-mobile-chat-page {
       gap: 12px;
     }
 
     .sn-reference-chat-stack,
-    .sn-project-workspace-chat,
     .sn-mobile-chat-stack {
       display: grid;
       gap: 10px;
@@ -6982,6 +6781,10 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
+  .sn-mobile-project-composer-actions.has-triple-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
   .sn-mobile-project-composer-actions .sn-mobile-action-button {
     width: 100%;
   }
@@ -6991,6 +6794,10 @@
   }
 
   .sn-mobile-project-live-button {
+    width: 100% !important;
+  }
+
+  .sn-mobile-project-publish-button {
     width: 100% !important;
   }
 
@@ -7519,138 +7326,5 @@
     width: min(100%, 240px);
     justify-self: center;
   }
-  }
-
-  @media (min-width: 1024px) {
-    .sn-template-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .sn-reference-template-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .sn-template-card,
-    .sn-reference-template-card {
-      align-items: center;
-      padding: 16px;
-      border-radius: 22px;
-      text-align: left;
-      justify-items: start;
-    }
-
-    .sn-template-card > div,
-    .sn-reference-template-card > div {
-      text-align: left;
-      justify-items: start;
-    }
-
-    .sn-template-thumb,
-    .sn-reference-template-thumb {
-      min-height: 72px;
-      height: 72px;
-    }
-
-    .sn-template-title,
-    .sn-reference-template-title {
-      font-size: 1rem;
-    }
-
-    .sn-template-desc,
-    .sn-reference-template-desc {
-      font-size: 0.8rem;
-    }
-
-    .sn-template-project-list .sn-action-button {
-      width: auto;
-      min-width: 220px;
-      justify-self: start;
-    }
-
-    .sn-reference-import-btn,
-    .sn-mobile-import-btn {
-      width: auto;
-      min-width: 220px;
-      justify-self: start;
-    }
-
-    .sn-project-workspace-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .sn-project-workspace-actions .sn-action-button {
-      width: auto;
-      min-width: 164px;
-    }
-
-    .sn-visual-status .grid.gap-2 {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .sn-visual-status .grid.gap-2 .sn-button {
-      width: auto;
-      min-width: 168px;
-    }
-
-    .sn-visual-open-btn,
-    .sn-visual-publish-btn {
-      width: auto;
-      min-width: 168px;
-    }
-  }
-
-  @media (min-width: 1280px) {
-    .sn-home-entry-list {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .sn-home-entry-card {
-      padding: 12px;
-      grid-template-columns: 36px minmax(0, 1fr);
-    }
-
-    .sn-home-entry-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-    }
-
-    .sn-home-entry-title {
-      font-size: 0.94rem;
-    }
-
-    .sn-home-entry-desc {
-      font-size: 0.76rem;
-    }
-
-    .sn-template-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .sn-template-card {
-      padding: 14px;
-    }
-
-    .sn-template-thumb {
-      min-height: 88px;
-    }
-
-    .sn-template-title {
-      font-size: 0.96rem;
-    }
-
-    .sn-template-desc {
-      font-size: 0.78rem;
-    }
   }
 }

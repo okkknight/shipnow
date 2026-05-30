@@ -2047,19 +2047,13 @@ function ProjectRenameSheet({
             />
           </div>
           <div className="sn-mobile-note">
-            {error ?? validation ?? '这个名称会先显示在页面上，但会在下次发布后真正切换成正式公开地址。'}
-          </div>
-          <div className="sn-mobile-note">
-            当前线上地址：{project.publicHandle}
+            {error ?? validation ?? '新名称会在下次发布成功时生效'}
           </div>
           {project.pendingPublicHandle ? (
             <div className="sn-mobile-note">
-              待生效地址：{project.pendingPublicHandle}（发布后生效）
+              待生效地址：{project.pendingPublicHandle}
             </div>
           ) : null}
-          <div className="sn-mobile-note">
-            未发布前，预览和正式站点仍然沿用当前线上地址。
-          </div>
         </form>
         <div className="sn-mobile-confirm-footer">
           <div className="sn-mobile-confirm-actions">
@@ -2070,7 +2064,6 @@ function ProjectRenameSheet({
               取消
             </button>
           </div>
-          <div className="sn-mobile-confirm-footnote">重命名只会进入待生效状态，发布成功后才会切换正式公开地址。</div>
         </div>
       </div>
     </div>
@@ -2257,6 +2250,12 @@ function ProjectWorkspaceMobile({
   const latestVisibleTimelineItemId = visibleTimelineItems.length > 0 ? visibleTimelineItems[visibleTimelineItems.length - 1]!.id : null;
   const hiddenTimelineCount = Math.max(0, timelineItems.length - visibleTimelineItems.length);
   const canOpenLive = hasEverPublishedProject(project);
+  const composerActionClassName =
+    canOpenLive && canPublish
+      ? 'has-triple-actions'
+      : canOpenLive || canPublish
+        ? 'has-dual-actions'
+        : 'has-single-action';
 
   useEffect(() => {
     const container = conversationRef.current;
@@ -2343,13 +2342,18 @@ function ProjectWorkspaceMobile({
       </div>
 
       <div className="sn-mobile-project-composer-fixed">
-        <div className={`sn-mobile-project-composer-actions ${canOpenLive ? 'has-dual-actions' : 'has-single-action'}`.trim()}>
+        <div className={`sn-mobile-project-composer-actions ${composerActionClassName}`.trim()}>
           <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
             <Eye className="size-4" /> 预览站点
           </MobileActionButton>
           {canOpenLive ? (
             <MobileActionButton variant="secondary" className="sn-mobile-project-live-button" onClick={onOpenLive}>
               <ArrowUpRight className="size-4" /> 正式站点
+            </MobileActionButton>
+          ) : null}
+          {canPublish ? (
+            <MobileActionButton variant="primary" className="sn-mobile-project-publish-button" onClick={onPublish}>
+              <Upload className="size-4" /> 发布
             </MobileActionButton>
           ) : null}
         </div>
