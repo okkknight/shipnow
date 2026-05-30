@@ -74,6 +74,28 @@ function displayUrl(baseUrl: string, pathPart: string): string {
   return `${baseUrl.replace(/\/$/, '')}/${pathPart.replace(/^\/+/, '')}`;
 }
 
+function basePathFromUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed.replace(/\/+$/, '');
+  }
+
+  try {
+    return new URL(trimmed).pathname.replace(/\/+$/, '');
+  } catch {
+    return trimmed.replace(/\/+$/, '');
+  }
+}
+
+function previewReleaseBaseHref(previewBaseUrl: string, publicHandle: string): string {
+  const basePath = basePathFromUrl(previewBaseUrl);
+  return `${basePath}/${publicHandle}/`;
+}
+
 function statusText(status: string): string {
   return status.replace(/_/g, ' ');
 }
@@ -312,7 +334,7 @@ export class ShipNowManager {
       projectId,
       type: 'project_created',
       title: '项目已创建',
-      detail: `已生成公开句柄 ${displayName}。`,
+      detail: `已生成公开站点ID ${displayName}。`,
       data: { projectId, displayName, publicHandle: displayName, type },
     });
     const creationDetail = this.getProjectDetail(projectId);
@@ -432,6 +454,10 @@ export class ShipNowManager {
 
   async publish(projectId: string): Promise<{ project: ProjectView; taskId: string }> {
     const project = this.requireActiveProject(projectId);
+    const targetHandle = project.pending_public_handle ?? project.public_handle;
+    const sourceHandle = project.pending_public_handle && project.pending_public_handle !== project.public_handle
+      ? project.public_handle
+      : null;
     this.store.createMessage({
       projectId: project.project_id,
       role: 'user',
@@ -441,8 +467,10 @@ export class ShipNowManager {
       projectId: project.project_id,
       type: 'publish_requested',
       title: '开始发布',
-      detail: `公开地址将切换到 ${project.public_handle}。`,
-      data: { publicHandle: project.public_handle },
+      detail: sourceHandle
+        ? `公开地址将从 ${sourceHandle} 切换到 ${targetHandle}。`
+        : `公开地址将切换到 ${targetHandle}。`,
+      data: { publicHandle: project.public_handle, targetPublicHandle: targetHandle },
     });
     const task = await this.enqueueTask({
       projectId: project.project_id,
@@ -1028,7 +1056,7 @@ export class ShipNowManager {
     }
     const releasePath = resolve(paths.previewReleasesRoot, `${taskId}-${randomBytes(4).toString('hex')}`);
     await this.copyDirectory(distPath, releasePath);
-    await injectBaseHref(resolve(releasePath, 'index.html'), `/preview/${project.public_handle}/`);
+    await injectBaseHref(resolve(releasePath, 'index.html'), previewReleaseBaseHref(this.env.previewBaseUrl, project.public_handle));
     await updateCurrentReleaseLink(releasePath, paths.previewCurrentRoot);
     const release = this.store.createRelease({
       projectId: project.project_id,
