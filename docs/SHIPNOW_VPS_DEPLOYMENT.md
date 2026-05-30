@@ -21,7 +21,7 @@ This note records the live VPS shape for ShipNow and the site layout standard it
 - App code: `/opt/boringmax/shipnow`
 - systemd service: `shipnow.service`
 - HTTP listener: `127.0.0.1:8090`
-- App-private data dir: `/opt/boringmax/shipnow/data`
+- App-private data dir: `/opt/boringmax/shipnow/workspace`
 - Public ShipNow UI site: `/opt/boringmax/site/shipnow`
 
 ### Site root
@@ -76,7 +76,7 @@ Environment=SHIPNOW_APP_PREFIX=/shipnow
 Environment=SHIPNOW_WORKSPACE_ROOT=/opt/boringmax/site/shipnow
 Environment=SHIPNOW_PUBLIC_STATIC_ROOT=/opt/boringmax/site
 Environment=SHIPNOW_TEMPLATE_ROOT=/opt/boringmax/shipnow/templates
-Environment=SHIPNOW_DB_PATH=/opt/boringmax/shipnow/data/shipnow.sqlite
+Environment=SHIPNOW_DB_PATH=/opt/boringmax/shipnow/workspace/shipnow.sqlite
 Environment=SHIPNOW_CODEX_BIN=/usr/bin/codex
 ExecStart=/usr/bin/node /opt/boringmax/shipnow/dist/server/index.js
 ```
@@ -84,7 +84,7 @@ ExecStart=/usr/bin/node /opt/boringmax/shipnow/dist/server/index.js
 Notes:
 
 - `SHIPNOW_PUBLIC_STATIC_ROOT` is the site root and must stay at `/opt/boringmax/site`
-- The ShipNow app database is app-private and lives under `/opt/boringmax/shipnow/data`
+- The ShipNow app database is app-private and lives under `/opt/boringmax/shipnow/workspace`
 - The ShipNow workspace remains under the ShipNow site directory at `/opt/boringmax/site/shipnow`
 - The managed site assets themselves must live inside each site directory, not in a shared bucket
 
