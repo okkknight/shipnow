@@ -36,6 +36,7 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The latest independent browser acceptance is not yet passing because the ShipNow entry and API are still reachable without an authentication gate, which violates the design doc's access-protection requirement.
 - The project workbench now auto-follows new conversation entries to the latest message on both desktop and mobile; the behavior was verified in Playwright CLI after scrolling the view back up and sending a test conversation.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md`.
+- ShipNow's sqlite database now lives under `/opt/boringmax/shipnow/data/shipnow.sqlite` instead of the public `site/` tree; the public ShipNow UI remains at `/opt/boringmax/site/shipnow`.
 
 ## Latest task
 
