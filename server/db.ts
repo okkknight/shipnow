@@ -67,10 +67,10 @@ function parseJsonRecord(value: string | null): Record<string, unknown> | null {
 export class ShipNowStore {
   private readonly db: SqlDatabase;
 
-  private readonly publicStaticRoot: string;
+  private readonly projectWorkspaceRoot: string;
 
-  constructor(dbPath: string, publicStaticRoot: string) {
-    this.publicStaticRoot = publicStaticRoot;
+  constructor(dbPath: string, projectWorkspaceRoot: string) {
+    this.projectWorkspaceRoot = projectWorkspaceRoot;
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
@@ -80,7 +80,7 @@ export class ShipNowStore {
 
   private migrate(): void {
     const version = Number(this.db.pragma('user_version', { simple: true }) ?? 0);
-    if (version >= 4) {
+    if (version >= 5) {
       return;
     }
 
@@ -126,6 +126,8 @@ export class ShipNowStore {
           started_at TEXT,
           finished_at TEXT,
           log_path TEXT NOT NULL,
+          timeout_ms INTEGER,
+          active_pid INTEGER,
           error_message TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
@@ -183,7 +185,7 @@ export class ShipNowStore {
         CREATE INDEX idx_project_events_project_id ON project_events(project_id);
       `);
       this.db.prepare('INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES (?, ?)').run('default_runner', 'codex');
-      this.db.pragma('user_version = 4');
+      this.db.pragma('user_version = 5');
       return;
     }
 
@@ -202,12 +204,21 @@ export class ShipNowStore {
       this.db.pragma('user_version = 3');
     }
 
-    this.db.exec(`
-      ALTER TABLE projects ADD COLUMN pending_public_handle TEXT;
-      ALTER TABLE projects ADD COLUMN pending_public_handle_set_at TEXT;
-    `);
+    if (version < 4) {
+      this.db.exec(`
+        ALTER TABLE projects ADD COLUMN pending_public_handle TEXT;
+        ALTER TABLE projects ADD COLUMN pending_public_handle_set_at TEXT;
+      `);
+      this.db.pragma('user_version = 4');
+    }
 
-    this.db.pragma('user_version = 4');
+    if (version < 5) {
+      this.db.exec(`
+        ALTER TABLE tasks ADD COLUMN timeout_ms INTEGER;
+        ALTER TABLE tasks ADD COLUMN active_pid INTEGER;
+      `);
+      this.db.pragma('user_version = 5');
+    }
   }
 
   close(): void {
@@ -463,6 +474,8 @@ export class ShipNowStore {
       started_at: null,
       finished_at: null,
       log_path: input.logPath,
+      timeout_ms: null,
+      active_pid: null,
       error_message: null,
       created_at: now,
       updated_at: now,
@@ -472,11 +485,11 @@ export class ShipNowStore {
         `
         INSERT INTO tasks (
           id, project_id, type, status, prompt,
-          runner_name, started_at, finished_at, log_path, error_message,
+          runner_name, started_at, finished_at, log_path, timeout_ms, active_pid, error_message,
           created_at, updated_at
         ) VALUES (
           @id, @project_id, @type, @status, @prompt,
-          @runner_name, @started_at, @finished_at, @log_path, @error_message,
+          @runner_name, @started_at, @finished_at, @log_path, @timeout_ms, @active_pid, @error_message,
           @created_at, @updated_at
         )
       `
@@ -503,6 +516,8 @@ export class ShipNowStore {
           started_at = @started_at,
           finished_at = @finished_at,
           log_path = @log_path,
+          timeout_ms = @timeout_ms,
+          active_pid = @active_pid,
           error_message = @error_message,
           updated_at = @updated_at
         WHERE id = @id
@@ -776,6 +791,6 @@ export class ShipNowStore {
       return;
     }
     void removePath(project.source_root);
-    void removePath(resolve(this.publicStaticRoot, projectId));
+    void removePath(resolve(this.projectWorkspaceRoot, projectId));
   }
 }

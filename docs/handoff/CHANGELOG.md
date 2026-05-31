@@ -2,13 +2,17 @@
 
 ## 2026-05-30
 
+- Verified the live VPS against the deployment note after the final split: `/opt/boringmax/site` now contains only the ShipNow UI plus live public handle directories, while `/opt/boringmax/workspace` holds the internal project tree and sqlite database.
+- Tuned the public site cache policy so HTML entry pages revalidate on each navigation while hashed assets stay immutable, fixing stale-looking publishes caused by browser caching without giving up asset caching.
+- Added a dedicated `/shipnow/*` SPA fallback in Caddy so ShipNow deep links like `/shipnow/project/<projectId>/preview` and `/shipnow/project/<projectId>/live` refresh cleanly instead of surfacing ERR_HTTP_RESPONSE_CODE_FAILURE.
+- Split the managed-project workspace from the public site root: local development now uses `workspace/project/<projectId>` for internal project trees and `workspace/public/<publicHandle>` for live public sites, while the VPS uses `/opt/boringmax/workspace/project/<projectId>` for internal project trees and `/opt/boringmax/site/<publicHandle>` for public sites.
 - Removed the old project-level public alias layer so `proj_<id>` now keeps only source, preview snapshots, public release history, and logs, while `boringmax.com/<publicHandle>` serves the live public site directly.
 - Finalized the public publish path so the live site now lands in `/opt/boringmax/site/<publicHandle>` and `boringmax.com/<publicHandle>` serves that directory directly, while the internal project-id tree keeps preview snapshots and logs.
 - Fixed preview release HTML so its base href is derived from the active `previewBaseUrl` pathname: local runs still use `/preview/<handle>/`, while the VPS uses the production `/shipnow/preview/<handle>/` prefix and no longer loads assets from the wrong path.
 - Reset the VPS ShipNow-managed projects to a clean slate for end-to-end testing: deleted all active projects through the API, waited for the delete tasks to succeed, and removed the stale `/opt/boringmax/site/proj_*` directories afterward.
 - Documented the VPS cleanup rule that ShipNow-managed projects are disposable test artifacts, while ordinary static sites and `/opt/boringmax/site/shipnow` must stay untouched during a reset.
 - Documented the split ShipNow deployment flow: backend code and server bundle stay in `/opt/boringmax/shipnow`, while the generated `dist/client/` assets are synced to `/opt/boringmax/site/shipnow` so the public `/shipnow` page always serves the latest frontend build.
-- Migrated ShipNow's sqlite database out of the public `site/shipnow` tree into `/opt/boringmax/shipnow/workspace/shipnow.sqlite`, updated the service path, and cleaned the deployment docs so only the static UI stays under `/opt/boringmax/site/shipnow`.
+- Migrated ShipNow's sqlite database out of the public `site/shipnow` tree into `/opt/boringmax/workspace/shipnow.sqlite`, updated the service path, and cleaned the deployment docs so only the static UI stays under `/opt/boringmax/site/shipnow`.
 - Changed project handle rename into a staged flow: edits now create a pending handle that is shown in the UI as "发布后生效", while preview and public access keep using the current live handle until the next successful publish.
 - Made publish finalize any pending handle rename by switching the live handle, clearing the staged value, and dropping the old handle from the live project view.
 - Verified the new rename/publish behavior with the full local test suite, the server test suite, and a fresh `pnpm build`.

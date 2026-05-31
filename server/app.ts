@@ -359,6 +359,7 @@ export async function createShipNowApp(
     });
   });
 
+  const projectRootBase = env.workspaceRoot;
   const publicRoot = env.publicStaticRoot;
   const clientDistRoot = resolve(process.cwd(), 'dist/client');
   const shipnowIndexApiBase = env.shipnowApiBaseUrl;
@@ -402,9 +403,19 @@ export async function createShipNowApp(
       await maybeRedirect(reply, redirectedPath);
       return true;
     }
-    const projectRoot = resolve(publicRoot, resolution.project.projectId, 'preview');
+    const projectRoot = resolve(projectRootBase, resolution.project.projectId, 'preview');
     const rest = requestPath.slice((previewPrefix + handle).length);
     if (!(await serveRelease(`/preview/${handle}`, projectRoot, rest, reply, previewRouteBaseHref(shellOptions.previewBaseUrl, resolution.project.publicHandle)))) {
+      app.log.warn(
+        {
+          handle,
+          projectId: resolution.project.projectId,
+          projectRoot,
+          previewReleasePath: resolution.project.previewReleasePath,
+          previewBaseUrl: shellOptions.previewBaseUrl,
+        },
+        'Preview release lookup failed'
+      );
       reply.code(404).send('Preview not found.');
     }
     return true;

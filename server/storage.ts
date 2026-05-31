@@ -14,7 +14,7 @@ export interface ProjectPaths {
 }
 
 export function projectPaths(env: ShipNowEnv, projectId: string): ProjectPaths {
-  const projectRoot = resolve(env.publicStaticRoot, projectId);
+  const projectRoot = resolve(env.workspaceRoot, projectId);
   return {
     projectRoot,
     sourceRoot: join(projectRoot, 'source'),

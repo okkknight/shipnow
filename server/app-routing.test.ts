@@ -10,8 +10,8 @@ import type { ShipNowEnv } from './env.js';
 
 function createTestEnv(root: string, previewBaseUrl: string): ShipNowEnv {
   const dbPath = join(root, 'shipnow.sqlite');
-  const publicStaticRoot = join(root, 'public');
-  const workspaceRoot = join(root, 'workspace');
+  const workspaceRoot = join(root, 'workspace', 'project');
+  const publicStaticRoot = join(root, 'workspace', 'public');
   const templateRoot = join(root, 'templates');
   return {
     port: 3000,
@@ -54,7 +54,7 @@ describe('ShipNow app routing', () => {
     const root = mkdtempSync(join(tmpdir(), 'shipnow-preview-route-'));
     try {
       const env = createTestEnv(root, 'https://api.boringmax.com/shipnow/preview');
-      const store = new ShipNowStore(env.dbPath, env.publicStaticRoot);
+      const store = new ShipNowStore(env.dbPath, env.workspaceRoot);
       const manager = new ShipNowManager(store, env);
       const app = await createShipNowApp(manager, env);
 
@@ -65,11 +65,11 @@ describe('ShipNow app routing', () => {
         type: 'landing',
         title: 'Demo project',
         prompt: 'Build a simple landing page.',
-        sourceRoot: join(env.workspaceRoot, 'proj_123456ab12cd'),
+        sourceRoot: join(env.workspaceRoot, 'proj_123456ab12cd', 'source'),
         status: 'preview_ready',
       });
 
-      const previewDir = join(env.publicStaticRoot, project.project_id, 'preview');
+      const previewDir = join(env.workspaceRoot, project.project_id, 'preview');
       mkdirSync(previewDir, { recursive: true });
       writeFileSync(
         join(previewDir, 'index.html'),
@@ -92,7 +92,7 @@ describe('ShipNow app routing', () => {
     const root = mkdtempSync(join(tmpdir(), 'shipnow-public-handle-route-'));
     try {
       const env = createTestEnv(root, 'https://api.boringmax.com/shipnow/preview');
-      const store = new ShipNowStore(env.dbPath, env.publicStaticRoot);
+      const store = new ShipNowStore(env.dbPath, env.workspaceRoot);
       const manager = new ShipNowManager(store, env);
       const app = await createShipNowApp(manager, env);
 
@@ -103,7 +103,7 @@ describe('ShipNow app routing', () => {
         type: 'landing',
         title: 'Demo project',
         prompt: 'Build a simple landing page.',
-        sourceRoot: join(env.workspaceRoot, 'proj_123456ab56cd'),
+        sourceRoot: join(env.workspaceRoot, 'proj_123456ab56cd', 'source'),
         status: 'published',
       });
 

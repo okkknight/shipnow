@@ -5,7 +5,7 @@ import { createShipNowApp } from './app.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  const store = new ShipNowStore(env.dbPath, env.publicStaticRoot);
+  const store = new ShipNowStore(env.dbPath, env.workspaceRoot);
   const manager = new ShipNowManager(store, env);
   await manager.initialize();
   const app = await createShipNowApp(manager, env, {

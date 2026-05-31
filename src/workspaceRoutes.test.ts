@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   buildProjectLivePath,
   buildProjectPreviewPath,
+  hasEverBuiltPreviewProject,
   hasEverPublishedProject,
   parseWorkspaceRoute,
 } from './workspaceRoutes';
@@ -28,6 +29,11 @@ describe('workspace routes', () => {
 });
 
 describe('project publication state', () => {
+  it('detects whether a project has ever built a preview', () => {
+    assert.equal(hasEverBuiltPreviewProject({ previewReleasePath: null }), false);
+    assert.equal(hasEverBuiltPreviewProject({ previewReleasePath: '/tmp/release-preview' }), true);
+  });
+
   it('detects whether a project has ever been published', () => {
     assert.equal(
       hasEverPublishedProject({ lastPublishedAt: null, publicReleasePath: null, status: 'preview_ready' }),

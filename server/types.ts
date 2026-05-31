@@ -54,6 +54,8 @@ export interface TaskRecord {
   finished_at: string | null;
   log_path: string;
   runner_name: TaskRunnerName | null;
+  timeout_ms: number | null;
+  active_pid: number | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;

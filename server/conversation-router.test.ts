@@ -81,6 +81,9 @@ describe('conversation prompts', () => {
     assert.match(prompt, /【共同工作法】/);
     assert.match(prompt, /【task 模式规则】/);
     assert.match(prompt, /理解上下文 -> 计划 -> 修改 -> 验证/);
+    assert.match(prompt, /不要启动、占用或停留在任何长时间运行的开发服务器/);
+    assert.match(prompt, /只使用现有的 ShipNow 后端或一次性短命令/);
+    assert.match(prompt, /以文件修改和一次性的 pnpm build 验证为止/);
     assert.match(prompt, /最近对话：用户：帮我把这个页面改一下/);
     assert.doesNotMatch(prompt, /先判断用户本轮输入是否真的要求修改站点/);
   });

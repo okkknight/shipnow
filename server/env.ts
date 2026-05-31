@@ -110,7 +110,7 @@ loadEnvFile(resolve(process.cwd(), '.env'), lockedEnvKeys);
 loadEnvFile(resolve(process.cwd(), '.env.local'), lockedEnvKeys);
 
 export function loadEnv(): ShipNowEnv {
-  const workspaceRoot = envPath('SHIPNOW_WORKSPACE_ROOT', 'workspace');
+  const workspaceRoot = envPath('SHIPNOW_WORKSPACE_ROOT', 'workspace/project');
   const publicStaticRoot = envPath('SHIPNOW_PUBLIC_STATIC_ROOT', 'workspace/public');
   const isProduction = process.env.NODE_ENV === 'production';
   return {

@@ -21,8 +21,7 @@ test('store exposes a global runner preference that defaults to codex', () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-runner-settings-'));
   try {
     const dbPath = join(root, 'shipnow.sqlite');
-    const publicStaticRoot = join(root, 'public');
-    const store = new ShipNowStore(dbPath, publicStaticRoot);
+    const store = new ShipNowStore(dbPath, join(root, 'workspace', 'project'));
 
     const settings = (store as unknown as { getAppSettings?: () => { defaultRunner: string; defaultRunnerBackend: string } }).getAppSettings?.();
     assert.equal(settings?.defaultRunner, 'codex');

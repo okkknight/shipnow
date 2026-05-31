@@ -9,8 +9,8 @@ import type { ShipNowEnv } from './env.js';
 
 function createTestEnv(root: string): ShipNowEnv {
   const dbPath = join(root, 'shipnow.sqlite');
-  const publicStaticRoot = join(root, 'public');
-  const workspaceRoot = join(root, 'workspace');
+  const publicStaticRoot = join(root, 'workspace', 'public');
+  const workspaceRoot = join(root, 'workspace', 'project');
   const templateRoot = join(root, 'templates');
   return {
     port: 3000,
@@ -35,7 +35,7 @@ function createTestEnv(root: string): ShipNowEnv {
 test('renaming a project stages the new handle without changing the live handle', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-rename-project-'));
   try {
-    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'workspace', 'project'));
     const manager = new ShipNowManager(store, createTestEnv(root));
 
     const project = store.createProject({
@@ -45,7 +45,7 @@ test('renaming a project stages the new handle without changing the live handle'
       type: 'landing',
       title: 'Demo project',
       prompt: 'Build a simple landing page.',
-      sourceRoot: join(root, 'workspace', 'proj_123456ab12cd'),
+      sourceRoot: join(root, 'workspace', 'project', 'proj_123456ab12cd', 'source'),
     });
 
     const renamed = await manager.renameProject({

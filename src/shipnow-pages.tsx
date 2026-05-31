@@ -1,10 +1,11 @@
-import { ArrowUpRight, CheckCircle2, CircleAlert, Copy, Edit2, Info, Sparkles, Upload, Zap, ChevronLeft } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, CircleAlert, Copy, Edit2, Info, Share2, Sparkles, Upload, Zap, ChevronLeft } from 'lucide-react';
 import { MobileActionButton, MobilePageSurface } from './shipnow-real-ui';
 
 export function MobilePreviewPage({
   projectName,
   frameUrl,
   onBackEdit,
+  onShare,
   onPublish,
   mode = 'preview',
   embedded = false,
@@ -12,6 +13,7 @@ export function MobilePreviewPage({
   projectName: string;
   frameUrl: string;
   onBackEdit: () => void;
+  onShare?: () => void;
   onPublish?: () => void;
   mode?: 'preview' | 'live';
   embedded?: boolean;
@@ -41,17 +43,34 @@ export function MobilePreviewPage({
             />
           </div>
 
-          <div className={`sn-mobile-preview-footer-actions ${isLiveMode ? 'is-single' : ''}`.trim()}>
-            <MobileActionButton variant="secondary" className="sn-mobile-preview-footer-secondary" onClick={onBackEdit}>
-              <Sparkles className="size-4" />
-              继续编辑
-            </MobileActionButton>
-            {isLiveMode ? null : onPublish ? (
-              <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onPublish}>
-                <Upload className="size-4" />
-                发布
-              </MobileActionButton>
-            ) : null}
+          <div className="sn-mobile-preview-footer-actions">
+            {isLiveMode ? (
+              <>
+                {onShare ? (
+                  <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onShare}>
+                    <Share2 className="size-4" />
+                    分享
+                  </MobileActionButton>
+                ) : null}
+                <MobileActionButton variant="secondary" className="sn-mobile-preview-footer-secondary" onClick={onBackEdit}>
+                  <Sparkles className="size-4" />
+                  继续编辑
+                </MobileActionButton>
+              </>
+            ) : (
+              <>
+                <MobileActionButton variant="secondary" className="sn-mobile-preview-footer-secondary" onClick={onBackEdit}>
+                  <Sparkles className="size-4" />
+                  继续编辑
+                </MobileActionButton>
+                {onPublish ? (
+                  <MobileActionButton variant="primary" className="sn-mobile-preview-footer-primary" onClick={onPublish}>
+                    <Upload className="size-4" />
+                    发布
+                  </MobileActionButton>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
       </div>

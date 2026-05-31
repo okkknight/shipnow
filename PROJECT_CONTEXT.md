@@ -21,11 +21,12 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The create flow now uses one default template instead of a visible project-type picker; game projects are inferred from the prompt and can still switch to Phaser through Codex.
 - The current implementation now enforces reserved project-name checks, explicit delete confirmation, and log-preserving deletion behavior.
 - VPS acceptance is live on the host-native deployment: the ShipNow UI is published as a static site at `/shipnow`, public releases are served from `boringmax.com/<publicHandle>` with the actual files living under `/opt/boringmax/site/<publicHandle>`, and ShipNow's dynamic traffic now follows the shared `api.boringmax.com/shipnow/api` and `api.boringmax.com/shipnow/preview` contract, with the acceptance project `vps-accept-20260525` fully published.
+- The live VPS snapshot now mirrors the final split exactly: `/opt/boringmax/site/` holds only the ShipNow UI and live public handles, while `/opt/boringmax/workspace/` holds the internal project tree plus the sqlite database.
 - Project workspaces are initialized as git repositories before Codex runs, and the default static template builds with Vite's `--configLoader runner` mode to avoid the read-only temp-file issue on the VPS layout.
 - Generated static sites now use a relative Vite base, so preview and public releases resolve assets correctly when served from `/preview/<project>` and `/project`.
-- The active VPS layout now keeps each ShipNow-managed project self-contained under `/opt/boringmax/site/proj_<projectId>` for source, preview snapshots, public release history, and logs, while the actual live public site is served directly from `/opt/boringmax/site/<publicHandle>`; the shared `.shipnow` bucket and the old project-level public alias layer have been removed.
-- ShipNow's own app-private workspace remains under `/opt/boringmax/site/shipnow`, while its sqlite database now lives under `/opt/boringmax/shipnow/workspace/shipnow.sqlite`; managed site assets stay inside each site directory.
-- For VPS reset runs, ShipNow-managed projects are disposable: delete them through the API, wait for the task to succeed, then remove any leftover `/opt/boringmax/site/proj_*` directories. Leave the ordinary static sites and `/opt/boringmax/site/shipnow` alone unless the reset explicitly targets them.
+- The local workspace now keeps each ShipNow-managed project self-contained under `workspace/project/proj_<projectId>` for source, preview snapshots, public release history, and logs, while public sites stay under `workspace/public/<publicHandle>`. The VPS now mirrors that split as `/opt/boringmax/workspace/project/<projectId>` for internal workspaces and `/opt/boringmax/site/<publicHandle>` for public sites. The shared `.shipnow` bucket and the old project-level public alias layer have been removed.
+- ShipNow's app-private workspace now lives under `/opt/boringmax/workspace` on the VPS, while the local managed-project tree lives under `workspace/project` and the public sites under `workspace/public`; the sqlite database lives under `/opt/boringmax/workspace/shipnow.sqlite`, and managed site assets stay inside each site directory.
+- For VPS reset runs, ShipNow-managed projects are disposable: delete them through the API, wait for the task to succeed, then remove any leftover `/opt/boringmax/workspace/project/proj_*` directories. Leave the ordinary static sites and `/opt/boringmax/site/shipnow` alone unless the reset explicitly targets them.
 - Preview release HTML now derives its `<base>` path from the active `previewBaseUrl` pathname, so local runs still resolve through `/preview/<handle>/` while the VPS resolves through `/shipnow/preview/<handle>/` under production env values. Public release publication now copies the built site into `/opt/boringmax/site/<publicHandle>` so `boringmax.com/<publicHandle>` serves the latest release directly.
 - The VPS now also has Claude Code CLI installed at `/usr/bin/claude`, and `shipnow.service` loads `/etc/shipnow/shipnow.env` through a drop-in so the `claude-code` runner can use the configured DeepSeek-compatible Anthropic endpoint and API key.
 - The `shipnow.service` now runs as the dedicated `shipnow` user, and `/opt/boringmax/site` is owned by that user so Claude Code can use its full permission-bypass mode on writable workspaces without hitting root restrictions.
@@ -38,13 +39,15 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - The latest independent browser acceptance is not yet passing because the ShipNow entry and API are still reachable without an authentication gate, which violates the design doc's access-protection requirement.
 - The project workbench now auto-follows new conversation entries to the latest message on both desktop and mobile; the behavior was verified in Playwright CLI after scrolling the view back up and sending a test conversation.
 - The implementation is local-first; VPS deployment paths are configured later through environment variables, and the per-site VPS layout is documented in `docs/SHIPNOW_VPS_DEPLOYMENT.md`.
-- ShipNow's sqlite database now lives under `/opt/boringmax/shipnow/workspace/shipnow.sqlite` instead of the public `site/` tree; the public ShipNow UI remains at `/opt/boringmax/site/shipnow`.
+- ShipNow's sqlite database now lives under `/opt/boringmax/workspace/shipnow.sqlite` instead of the public `site/` tree; the public ShipNow UI remains at `/opt/boringmax/site/shipnow`.
 - ShipNow deployment now explicitly splits backend and frontend publication: the app code and server bundle stay in `/opt/boringmax/shipnow`, while the latest `dist/client/` output is synced to `/opt/boringmax/site/shipnow` so the public `/shipnow` page always shows the newest UI.
+- The `/shipnow/*` tree is a SPA shell and must fall back to `/shipnow/index.html` for deep links such as project preview/live pages, so refreshes do not fail on direct navigation.
+- The public static sites now revalidate their HTML entry pages on every navigation while keeping hashed assets immutable, so browser refreshes pick up the newest publish without sacrificing asset caching.
 
 ## Latest task
 
-- Status: `Conversation auto-follow added and verified`
-- Reason: the project workbench now auto-scrolls to the latest conversation entry when new messages or task events appear, and the behavior was verified in Playwright CLI on the live local app.
+- Status: `已执行待验收`
+- Reason: the workspace split migration is implemented in code and the local workspace has been moved to `workspace/project` plus `workspace/public`, but the VPS sync / deployment verification still needs to be performed.
 
 ## Key files
 
@@ -60,4 +63,4 @@ ShipNow is a self-hosted AI small-site publishing workbench for `boringmax.com/s
 - Use `pnpm` for package management.
 - Keep the first version operational before widening scope.
 - Keep Codex-driven tasks bounded to file edits and `pnpm build`; avoid launching long-running dev servers inside the task runner.
-- Treat each `/opt/boringmax/site/<siteName>` directory as the authoritative home for that site's managed assets; do not route site artifacts through a shared bucket under `/opt/boringmax/site`.
+- Treat `workspace/project/<projectId>` as the authoritative home for a ShipNow-managed project's internal workspace during local development, and `/opt/boringmax/workspace/project/<projectId>` on the VPS. Public assets always live under `workspace/public/<publicHandle>` locally and `/opt/boringmax/site/<publicHandle>` on the VPS; do not route site artifacts through a shared bucket under either root.

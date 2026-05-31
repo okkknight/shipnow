@@ -11,10 +11,10 @@ test('publishing records a user message in the conversation flow', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-publish-message-'));
   try {
     const dbPath = join(root, 'shipnow.sqlite');
-    const publicStaticRoot = join(root, 'public');
-    const workspaceRoot = join(root, 'workspace');
+    const publicStaticRoot = join(root, 'workspace', 'public');
+    const workspaceRoot = join(root, 'workspace', 'project');
     const templateRoot = join(root, 'templates');
-    const store = new ShipNowStore(dbPath, publicStaticRoot);
+    const store = new ShipNowStore(dbPath, workspaceRoot);
     const env: ShipNowEnv = {
       port: 3000,
       publicBaseUrl: 'http://localhost:3000',
@@ -42,7 +42,7 @@ test('publishing records a user message in the conversation flow', async () => {
       type: 'landing',
       title: 'Demo project',
       prompt: 'Build a simple landing page.',
-      sourceRoot: join(workspaceRoot, 'proj_123456ab12cd'),
+      sourceRoot: join(workspaceRoot, 'proj_123456ab12cd', 'source'),
       status: 'preview_ready',
     });
 

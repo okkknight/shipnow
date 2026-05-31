@@ -9,8 +9,8 @@ import type { ShipNowEnv } from './env.js';
 
 function createTestEnv(root: string): ShipNowEnv {
   const dbPath = join(root, 'shipnow.sqlite');
-  const publicStaticRoot = join(root, 'public');
-  const workspaceRoot = join(root, 'workspace');
+  const publicStaticRoot = join(root, 'workspace', 'public');
+  const workspaceRoot = join(root, 'workspace', 'project');
   const templateRoot = join(root, 'templates');
   return {
     port: 3000,
@@ -35,7 +35,7 @@ function createTestEnv(root: string): ShipNowEnv {
 test('queues project tasks before allowing the task runner to drain', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-task-order-'));
   try {
-    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'workspace', 'project'));
     const manager = new ShipNowManager(store, createTestEnv(root));
     const order: string[] = [];
 
@@ -63,7 +63,7 @@ test('queues project tasks before allowing the task runner to drain', async () =
 test('new projects use the Untitled prefix for display names and untitled handles', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-task-order-handle-'));
   try {
-    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'workspace', 'project'));
     const manager = new ShipNowManager(store, createTestEnv(root));
 
     (manager as unknown as { enqueueTask: (input: unknown) => Promise<{ id: string }> }).enqueueTask = async () => ({
@@ -83,7 +83,7 @@ test('new projects use the Untitled prefix for display names and untitled handle
 test('defers delete task execution until the delete request event is recorded', async () => {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-delete-order-'));
   try {
-    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+    const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'workspace', 'project'));
     const manager = new ShipNowManager(store, createTestEnv(root));
     const order: string[] = [];
 
@@ -94,7 +94,7 @@ test('defers delete task execution until the delete request event is recorded', 
       type: 'landing',
       title: 'Demo project',
       prompt: 'Build a simple landing page.',
-      sourceRoot: join(root, 'workspace', 'proj_123456abcdef'),
+      sourceRoot: join(root, 'workspace', 'project', 'proj_123456abcdef', 'source'),
       status: 'preview_ready',
     });
 

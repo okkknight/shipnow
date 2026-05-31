@@ -62,6 +62,10 @@ export function hasEverPublishedProject(project: { lastPublishedAt: string | nul
   return Boolean(project.lastPublishedAt || project.publicReleasePath || project.status === 'published');
 }
 
+export function hasEverBuiltPreviewProject(project: { previewReleasePath: string | null }): boolean {
+  return Boolean(project.previewReleasePath);
+}
+
 function normalizeAppBase(base: string): string {
   const trimmed = base.trim();
   if (!trimmed || trimmed === '/') {
