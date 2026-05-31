@@ -19,6 +19,7 @@ import {
   Paperclip,
   Plus,
   RefreshCcw,
+  Share2,
   Send,
   Sparkles,
   Settings2,
@@ -43,11 +44,20 @@ import {
 import { getShipNowRuntimeConfig } from './runtimeConfig';
 import { buildConversationTimeline, type ConversationTimelineItem } from './conversationTimeline';
 import { copyText } from './clipboard';
+import {
+  createDeferredDelete,
+  DEFERRED_DELETE_WINDOW_MS,
+  getDeferredDeleteRemainingMs,
+  isDeferredDeleteUndoable,
+  markDeferredDeleteCommitting,
+  type DeferredDeleteState,
+} from './projectDeletion';
 import { RichTextMessage } from './messageFormatting';
 import { subscribeProjectTimeline } from './projectTimelineStream';
 import {
   buildProjectLivePath,
   buildProjectPreviewPath,
+  hasEverBuiltPreviewProject,
   hasEverPublishedProject,
   parseWorkspaceRoute,
   type WorkspaceRouteState,
@@ -522,7 +532,10 @@ function App() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTargetProject, setDeleteTargetProject] = useState<ProjectView | null>(null);
+  const [deferredDelete, setDeferredDelete] = useState<DeferredDeleteState | null>(null);
   const [renameSheetOpen, setRenameSheetOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -532,6 +545,9 @@ function App() {
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
   const renameSheetOpenRef = useRef(false);
   const createTransitionProjectIdRef = useRef<string | null>(null);
+  const deferredDeleteTimerRef = useRef<number | null>(null);
+  const deferredDeleteRef = useRef<DeferredDeleteState | null>(null);
+  const [, setDeferredDeleteTick] = useState(0);
   const routeProjectId =
     route.kind === 'project' ||
     route.kind === 'project-preview' ||
@@ -549,6 +565,13 @@ function App() {
         : null,
     [detail, projects, routeProjectId]
   );
+  const pendingDeleteProjectId = deferredDelete?.projectId ?? null;
+  const pendingDeletePhase = deferredDelete?.phase ?? null;
+  const currentProjectPendingDelete = Boolean(currentProject && pendingDeleteProjectId === currentProject.projectId);
+
+  useEffect(() => {
+    deferredDeleteRef.current = deferredDelete;
+  }, [deferredDelete]);
 
   const timelineItems = useMemo(() => buildConversationTimeline(detail), [detail]);
   const latestTimelineItemId = timelineItems.length > 0 ? timelineItems[timelineItems.length - 1]!.id : null;
@@ -569,6 +592,8 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [copyHint]);
 
+  useEffect(() => () => clearDeferredDeleteTimer(), []);
+
   useEffect(() => {
     if (currentProject) {
       return;
@@ -577,10 +602,46 @@ function App() {
     setRenameError(null);
   }, [currentProject]);
 
+  useEffect(() => {
+    if (route.kind !== 'project-live') {
+      setShareSheetOpen(false);
+    }
+  }, [route.kind]);
+
   async function handleCopy(value: string, successMessage = '已复制'): Promise<boolean> {
     const ok = await copyText(value);
     setCopyHint(ok ? successMessage : '复制失败');
     return ok;
+  }
+
+  async function handleShareTarget(target: 'friend' | 'moments'): Promise<void> {
+    if (!currentProject) {
+      return;
+    }
+
+    const title = currentProject.displayName;
+    const text =
+      target === 'moments'
+        ? `我刚发布了「${currentProject.displayName}」`
+        : `分享你看一下「${currentProject.displayName}」`;
+    const url = currentProject.publicUrl;
+    const navigatorLike = typeof window !== 'undefined' ? (window.navigator as Navigator & { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> }) : null;
+
+    if (typeof navigatorLike?.share === 'function') {
+      try {
+        await navigatorLike.share({ title, text, url });
+        setCopyHint(target === 'moments' ? '已唤起朋友圈分享' : '已唤起微信分享');
+        setShareSheetOpen(false);
+        return;
+      } catch {
+        // If the browser share sheet is dismissed, keep the panel open so the user can choose another path.
+      }
+    }
+
+    const copied = await handleCopy(url, '链接已复制，可在微信中粘贴分享');
+    if (copied) {
+      setShareSheetOpen(false);
+    }
   }
 
   async function refreshProjects(): Promise<void> {
@@ -617,6 +678,92 @@ function App() {
     } finally {
       setDetailLoading(false);
     }
+  }
+
+  function clearDeferredDeleteTimer(): void {
+    if (deferredDeleteTimerRef.current !== null) {
+      window.clearTimeout(deferredDeleteTimerRef.current);
+      deferredDeleteTimerRef.current = null;
+    }
+  }
+
+  function closeDeleteConfirm(): void {
+    setDeleteConfirmOpen(false);
+    setDeleteTargetProject(null);
+  }
+
+  function requestDeleteProject(project: ProjectView): void {
+    if (deferredDeleteRef.current) {
+      setError('当前有项目处于待删除状态，请先撤销或等待完成。');
+      return;
+    }
+
+    setDeleteTargetProject(project);
+    setDeleteConfirmOpen(true);
+  }
+
+  function undoDeferredDelete(): void {
+    const pending = deferredDeleteRef.current;
+    if (!pending || !isDeferredDeleteUndoable(pending)) {
+      return;
+    }
+
+    clearDeferredDeleteTimer();
+    deferredDeleteRef.current = null;
+    setDeferredDelete(null);
+    setCopyHint('删除已撤销');
+  }
+
+  async function commitDeferredDelete(projectId: string): Promise<void> {
+    const pending = deferredDeleteRef.current;
+    if (!pending || pending.projectId !== projectId) {
+      return;
+    }
+    if (pending.phase !== 'queued') {
+      return;
+    }
+
+    clearDeferredDeleteTimer();
+    const committing = markDeferredDeleteCommitting(pending);
+    deferredDeleteRef.current = committing;
+    setDeferredDelete(committing);
+    setActiveAction('delete');
+
+    try {
+      await deleteProject(projectId);
+      setProjects((current) => current.filter((project) => project.projectId !== projectId));
+      void refreshProjects();
+      if (routeProjectId === projectId) {
+        navigate('/');
+      }
+      if (detail?.project?.projectId === projectId) {
+        setDetail(null);
+      }
+      setComposerPrompt('');
+      setCopyHint('项目已删除');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : String(deleteError));
+      deferredDeleteRef.current = null;
+      setDeferredDelete(null);
+    } finally {
+      setActiveAction(null);
+      if (deferredDeleteRef.current?.projectId === projectId) {
+        deferredDeleteRef.current = null;
+        setDeferredDelete(null);
+      }
+    }
+  }
+
+  async function scheduleDeferredDelete(project: ProjectView): Promise<void> {
+    clearDeferredDeleteTimer();
+    const pending = createDeferredDelete(project);
+    deferredDeleteRef.current = pending;
+    setDeferredDelete(pending);
+
+    const remainingMs = Math.max(0, pending.executeAt - Date.now());
+    deferredDeleteTimerRef.current = window.setTimeout(() => {
+      void commitDeferredDelete(project.projectId);
+    }, remainingMs);
   }
 
   useEffect(() => {
@@ -715,15 +862,38 @@ function App() {
   }, [isEnhancedRoute, latestTimelineItemId, pendingConversation?.id, route.kind, routeProjectId]);
 
   const createFromComposer = route.kind === 'home';
-  const canSubmitComposer = composerPrompt.trim().length > 0 && activeAction === null;
-  const canPublish = Boolean(currentProject && ['preview_ready', 'published', 'publish_failed'].includes(currentProject.status));
-  const canAutoFix = Boolean(currentProject && detail && ['build_failed', 'publish_failed', 'failed'].includes(currentProject.status));
+  const canSubmitComposer = composerPrompt.trim().length > 0 && activeAction === null && !currentProjectPendingDelete;
+  const canPublish = Boolean(
+    currentProject &&
+      !currentProjectPendingDelete &&
+      ['preview_ready', 'published', 'publish_failed'].includes(currentProject.status)
+  );
+  const canAutoFix = Boolean(
+    currentProject &&
+      detail &&
+      !currentProjectPendingDelete &&
+      ['build_failed', 'publish_failed', 'failed'].includes(currentProject.status)
+  );
   const renameNormalized = slugifyHandle(renameDraft);
   const renameValidation = renameDraft.trim().length > 0 ? validateHandle(renameNormalized) : '名称不能为空。';
   const renameBaseline = currentProject?.pendingPublicHandle ?? currentProject?.publicHandle ?? '';
   const renameDirty = Boolean(currentProject && renameNormalized !== renameBaseline);
   const publishSheetOpen = publishConfirmOpen || previewConfirmDebug;
   const actionSheetOpen = publishSheetOpen || renameSheetOpen;
+
+  useEffect(() => {
+    if (!deferredDelete || deferredDelete.phase !== 'queued') {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setDeferredDeleteTick((value) => value + 1);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [deferredDelete?.executeAt, deferredDelete?.phase]);
 
   useEffect(() => {
     if (!actionSheetOpen) {
@@ -775,6 +945,10 @@ function App() {
     const prompt = composerPrompt.trim();
     if (!prompt) {
       setError('请输入一句话描述。');
+      return;
+    }
+    if (currentProjectPendingDelete) {
+      setError('当前项目正在删除中，不能继续编辑。');
       return;
     }
     const pendingId = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -857,6 +1031,9 @@ function App() {
     if (!currentProject) {
       return;
     }
+    if (currentProjectPendingDelete) {
+      return;
+    }
     setActiveAction('rebuild');
     try {
       const result = await rebuildProject(currentProject.projectId);
@@ -871,6 +1048,9 @@ function App() {
 
   async function handlePublish(): Promise<void> {
     if (!currentProject) {
+      return;
+    }
+    if (currentProjectPendingDelete) {
       return;
     }
     setActiveAction('publish');
@@ -892,6 +1072,9 @@ function App() {
 
   async function handleAutoFix(): Promise<void> {
     if (!currentProject) {
+      return;
+    }
+    if (currentProjectPendingDelete) {
       return;
     }
     const previousDetail = detail;
@@ -931,6 +1114,9 @@ function App() {
     if (!currentProject) {
       return;
     }
+    if (currentProjectPendingDelete) {
+      return;
+    }
     if (!renameDirty) {
       return;
     }
@@ -953,22 +1139,16 @@ function App() {
   }
 
   async function handleDelete(): Promise<void> {
-    if (!currentProject) {
+    if (!deleteTargetProject) {
       return;
     }
-    setActiveAction('delete');
-    try {
-      await deleteProject(currentProject.projectId);
-      setDeleteConfirmOpen(false);
-      navigate('/');
-      await refreshProjects();
-      setDetail(null);
-      setComposerPrompt('');
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : String(deleteError));
-    } finally {
-      setActiveAction(null);
+    if (deferredDeleteRef.current) {
+      setError('当前有项目处于待删除状态，请先撤销或等待完成。');
+      closeDeleteConfirm();
+      return;
     }
+    closeDeleteConfirm();
+    await scheduleDeferredDelete(deleteTargetProject);
   }
 
   const homeRecentProjects = projects.slice(0, 4);
@@ -1002,6 +1182,7 @@ function App() {
         projectName={currentProject.displayName}
         frameUrl={isLiveRoute ? currentProject.publicUrl : currentProject.previewUrl}
         onBackEdit={() => navigate(`/project/${currentProject.projectId}`)}
+        onShare={isLiveRoute ? () => setShareSheetOpen(true) : undefined}
         onPublish={isLiveRoute ? undefined : () => setPublishConfirmOpen(true)}
         mode={isLiveRoute ? 'live' : 'preview'}
       />
@@ -1034,9 +1215,13 @@ function App() {
         projects={projects}
         projectsLoading={projectsLoading}
         onOpenProject={(projectId) => navigate(`/project/${projectId}`)}
+        onRequestDelete={requestDeleteProject}
+        onUndoDelete={undoDeferredDelete}
         onBackHome={() => navigate('/')}
         recentProjects={homeRecentProjects}
         navigate={navigate}
+        pendingDeleteProjectId={pendingDeleteProjectId}
+        pendingDeletePhase={pendingDeletePhase}
       />
     );
   } else if (route.kind === 'settings') {
@@ -1141,6 +1326,25 @@ function App() {
         </div>
       ) : null}
 
+      {deferredDelete ? (
+        <div className={`sn-delete-toast ${deferredDelete.phase === 'committing' ? 'is-committing' : ''}`.trim()} role="status" aria-live="polite">
+          <span className="sn-delete-toast-copy">
+            {deferredDelete.phase === 'committing'
+              ? '删除中'
+              : `${Math.max(1, Math.ceil(getDeferredDeleteRemainingMs(deferredDelete) / 1000))}s`}
+          </span>
+          {isDeferredDeleteUndoable(deferredDelete) ? (
+            <button type="button" className="sn-delete-toast-action" onClick={undoDeferredDelete}>
+              撤销删除
+            </button>
+          ) : (
+            <button type="button" className="sn-delete-toast-action is-disabled" disabled>
+              删除中
+            </button>
+          )}
+        </div>
+      ) : null}
+
       {currentProject ? (
         <ProjectPublishConfirmSurface
           open={publishConfirmOpen || previewConfirmDebug}
@@ -1156,6 +1360,16 @@ function App() {
               '线上地址已复制'
             )
           }
+        />
+      ) : null}
+
+      {currentProject ? (
+        <ProjectShareSheet
+          open={shareSheetOpen}
+          project={currentProject}
+          onCancel={() => setShareSheetOpen(false)}
+          onShareTarget={(target) => void handleShareTarget(target)}
+          onCopyLink={() => handleCopy(currentProject.publicUrl, '正式站点链接已复制')}
         />
       ) : null}
 
@@ -1176,21 +1390,19 @@ function App() {
         />
       ) : null}
 
-      {currentProject ? (
+      {deleteTargetProject ? (
         <ProjectConfirmModal
           open={deleteConfirmOpen}
           destructive
           title="删除这个项目吗？"
-          description="删除后会清理工作区、发布目录和任务入口。这个操作不可恢复。"
+          description={`${DEFERRED_DELETE_WINDOW_MS / 1000} 秒内可撤销，超时后开始清理。`}
           details={[
-            { label: '项目', value: currentProject.displayName },
-            { label: '公开句柄', value: currentProject.publicHandle },
-            { label: '状态', value: statusLabel(currentProject.status) },
+            { label: '项目', value: deleteTargetProject.displayName },
           ]}
           cancelLabel="取消"
           confirmLabel="确认删除"
           confirmDisabled={activeAction !== null}
-          onCancel={() => setDeleteConfirmOpen(false)}
+          onCancel={() => closeDeleteConfirm()}
           onConfirm={handleDelete}
         />
       ) : null}
@@ -1261,12 +1473,12 @@ function HomeWorkspace({
               <button
                 type="button"
                 className="sn-mobile-home-entry-card"
-                onClick={() => setComposerPrompt('做一个轻量有趣的小游戏，风格轻松、有反馈、有明确的得分或胜负逻辑。')}
+                onClick={() => setComposerPrompt('做一个 Landing Page，结构清晰、节奏轻快，突出首屏价值主张和转化动作。')}
               >
                 <div className="sn-mobile-home-entry-icon">◌</div>
                 <div>
-                  <div className="sn-mobile-home-entry-title">做一个小游戏</div>
-                  <div className="sn-mobile-home-entry-desc">轻松有趣的互动体验</div>
+                  <div className="sn-mobile-home-entry-title">Landing Page</div>
+                  <div className="sn-mobile-home-entry-desc">快速验证活动与转化</div>
                 </div>
               </button>
               <button
@@ -1612,85 +1824,177 @@ function TemplatesWorkspace({
     const uid = useId().replace(/:/g, '');
     const gradientId = `${uid}-${kind}-gradient`;
     const glowId = `${uid}-${kind}-glow`;
-    const inkId = `${uid}-${kind}-ink`;
+
+    const palette =
+      kind === 'blank'
+        ? {
+            accent: '#0d6b50',
+            accent2: '#7ecdb1',
+            accentSoft: 'rgba(183,241,223,0.58)',
+            bg0: '#fbfdff',
+            bg1: '#dceeff',
+            bg2: '#def6ef',
+            glow1: '#bfe0ff',
+            glow2: '#c7f3e1',
+            card: 'rgba(255,255,255,0.78)',
+            cardStrong: 'rgba(255,255,255,0.9)',
+            line: 'rgba(15,17,21,0.08)',
+            lineSoft: 'rgba(15,17,21,0.05)',
+          }
+        : kind === 'product'
+          ? {
+              accent: '#0d6b50',
+              accent2: '#8ea9bf',
+              accentSoft: 'rgba(183,241,223,0.58)',
+              bg0: '#f4fbff',
+              bg1: '#dfeeff',
+              bg2: '#e0f7ef',
+              glow1: '#c6ddff',
+              glow2: '#cef1e2',
+              card: 'rgba(255,255,255,0.76)',
+              cardStrong: 'rgba(255,255,255,0.88)',
+              line: 'rgba(15,17,21,0.07)',
+              lineSoft: 'rgba(15,17,21,0.045)',
+            }
+          : kind === 'landing'
+            ? {
+                accent: '#0d6b50',
+                accent2: '#ebb883',
+                accentSoft: 'rgba(183,241,223,0.54)',
+                bg0: '#fff9f1',
+                bg1: '#eef6ff',
+                bg2: '#e4f7ea',
+                glow1: '#ffd8b5',
+                glow2: '#c7f2df',
+                card: 'rgba(255,255,255,0.76)',
+                cardStrong: 'rgba(255,255,255,0.88)',
+                line: 'rgba(15,17,21,0.07)',
+                lineSoft: 'rgba(15,17,21,0.045)',
+              }
+            : {
+                accent: '#5e6dff',
+                accent2: '#84b5ee',
+                accentSoft: 'rgba(198,208,255,0.56)',
+                bg0: '#faf7ff',
+                bg1: '#eef2ff',
+                bg2: '#ecfaf4',
+                glow1: '#d9ceff',
+                glow2: '#c8e3ff',
+                card: 'rgba(255,255,255,0.78)',
+                cardStrong: 'rgba(255,255,255,0.9)',
+                line: 'rgba(15,17,21,0.07)',
+                lineSoft: 'rgba(15,17,21,0.045)',
+              };
 
     return (
-      <svg className="sn-template-thumb-art" viewBox="0 0 240 140" aria-hidden="true">
+      <svg className="sn-template-thumb-art" viewBox="0 0 483 100" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-            <stop offset="45%" stopColor="#d9ecff" stopOpacity="0.96" />
-            <stop offset="100%" stopColor="#b7f1df" stopOpacity="0.78" />
+            <stop offset="0%" stopColor={palette.bg0} stopOpacity="0.98" />
+            <stop offset="50%" stopColor={palette.bg1} stopOpacity="0.98" />
+            <stop offset="100%" stopColor={palette.bg2} stopOpacity="0.92" />
           </linearGradient>
-          <radialGradient id={glowId} cx="0.2" cy="0.12" r="0.95">
-            <stop offset="0%" stopColor="#b7f1df" stopOpacity="0.9" />
-            <stop offset="55%" stopColor="#9bd7ff" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#9bd7ff" stopOpacity="0" />
+          <radialGradient id={glowId} cx="0.18" cy="0.2" r="0.92">
+            <stop offset="0%" stopColor={palette.glow1} stopOpacity="0.95" />
+            <stop offset="58%" stopColor={palette.glow2} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={palette.glow2} stopOpacity="0" />
           </radialGradient>
-          <linearGradient id={inkId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#0f1115" stopOpacity="0.82" />
-            <stop offset="100%" stopColor="#0f1115" stopOpacity="0.58" />
-          </linearGradient>
         </defs>
 
         <g>
-          <rect x="0" y="0" width="240" height="140" rx="18" fill={`url(#${gradientId})`} />
-          <rect x="0" y="0" width="240" height="140" rx="18" fill={`url(#${glowId})`} opacity="0.6" />
+          <rect x="0" y="0" width="483" height="100" rx="18" fill={`url(#${gradientId})`} />
+          <rect x="0" y="0" width="483" height="100" rx="18" fill={`url(#${glowId})`} opacity="0.72" />
 
           {kind === 'blank' ? (
             <>
-              <rect x="38" y="50" width="164" height="48" rx="15" fill="rgba(255,255,255,0.48)" stroke="rgba(255,255,255,0.34)" />
-              <rect x="56" y="62" width="90" height="10" rx="5" fill="rgba(255,255,255,0.72)" />
-              <rect x="56" y="78" width="66" height="8" rx="4" fill="rgba(15,17,21,0.12)" />
-              <rect x="56" y="90" width="82" height="8" rx="4" fill="rgba(15,17,21,0.08)" />
-              <rect x="156" y="60" width="28" height="28" rx="14" fill="rgba(255,255,255,0.68)" />
-              <path d="M170 66v16M162 74h16" stroke="#0d6b50" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M176 50h16M184 42v16" stroke="rgba(13,107,80,0.4)" strokeWidth="2" strokeLinecap="round" />
-              <rect x="170" y="96" width="24" height="8" rx="4" fill="rgba(183,241,223,0.48)" />
+              <rect x="18" y="14" width="447" height="72" rx="18" fill="rgba(255,255,255,0.36)" stroke="rgba(255,255,255,0.22)" />
+              <rect x="32" y="28" width="118" height="10" rx="5" fill="rgba(255,255,255,0.82)" />
+              <rect x="32" y="44" width="82" height="7" rx="3.5" fill="rgba(15,17,21,0.08)" />
+              <rect x="32" y="56" width="100" height="7" rx="3.5" fill="rgba(15,17,21,0.06)" />
+              <rect x="156" y="24" width="192" height="44" rx="18" fill="rgba(255,255,255,0.62)" />
+              <rect x="176" y="38" width="96" height="8" rx="4" fill="rgba(255,255,255,0.8)" />
+              <rect x="176" y="51" width="74" height="7" rx="3.5" fill="rgba(15,17,21,0.1)" />
+              <rect x="276" y="35" width="42" height="22" rx="11" fill="rgba(255,255,255,0.86)" />
+              <path d="M297 40v12M291 46h12" stroke={palette.accent} strokeWidth="2.4" strokeLinecap="round" />
+              <rect x="360" y="24" width="82" height="44" rx="18" fill="rgba(255,255,255,0.38)" />
+              <rect x="378" y="38" width="46" height="6" rx="3" fill={palette.accentSoft} />
+              <rect x="378" y="48" width="28" height="6" rx="3" fill="rgba(15,17,21,0.08)" />
+              <rect x="30" y="74" width="420" height="6" rx="3" fill="rgba(15,17,21,0.04)" />
             </>
           ) : null}
 
           {kind === 'product' ? (
             <>
-              <rect x="22" y="26" width="150" height="82" rx="18" fill="rgba(255,255,255,0.62)" />
-              <rect x="36" y="38" width="70" height="10" rx="5" fill={`url(#${inkId})`} opacity="0.88" />
-              <rect x="36" y="56" width="112" height="8" rx="4" fill="rgba(15,17,21,0.16)" />
-              <rect x="36" y="70" width="92" height="8" rx="4" fill="rgba(15,17,21,0.1)" />
-              <rect x="36" y="86" width="54" height="20" rx="10" fill="#0f1115" />
-              <rect x="98" y="86" width="42" height="20" rx="10" fill="rgba(255,255,255,0.92)" />
-              <rect x="170" y="34" width="48" height="70" rx="18" fill="rgba(255,255,255,0.72)" />
-              <circle cx="194" cy="53" r="13" fill="rgba(183,241,223,0.8)" />
-              <rect x="181" y="73" width="26" height="10" rx="5" fill="rgba(15,17,21,0.12)" />
-              <rect x="181" y="87" width="20" height="8" rx="4" fill="rgba(15,17,21,0.08)" />
+              <rect x="18" y="14" width="96" height="72" rx="18" fill="rgba(255,255,255,0.66)" />
+              <rect x="32" y="28" width="54" height="10" rx="5" fill={palette.cardStrong} />
+              <rect x="32" y="46" width="36" height="7" rx="3.5" fill={palette.line} />
+              <rect x="32" y="58" width="48" height="7" rx="3.5" fill={palette.lineSoft} />
+              <rect x="32" y="70" width="60" height="8" rx="4" fill="rgba(255,255,255,0.92)" />
+              <rect x="126" y="14" width="258" height="24" rx="12" fill="rgba(255,255,255,0.56)" />
+              <rect x="144" y="22" width="74" height="8" rx="4" fill="rgba(15,17,21,0.1)" />
+              <rect x="224" y="22" width="38" height="8" rx="4" fill="rgba(15,17,21,0.07)" />
+              <rect x="270" y="20" width="42" height="12" rx="6" fill={palette.accentSoft} />
+              <rect x="126" y="42" width="168" height="40" rx="16" fill="rgba(255,255,255,0.64)" />
+              <rect x="140" y="54" width="84" height="8" rx="4" fill="rgba(15,17,21,0.09)" />
+              <rect x="140" y="66" width="56" height="8" rx="4" fill="rgba(15,17,21,0.06)" />
+              <rect x="320" y="42" width="64" height="40" rx="16" fill="rgba(255,255,255,0.52)" />
+              <circle cx="352" cy="56" r="14" fill={palette.accentSoft} />
+              <rect x="306" y="20" width="126" height="74" rx="18" fill="rgba(255,255,255,0.42)" />
+              <rect x="320" y="52" width="82" height="8" rx="4" fill="rgba(15,17,21,0.08)" />
+              <rect x="320" y="66" width="60" height="6" rx="3" fill="rgba(15,17,21,0.05)" />
+              <rect x="126" y="84" width="304" height="6" rx="3" fill="rgba(15,17,21,0.035)" />
+              <rect x="138" y="82" width="106" height="12" rx="6" fill={palette.accent} />
+              <rect x="256" y="82" width="72" height="12" rx="6" fill="rgba(255,255,255,0.9)" />
+              <rect x="340" y="82" width="58" height="12" rx="6" fill={palette.accent2} />
             </>
           ) : null}
 
           {kind === 'landing' ? (
             <>
-              <path d="M18 108L94 34h60l-70 74H18Z" fill="rgba(255,255,255,0.42)" />
-              <path d="M92 28h62l-68 72H24l68-72Z" fill="rgba(15,17,21,0.04)" />
-              <rect x="26" y="28" width="112" height="14" rx="7" fill="rgba(255,255,255,0.6)" />
-              <rect x="26" y="48" width="92" height="9" rx="4.5" fill="rgba(15,17,21,0.14)" />
-              <rect x="26" y="62" width="74" height="9" rx="4.5" fill="rgba(15,17,21,0.1)" />
-              <rect x="26" y="82" width="64" height="22" rx="11" fill="#0f1115" />
-              <rect x="98" y="82" width="48" height="22" rx="11" fill="rgba(255,255,255,0.86)" />
-              <circle cx="186" cy="45" r="24" fill="rgba(183,241,223,0.5)" />
-              <path d="M180 45h12M186 39v12" stroke="#0d6b50" strokeWidth="3" strokeLinecap="round" />
-              <rect x="168" y="78" width="44" height="12" rx="6" fill="rgba(255,255,255,0.68)" />
+              <path d="M-14 86L132 14h94L88 92H-14Z" fill="rgba(255,255,255,0.34)" />
+              <path d="M126 14h170L196 88H68L126 14Z" fill="rgba(157,177,197,0.12)" />
+              <rect x="26" y="18" width="108" height="9" rx="4.5" fill="rgba(255,255,255,0.82)" />
+              <rect x="26" y="34" width="76" height="6" rx="3" fill={palette.line} />
+              <rect x="26" y="44" width="92" height="6" rx="3" fill={palette.lineSoft} />
+              <rect x="26" y="60" width="52" height="16" rx="8" fill={palette.accent} />
+              <rect x="84" y="60" width="48" height="16" rx="8" fill="rgba(255,255,255,0.86)" />
+              <circle cx="356" cy="36" r="28" fill="rgba(255,255,255,0.42)" />
+              <circle cx="356" cy="36" r="16" fill={palette.accentSoft} />
+              <path d="M348 36h16M356 28v16" stroke={palette.accent} strokeWidth="3" strokeLinecap="round" />
+              <rect x="260" y="18" width="184" height="30" rx="15" fill="rgba(255,255,255,0.56)" />
+              <rect x="274" y="29" width="76" height="8" rx="4" fill="rgba(255,255,255,0.84)" />
+              <rect x="274" y="42" width="102" height="6" rx="3" fill={palette.line} />
+              <rect x="252" y="56" width="192" height="18" rx="9" fill="rgba(255,255,255,0.34)" />
+              <rect x="266" y="62" width="84" height="6" rx="3" fill={palette.line} />
+              <rect x="358" y="62" width="70" height="6" rx="3" fill={palette.accentSoft} />
+              <rect x="24" y="80" width="412" height="8" rx="4" fill={palette.lineSoft} />
             </>
           ) : null}
 
           {kind === 'profile' ? (
             <>
-              <circle cx="72" cy="48" r="22" fill="rgba(255,255,255,0.76)" />
-              <circle cx="72" cy="42" r="10" fill="rgba(15,17,21,0.14)" />
-              <rect x="48" y="68" width="48" height="12" rx="6" fill={`url(#${inkId})`} opacity="0.8" />
-              <rect x="34" y="90" width="46" height="24" rx="12" fill="rgba(255,255,255,0.72)" />
-              <rect x="88" y="90" width="46" height="24" rx="12" fill="rgba(255,255,255,0.58)" />
-              <rect x="142" y="30" width="62" height="18" rx="9" fill="rgba(255,255,255,0.72)" />
-              <rect x="142" y="56" width="78" height="10" rx="5" fill="rgba(15,17,21,0.12)" />
-              <rect x="142" y="74" width="58" height="10" rx="5" fill="rgba(15,17,21,0.08)" />
-              <rect x="142" y="94" width="72" height="16" rx="8" fill="#0f1115" />
+              <rect x="18" y="16" width="118" height="68" rx="18" fill="rgba(255,255,255,0.62)" />
+              <circle cx="48" cy="42" r="20" fill="rgba(255,255,255,0.88)" />
+              <circle cx="48" cy="36" r="8" fill="rgba(157,177,197,0.46)" />
+              <rect x="28" y="64" width="40" height="8" rx="4" fill={palette.line} />
+              <rect x="78" y="26" width="44" height="8" rx="4" fill="rgba(255,255,255,0.82)" />
+              <rect x="78" y="38" width="32" height="6" rx="3" fill={palette.line} />
+              <rect x="78" y="49" width="26" height="6" rx="3" fill={palette.lineSoft} />
+              <rect x="146" y="16" width="92" height="68" rx="18" fill="rgba(255,255,255,0.58)" />
+              <rect x="158" y="28" width="68" height="8" rx="4" fill="rgba(255,255,255,0.84)" />
+              <rect x="158" y="40" width="54" height="6" rx="3" fill={palette.line} />
+              <rect x="158" y="52" width="42" height="6" rx="3" fill={palette.lineSoft} />
+              <rect x="246" y="16" width="92" height="68" rx="18" fill="rgba(255,255,255,0.4)" />
+              <circle cx="292" cy="42" r="16" fill={palette.accentSoft} />
+              <rect x="270" y="60" width="44" height="8" rx="4" fill={palette.line} />
+              <rect x="350" y="16" width="115" height="68" rx="18" fill="rgba(255,255,255,0.58)" />
+              <rect x="364" y="28" width="40" height="8" rx="4" fill="rgba(255,255,255,0.84)" />
+              <rect x="364" y="40" width="34" height="6" rx="3" fill={palette.line} />
+              <rect x="364" y="52" width="48" height="16" rx="8" fill={palette.accent} />
+              <rect x="18" y="84" width="448" height="6" rx="3" fill={palette.lineSoft} />
+              <rect x="30" y="82" width="82" height="12" rx="6" fill={palette.accent} />
+              <rect x="124" y="82" width="74" height="12" rx="6" fill="rgba(255,255,255,0.88)" />
+              <rect x="210" y="82" width="112" height="12" rx="6" fill={palette.accentSoft} />
             </>
           ) : null}
         </g>
@@ -1753,19 +2057,28 @@ function ProjectsWorkspace({
   projects,
   projectsLoading,
   onOpenProject,
+  onRequestDelete,
+  onUndoDelete,
   onBackHome,
   recentProjects,
   navigate,
+  pendingDeleteProjectId,
+  pendingDeletePhase,
 }: {
   projects: ProjectView[];
   projectsLoading: boolean;
   onOpenProject: (projectId: string) => void;
+  onRequestDelete: (project: ProjectView) => void;
+  onUndoDelete: (projectId: string) => void;
   onBackHome: () => void;
   recentProjects: ProjectView[];
   navigate: (path: string) => void;
+  pendingDeleteProjectId: string | null;
+  pendingDeletePhase: DeferredDeleteState['phase'] | null;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [allProjectsOpen, setAllProjectsOpen] = useState(true);
+  const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(null);
 
   return (
       <MobilePageSurface className="sn-mobile-projects-page">
@@ -1795,11 +2108,28 @@ function ProjectsWorkspace({
             ) : (
               <div className="sn-mobile-project-list">
                 {projects.map((project) => (
-                  <button
+                  <article
                     key={project.projectId}
-                    type="button"
-                    className={`sn-mobile-project-card ${project.status === 'preview_ready' ? 'is-active' : ''}`}
-                    onClick={() => onOpenProject(project.projectId)}
+                    className={`sn-mobile-project-card ${project.status === 'preview_ready' ? 'is-active' : ''} ${pendingDeleteProjectId === project.projectId ? 'is-pending-delete' : ''}`.trim()}
+                    role={pendingDeleteProjectId === project.projectId ? undefined : 'button'}
+                    tabIndex={pendingDeleteProjectId === project.projectId ? undefined : 0}
+                    aria-disabled={pendingDeleteProjectId === project.projectId ? 'true' : undefined}
+                    onClick={() => {
+                      if (pendingDeleteProjectId === project.projectId) {
+                        return;
+                      }
+                      onOpenProject(project.projectId);
+                    }}
+                    onKeyDown={(event) => {
+                      if (pendingDeleteProjectId === project.projectId) {
+                        return;
+                      }
+                      if (event.key !== 'Enter' && event.key !== ' ') {
+                        return;
+                      }
+                      event.preventDefault();
+                      onOpenProject(project.projectId);
+                    }}
                   >
                     <div className="sn-mobile-project-thumb" />
                     <div className="sn-mobile-project-copy">
@@ -1808,15 +2138,66 @@ function ProjectsWorkspace({
                           <div className="sn-mobile-project-name">{project.displayName}</div>
                           <div className="sn-mobile-project-desc">{project.title}</div>
                         </div>
-                        <StatusChip tone={statusTone(project.status) as 'preview-ready' | 'published' | 'building' | 'needs-fix'}>
-                          {statusLabel(project.status)}
-                        </StatusChip>
+                        <div className="sn-mobile-project-card-actions">
+                          <StatusChip
+                            tone={
+                              (pendingDeleteProjectId === project.projectId
+                                ? 'building'
+                                : statusTone(project.status)) as 'preview-ready' | 'published' | 'building' | 'needs-fix'
+                            }
+                          >
+                            {pendingDeleteProjectId === project.projectId
+                              ? pendingDeletePhase === 'committing'
+                                ? '删除中'
+                                : '待删除'
+                              : statusLabel(project.status)}
+                          </StatusChip>
+                          <button
+                            className="sn-mobile-project-menu-button"
+                            type="button"
+                            aria-label={`更多操作：${project.displayName}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenMenuProjectId((current) => (current === project.projectId ? null : project.projectId));
+                            }}
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </button>
+                        </div>
                       </div>
                       <div className="sn-mobile-project-meta">
                         <span>{formatTime(project.updatedAt)}</span>
                       </div>
                     </div>
-                  </button>
+                    {openMenuProjectId === project.projectId ? (
+                      <div className="sn-mobile-project-menu" role="menu" onClick={(event) => event.stopPropagation()}>
+                        {pendingDeleteProjectId === project.projectId ? (
+                          <button
+                            type="button"
+                            className="sn-mobile-project-menu-item"
+                            onClick={() => {
+                              setOpenMenuProjectId(null);
+                              onUndoDelete(project.projectId);
+                            }}
+                          >
+                            撤销删除
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="sn-mobile-project-menu-item is-danger"
+                            disabled={Boolean(pendingDeleteProjectId)}
+                            onClick={() => {
+                              setOpenMenuProjectId(null);
+                              onRequestDelete(project);
+                            }}
+                          >
+                            删除项目
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
+                  </article>
                 ))}
               </div>
             )}
@@ -2011,6 +2392,96 @@ function ProjectPublishConfirmSurface({
       onConfirm={onConfirm}
       onCopyLink={onCopyLink}
     />
+  );
+}
+
+function ProjectShareSheet({
+  open,
+  project,
+  onCancel,
+  onShareTarget,
+  onCopyLink,
+}: {
+  open: boolean;
+  project: ProjectView;
+  onCancel: () => void;
+  onShareTarget: (target: 'friend' | 'moments') => void;
+  onCopyLink: () => boolean | Promise<boolean>;
+}) {
+  const { shouldRender, isOpen } = useDrawerTransition(open);
+
+  if (!shouldRender) {
+    return null;
+  }
+
+  return (
+    <div className={`sn-mobile-confirm-shell ${isOpen ? 'is-open' : ''}`.trim()} role="presentation">
+      <button className="sn-mobile-drawer-backdrop" type="button" aria-label="关闭分享面板" onClick={onCancel} />
+      <div className="sn-mobile-confirm-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="sn-mobile-confirm-head">
+          <div className="sn-mobile-confirm-head-left">
+            <div className="sn-mobile-confirm-icon" aria-hidden="true">
+              <Share2 className="size-4" />
+            </div>
+            <div className="sn-mobile-confirm-head-title">分享站点</div>
+          </div>
+          <button className="sn-reference-sheet-close sn-mobile-confirm-close" type="button" onClick={onCancel} aria-label="关闭分享面板">
+            ×
+          </button>
+        </div>
+        <div className="sn-mobile-confirm-body">
+          <div className="sn-mobile-confirm-badge">微信分享</div>
+          <div className="sn-mobile-confirm-title">{project.displayName}</div>
+          <div className="sn-mobile-note">
+            默认分享文案先沿用项目名和正式站点链接，后续接入微信 JS-SDK 后会在这里直接走好友和朋友圈分享。
+          </div>
+          <div className="sn-mobile-confirm-list">
+            <div className="sn-mobile-confirm-list-item">
+              <CheckCircle2 className="size-4" />
+              <span>分享到微信朋友</span>
+            </div>
+            <div className="sn-mobile-confirm-list-item">
+              <CheckCircle2 className="size-4" />
+              <span>分享到朋友圈</span>
+            </div>
+            <div className="sn-mobile-confirm-list-item">
+              <CheckCircle2 className="size-4" />
+              <span>非微信浏览器可先复制链接再粘贴分享</span>
+            </div>
+          </div>
+          <div className="sn-mobile-confirm-label">正式站点链接</div>
+          <button
+            className="sn-mobile-confirm-address"
+            type="button"
+            onClick={() => {
+              void Promise.resolve(onCopyLink()).then((copied) => {
+                if (copied !== false) {
+                  onCancel();
+                }
+              });
+            }}
+            aria-label="复制正式站点链接"
+          >
+            <span>{project.publicUrl}</span>
+            <Copy className="size-4" />
+          </button>
+          <div className="sn-mobile-note">
+            当前先保留前端结构，后续接入微信签名后可以直接用原生分享能力。
+          </div>
+        </div>
+        <div className="sn-mobile-confirm-footer">
+          <div className="sn-mobile-confirm-actions">
+            <button className="sn-mobile-confirm-button is-primary" type="button" onClick={() => onShareTarget('friend')}>
+              分享给朋友
+            </button>
+            <button className="sn-mobile-confirm-button is-secondary" type="button" onClick={() => onShareTarget('moments')}>
+              分享到朋友圈
+            </button>
+          </div>
+          <div className="sn-mobile-confirm-footnote">微信外浏览器会优先走系统分享或复制链接兜底</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2331,11 +2802,13 @@ function ProjectWorkspaceMobile({
     : timelineItems;
   const latestVisibleTimelineItemId = visibleTimelineItems.length > 0 ? visibleTimelineItems[visibleTimelineItems.length - 1]!.id : null;
   const hiddenTimelineCount = Math.max(0, timelineItems.length - visibleTimelineItems.length);
+  const canOpenPreview = hasEverBuiltPreviewProject(project) || Boolean(detail?.releases.some((release) => release.kind === 'preview'));
   const canOpenLive = hasEverPublishedProject(project);
+  const visibleComposerActionCount = Number(canOpenPreview) + Number(canOpenLive) + Number(canPublish);
   const composerActionClassName =
-    canOpenLive && canPublish
+    visibleComposerActionCount >= 3
       ? 'has-triple-actions'
-      : canOpenLive || canPublish
+      : visibleComposerActionCount === 2
         ? 'has-dual-actions'
         : 'has-single-action';
 
@@ -2425,9 +2898,11 @@ function ProjectWorkspaceMobile({
 
       <div className="sn-mobile-project-composer-fixed">
         <div className={`sn-mobile-project-composer-actions ${composerActionClassName}`.trim()}>
-          <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
-            <Eye className="size-4" /> 预览站点
-          </MobileActionButton>
+          {canOpenPreview ? (
+            <MobileActionButton variant="secondary" className="sn-mobile-project-preview-button" onClick={onOpenPreview}>
+              <Eye className="size-4" /> 预览站点
+            </MobileActionButton>
+          ) : null}
           {canOpenLive ? (
             <MobileActionButton variant="secondary" className="sn-mobile-project-live-button" onClick={onOpenLive}>
               <ArrowUpRight className="size-4" /> 正式站点
@@ -3054,7 +3529,7 @@ function TimelineSystemBubble({
             {liveElapsed ? (
               <div className="sn-system-event-live">
                 <span className="sn-system-event-live-dot" aria-hidden="true" />
-                <span>仍在处理 · {liveElapsed}</span>
+                <span>处理中 · {liveElapsed}</span>
               </div>
             ) : null}
           </div>

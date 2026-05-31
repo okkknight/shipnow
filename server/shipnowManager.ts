@@ -44,6 +44,7 @@ import {
 } from './storage.js';
 import { runCommand } from './process.js';
 import type { AppSettingsView, ProjectSettingsView, TaskRunnerName } from './types.js';
+import { killProcessTree } from './process.js';
 import { createTaskProgressEvent, projectTimelineBus } from './timelineBus.js';
 import {
   buildTaskCompletionSummaryPrompt,
@@ -176,6 +177,8 @@ export class ShipNowManager {
 
   private readonly env: ShipNowEnv;
 
+  private readonly recoveredTaskTimers = new Map<string, NodeJS.Timeout>();
+
   private runningTaskId: string | null = null;
 
   private drainScheduled = false;
@@ -188,11 +191,15 @@ export class ShipNowManager {
   async initialize(): Promise<void> {
     await ensureWorkspaceRoots(this.env);
     await this.recoverInterruptedDeleteTasks();
+    await this.recoverRunningTasks();
     await this.resumePendingTasks();
   }
 
   async shutdown(): Promise<void> {
-    // no-op for now
+    for (const timer of this.recoveredTaskTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.recoveredTaskTimers.clear();
   }
 
   listProjects(): ProjectView[] {
@@ -728,6 +735,120 @@ export class ShipNowManager {
     }
   }
 
+  private async recoverRunningTasks(): Promise<void> {
+    const runningTasks = this.store.listRunningTasks();
+    if (runningTasks.length === 0) {
+      return;
+    }
+
+    for (const task of runningTasks) {
+      const timeoutMs = task.timeout_ms ?? this.env.taskTimeoutSeconds * 1000;
+      const startedAtMs = task.started_at ? Date.parse(task.started_at) : NaN;
+      const activePid = typeof task.active_pid === 'number' && Number.isFinite(task.active_pid) ? task.active_pid : null;
+
+      if (!Number.isFinite(startedAtMs)) {
+        await this.failRecoveredRunningTask(task, '任务在后端重启后丢失了开始时间，已自动结束。');
+        continue;
+      }
+
+      if (!activePid) {
+        await this.failRecoveredRunningTask(task, '任务在后端重启后丢失了活跃进程，已自动结束。');
+        continue;
+      }
+
+      const alive = this.isProcessAlive(activePid);
+      if (!alive) {
+        await this.failRecoveredRunningTask(task, '任务的活跃进程在后端重启后已经退出，已自动结束。');
+        continue;
+      }
+
+      const elapsedMs = Date.now() - startedAtMs;
+      const remainingMs = timeoutMs - elapsedMs;
+      if (remainingMs <= 0) {
+        await this.timeoutRecoveredRunningTask(task, activePid, timeoutMs);
+        continue;
+      }
+
+      const timer = setTimeout(() => {
+        void this.timeoutRecoveredRunningTask(task, activePid, timeoutMs);
+      }, remainingMs);
+      this.recoveredTaskTimers.set(task.id, timer);
+      await this.store.appendTaskLogAsync(
+        task.id,
+        `Recovered running task watchdog with ${remainingMs}ms remaining after backend restart.`
+      );
+    }
+  }
+
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private clearRecoveredTaskTimer(taskId: string): void {
+    const timer = this.recoveredTaskTimers.get(taskId);
+    if (timer) {
+      clearTimeout(timer);
+      this.recoveredTaskTimers.delete(taskId);
+    }
+  }
+
+  private async failRecoveredRunningTask(task: TaskRecord, message: string): Promise<void> {
+    this.clearRecoveredTaskTimer(task.id);
+    const project = this.requireProject(task.project_id);
+    await this.store.appendTaskLogAsync(task.id, `Recovered task failed: ${message}`);
+    this.store.setTaskStatus(task.id, 'failed', {
+      finished_at: nowIso(),
+      error_message: message,
+      active_pid: null,
+    });
+    this.publishTaskProgress(project, task, 'failed', { errorMessage: message });
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'task_failed',
+      title: '任务执行失败',
+      detail: message,
+      data: { taskId: task.id, taskType: task.type, error: message },
+    });
+    if (task.type === 'publish') {
+      this.store.updateProjectStatus(project.project_id, 'publish_failed');
+    } else if (task.type !== 'delete_project') {
+      this.store.updateProjectStatus(project.project_id, 'build_failed');
+    }
+  }
+
+  private async timeoutRecoveredRunningTask(task: TaskRecord, activePid: number, timeoutMs: number): Promise<void> {
+    this.clearRecoveredTaskTimer(task.id);
+    const project = this.requireProject(task.project_id);
+    await this.store.appendTaskLogAsync(task.id, `Recovered task timeout reached after ${timeoutMs}ms. Killing process tree ${activePid}.`);
+    await killProcessTree(activePid);
+    const message = `Command timed out after ${timeoutMs}ms: ${task.type}`;
+    this.store.setTaskStatus(task.id, 'failed', {
+      finished_at: nowIso(),
+      error_message: message,
+      active_pid: null,
+    });
+    this.publishTaskProgress(project, task, 'failed', { errorMessage: message });
+    this.store.createEvent({
+      projectId: project.project_id,
+      taskId: task.id,
+      type: 'task_failed',
+      title: '任务执行失败',
+      detail: message,
+      data: { taskId: task.id, taskType: task.type, error: message },
+    });
+    if (task.type === 'publish') {
+      this.store.updateProjectStatus(project.project_id, 'publish_failed');
+    } else if (task.type !== 'delete_project') {
+      this.store.updateProjectStatus(project.project_id, 'build_failed');
+    }
+  }
+
   private async drain(): Promise<void> {
     if (this.runningTaskId) {
       return;
@@ -753,7 +874,8 @@ export class ShipNowManager {
   private async executeTask(task: TaskRecord): Promise<void> {
     const project = this.requireProject(task.project_id);
     const startedAt = nowIso();
-    this.store.setTaskStatus(task.id, 'running', { started_at: startedAt });
+    const timeoutMs = this.env.taskTimeoutSeconds * 1000;
+    this.store.setTaskStatus(task.id, 'running', { started_at: startedAt, timeout_ms: timeoutMs, active_pid: null });
     this.publishTaskProgress(project, task, 'starting', { createdAt: startedAt });
     this.store.createEvent({
       projectId: project.project_id,
@@ -765,8 +887,6 @@ export class ShipNowManager {
     });
     await this.store.appendTaskLogAsync(task.id, `Starting ${task.type} for ${project.display_name}.`);
     this.publishTaskProgress(project, task, 'running');
-
-    const timeoutMs = this.env.taskTimeoutSeconds * 1000;
 
     try {
       switch (task.type) {
@@ -788,9 +908,16 @@ export class ShipNowManager {
         default:
           throw new Error(`Unsupported task type ${task.type}`);
       }
-      this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso() });
+      this.store.setTaskStatus(task.id, 'success', { finished_at: nowIso(), active_pid: null });
       this.publishTaskProgress(project, task, 'completed');
-      const summary = await this.generateTaskCompletionSummary(project, task);
+      const summary =
+        task.type === 'delete_project'
+          ? {
+              summaryText: '删除任务已完成。',
+              rawOutput: null,
+              summarySource: 'fallback' as const,
+            }
+          : await this.generateTaskCompletionSummary(project, task);
       this.store.createEvent({
         projectId: project.project_id,
         taskId: task.id,
@@ -810,7 +937,7 @@ export class ShipNowManager {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.store.appendTaskLogAsync(task.id, `Task ${task.id} failed: ${message}`);
-      this.store.setTaskStatus(task.id, 'failed', { finished_at: nowIso(), error_message: message });
+      this.store.setTaskStatus(task.id, 'failed', { finished_at: nowIso(), error_message: message, active_pid: null });
       this.publishTaskProgress(project, task, 'failed', { errorMessage: message });
       this.store.createEvent({
         projectId: project.project_id,
@@ -897,11 +1024,10 @@ export class ShipNowManager {
       ? ['install', '--frozen-lockfile']
       : ['install', '--no-frozen-lockfile'];
     await this.store.appendTaskLogAsync(task.id, `Installing project dependencies with pnpm ${installArgs.join(' ')}.`);
-    const install = await runCommand({
+    const install = await this.runTrackedCommand(task, timeoutMs, {
       command: 'pnpm',
       args: installArgs,
       cwd: paths.sourceRoot,
-      timeoutMs,
       onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
       onStderr: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
     });
@@ -1079,11 +1205,10 @@ export class ShipNowManager {
   }
 
   private async runBuild(task: TaskRecord, cwd: string, timeoutMs: number): Promise<void> {
-    const buildResult = await runCommand({
+    const buildResult = await this.runTrackedCommand(task, timeoutMs, {
       command: 'pnpm',
       args: ['build'],
       cwd,
-      timeoutMs,
       onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
       onStderr: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
     });
@@ -1117,7 +1242,7 @@ export class ShipNowManager {
     }
 
     await this.store.appendTaskLogAsync(taskId, `Initializing git repository in ${cwd}.`);
-    const result = await runCommand({
+    const result = await this.runTrackedCommandByTaskId(taskId, {
       command: 'git',
       args: ['init'],
       cwd,
@@ -1199,8 +1324,8 @@ export class ShipNowManager {
             'text',
             '--model',
             this.env.claudeCodeModel,
-          '--max-turns',
-          'max',
+            '--max-turns',
+            'max',
             '--dangerously-skip-permissions',
             prompt,
           ],
@@ -1231,11 +1356,10 @@ export class ShipNowManager {
   }
 
   private async runCodex(task: TaskRecord, prompt: string, cwd: string, timeoutMs: number): Promise<void> {
-    const result = await runCommand({
+    const result = await this.runTrackedCommand(task, timeoutMs, {
       command: this.env.codexBin,
       args: ['exec', '--full-auto', '--skip-git-repo-check', '--cd', cwd, prompt],
       cwd,
-      timeoutMs,
       onStdout: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
       onStderr: async (chunk) => this.store.appendTaskLogAsync(task.id, chunk.trimEnd()),
     });
@@ -1250,7 +1374,7 @@ export class ShipNowManager {
       throw new Error('Claude Code DeepSeek API key is not configured.');
     }
 
-    const result = await runCommand({
+    const result = await this.runTrackedCommand(task, timeoutMs, {
       command: this.env.claudeCodeBin,
       args: [
         '-p',
@@ -1264,7 +1388,6 @@ export class ShipNowManager {
         prompt,
       ],
       cwd,
-      timeoutMs,
       env: {
         ANTHROPIC_BASE_URL: this.env.claudeCodeAnthropicBaseUrl,
         ANTHROPIC_API_KEY: this.env.claudeCodeAnthropicApiKey,
@@ -1277,6 +1400,46 @@ export class ShipNowManager {
     if (result.code !== 0) {
       throw new Error(`Claude Code failed with exit code ${result.code}.`);
     }
+  }
+
+  private async runTrackedCommand(
+    task: TaskRecord,
+    timeoutMs: number,
+    options: Omit<Parameters<typeof runCommand>[0], 'timeoutMs' | 'onSpawn'>
+  ): Promise<{ code: number; signal: NodeJS.Signals | null }> {
+    this.store.setTaskStatus(task.id, 'running', {
+      timeout_ms: timeoutMs,
+    });
+
+    try {
+      return await runCommand({
+        ...options,
+        timeoutMs,
+        onSpawn: async (pid) => {
+          this.store.setTaskStatus(task.id, 'running', {
+            active_pid: pid,
+            timeout_ms: timeoutMs,
+          });
+        },
+      });
+    } finally {
+      this.store.setTaskStatus(task.id, 'running', {
+        active_pid: null,
+        timeout_ms: timeoutMs,
+      });
+    }
+  }
+
+  private async runTrackedCommandByTaskId(
+    taskId: string,
+    options: Omit<Parameters<typeof runCommand>[0], 'timeoutMs' | 'onSpawn'> & { timeoutMs: number }
+  ): Promise<{ code: number; signal: NodeJS.Signals | null }> {
+    const task = this.store.getTask(taskId);
+    if (!task) {
+      throw new Error(`Task ${taskId} not found.`);
+    }
+    const { timeoutMs, ...rest } = options;
+    return this.runTrackedCommand(task, timeoutMs, rest);
   }
 
   private async copyDirectory(source: string, destination: string): Promise<void> {

@@ -13,9 +13,9 @@ function createTestEnv(root: string): ShipNowEnv {
     publicBaseUrl: 'http://localhost:3000',
     previewBaseUrl: 'http://localhost:3000/preview',
     shipnowApiBaseUrl: '/api',
-    workspaceRoot: join(root, 'workspace'),
+    workspaceRoot: join(root, 'workspace', 'project'),
     templateRoot: join(root, 'templates'),
-    publicStaticRoot: join(root, 'public'),
+    publicStaticRoot: join(root, 'workspace', 'public'),
     dbPath: join(root, 'shipnow.sqlite'),
     codexBin: 'codex',
     claudeCodeBin: 'claude',
@@ -30,7 +30,7 @@ function createTestEnv(root: string): ShipNowEnv {
 
 function createTaskHarness() {
   const root = mkdtempSync(join(tmpdir(), 'shipnow-task-summary-'));
-  const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'public'));
+  const store = new ShipNowStore(join(root, 'shipnow.sqlite'), join(root, 'workspace', 'project'));
   const manager = new ShipNowManager(store, createTestEnv(root));
   const project = store.createProject({
     projectId: 'proj_123456789abc',
@@ -39,7 +39,7 @@ function createTaskHarness() {
     type: 'landing',
     title: 'Demo project',
     prompt: 'Build a simple landing page.',
-    sourceRoot: join(root, 'workspace', 'proj_123456789abc'),
+    sourceRoot: join(root, 'workspace', 'project', 'proj_123456789abc', 'source'),
     status: 'preview_ready',
   });
   const task = store.createTask({
@@ -47,7 +47,7 @@ function createTaskHarness() {
     type: 'publish',
     prompt: 'Publish the current preview.',
     runnerName: 'codex',
-    logPath: join(root, 'public', project.project_id, 'logs', 'task.log'),
+    logPath: join(root, 'workspace', 'project', project.project_id, 'logs', 'task.log'),
   });
   return { root, store, manager, project, task };
 }
@@ -85,6 +85,39 @@ test('task completion event stores llm summary and raw output when summary gener
     assert.match(capturedPrompt, /【任务日志尾段】/);
     assert.match(capturedPrompt, /Building project with pnpm build\./);
     assert.match(capturedPrompt, /Build finished successfully\./);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('delete project tasks skip summary generation and still emit a completion event', async () => {
+  const { root, manager, store, project } = createTaskHarness();
+  const task = store.createTask({
+    projectId: project.project_id,
+    type: 'delete_project',
+    prompt: 'Delete the project.',
+    runnerName: 'codex',
+    logPath: join(root, 'workspace', 'project', project.project_id, 'logs', 'delete.log'),
+  });
+
+  try {
+    (manager as unknown as { executeDelete: () => Promise<void> }).executeDelete = async () => {};
+    (manager as unknown as {
+      runRunnerText: (runnerName: string, prompt: string, cwd: string, timeoutMs: number) => Promise<string>;
+    }).runRunnerText = async () => {
+      throw new Error('summary generation should not run for delete_project tasks');
+    };
+
+    await (manager as unknown as { executeTask: (task: unknown) => Promise<void> }).executeTask(task);
+
+    const refreshedTask = store.getTask(task.id);
+    const events = store.listEvents(project.project_id);
+    const completed = events.find((event) => event.type === 'task_completed');
+
+    assert.equal(refreshedTask?.status, 'success');
+    assert.equal(completed?.detail, '删除任务已完成。');
+    assert.equal((completed?.data as Record<string, unknown> | undefined)?.summarySource, 'fallback');
+    assert.equal((completed?.data as Record<string, unknown> | undefined)?.summaryRawOutput, null);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
