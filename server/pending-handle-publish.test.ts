@@ -29,6 +29,7 @@ function createTestEnv(root: string): ShipNowEnv {
     claudeCodeModel: 'deepseek-v4-flash',
     defaultRunner: 'codex',
     taskTimeoutSeconds: 1800,
+    taskConcurrency: 10,
     shipnowAppPrefix: '/shipnow',
   };
 }
@@ -307,6 +308,7 @@ test('preview release base href follows the preview base url pathname', async ()
           claudeCodeModel: 'deepseek-v4-flash',
           defaultRunner: 'codex',
           taskTimeoutSeconds: 1800,
+          taskConcurrency: 10,
           shipnowAppPrefix: '/shipnow',
         }
       );

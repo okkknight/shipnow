@@ -46,6 +46,7 @@ import { runCommand } from './process.js';
 import type { AppSettingsView, ProjectSettingsView, TaskRunnerName } from './types.js';
 import { killProcessTree } from './process.js';
 import { createTaskProgressEvent, projectTimelineBus } from './timelineBus.js';
+import { TaskQueuePool } from './taskQueue.js';
 import {
   buildTaskCompletionSummaryPrompt,
   normalizeTaskCompletionSummary,
@@ -179,20 +180,24 @@ export class ShipNowManager {
 
   private readonly recoveredTaskTimers = new Map<string, NodeJS.Timeout>();
 
-  private runningTaskId: string | null = null;
-
-  private drainScheduled = false;
+  private readonly taskQueue: TaskQueuePool<TaskRecord>;
 
   constructor(store: ShipNowStore, env: ShipNowEnv) {
     this.store = store;
     this.env = env;
+    this.taskQueue = new TaskQueuePool<TaskRecord>({
+      concurrency: this.env.taskConcurrency,
+      claimNextTask: async () => this.store.claimNextPendingTask(this.env.taskTimeoutSeconds * 1000),
+      runTask: async (task) => this.executeTask(task),
+    });
   }
 
   async initialize(): Promise<void> {
     await ensureWorkspaceRoots(this.env);
     await this.recoverInterruptedDeleteTasks();
     await this.recoverRunningTasks();
-    await this.resumePendingTasks();
+    this.taskQueue.start();
+    this.scheduleDrain();
   }
 
   async shutdown(): Promise<void> {
@@ -200,6 +205,7 @@ export class ShipNowManager {
       clearTimeout(timer);
     }
     this.recoveredTaskTimers.clear();
+    await this.taskQueue.stop();
   }
 
   listProjects(): ProjectView[] {
@@ -702,24 +708,6 @@ export class ShipNowManager {
     return task;
   }
 
-  private scheduleDrain(): void {
-    if (this.drainScheduled) {
-      return;
-    }
-    this.drainScheduled = true;
-    queueMicrotask(() => {
-      this.drainScheduled = false;
-      void this.drain();
-    });
-  }
-
-  private async resumePendingTasks(): Promise<void> {
-    if (this.runningTaskId) {
-      return;
-    }
-    this.scheduleDrain();
-  }
-
   private async recoverInterruptedDeleteTasks(): Promise<void> {
     const interruptedDeletes = this.store
       .listRunningTasks()
@@ -849,32 +837,14 @@ export class ShipNowManager {
     }
   }
 
-  private async drain(): Promise<void> {
-    if (this.runningTaskId) {
-      return;
-    }
-
-    const next = this.store.listPendingTasks()[0];
-    if (!next) {
-      return;
-    }
-
-    this.runningTaskId = next.id;
-    try {
-      await this.executeTask(next);
-    } finally {
-      this.runningTaskId = null;
-      const pending = this.store.listPendingTasks();
-      if (pending.length > 0) {
-        this.scheduleDrain();
-      }
-    }
+  private scheduleDrain(): void {
+    this.taskQueue.notify();
   }
 
   private async executeTask(task: TaskRecord): Promise<void> {
     const project = this.requireProject(task.project_id);
-    const startedAt = nowIso();
-    const timeoutMs = this.env.taskTimeoutSeconds * 1000;
+    const startedAt = task.started_at ?? nowIso();
+    const timeoutMs = task.timeout_ms ?? this.env.taskTimeoutSeconds * 1000;
     this.store.setTaskStatus(task.id, 'running', { started_at: startedAt, timeout_ms: timeoutMs, active_pid: null });
     this.publishTaskProgress(project, task, 'starting', { createdAt: startedAt });
     this.store.createEvent({

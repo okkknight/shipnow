@@ -18,6 +18,7 @@ export interface ShipNowEnv {
   claudeCodeModel: string;
   defaultRunner: TaskRunnerName;
   taskTimeoutSeconds: number;
+  taskConcurrency: number;
   shipnowAppPrefix: string;
 }
 
@@ -131,6 +132,7 @@ export function loadEnv(): ShipNowEnv {
     claudeCodeModel: envValue('SHIPNOW_CLAUDE_MODEL', 'ANTHROPIC_MODEL') || 'deepseek-v4-flash',
     defaultRunner: envRunner('SHIPNOW_DEFAULT_RUNNER', 'codex'),
     taskTimeoutSeconds: envInt('SHIPNOW_TASK_TIMEOUT_SECONDS', 1800),
+    taskConcurrency: envInt('SHIPNOW_TASK_CONCURRENCY', 10),
     shipnowAppPrefix: envPrefix('SHIPNOW_APP_PREFIX', '/shipnow'),
   };
 }

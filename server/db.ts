@@ -662,6 +662,49 @@ export class ShipNowStore {
     return this.db.prepare("SELECT * FROM tasks WHERE status = 'pending' ORDER BY created_at ASC").all() as TaskRecord[];
   }
 
+  claimNextPendingTask(timeoutMs: number): TaskRecord | null {
+    const transaction = this.db.transaction(() => {
+      const next = this.db
+        .prepare("SELECT * FROM tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1")
+        .get() as TaskRecord | undefined;
+      if (!next) {
+        return null;
+      }
+
+      const claimedAt = nowIso();
+      const claimed: TaskRecord = {
+        ...next,
+        status: 'running',
+        started_at: next.started_at ?? claimedAt,
+        finished_at: null,
+        timeout_ms: timeoutMs,
+        active_pid: null,
+        error_message: null,
+        updated_at: claimedAt,
+      };
+
+      const result = this.db
+        .prepare(
+          `
+          UPDATE tasks SET
+            status = @status,
+            started_at = @started_at,
+            finished_at = @finished_at,
+            timeout_ms = @timeout_ms,
+            active_pid = @active_pid,
+            error_message = @error_message,
+            updated_at = @updated_at
+          WHERE id = @id AND status = 'pending'
+        `
+        )
+        .run(claimed);
+
+      return result.changes === 1 ? claimed : null;
+    });
+
+    return transaction();
+  }
+
   listRunningTasks(): TaskRecord[] {
     return this.db.prepare("SELECT * FROM tasks WHERE status = 'running' ORDER BY created_at ASC").all() as TaskRecord[];
   }

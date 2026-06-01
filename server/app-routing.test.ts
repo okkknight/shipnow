@@ -29,6 +29,7 @@ function createTestEnv(root: string, previewBaseUrl: string): ShipNowEnv {
     claudeCodeModel: 'deepseek-v4-flash',
     defaultRunner: 'codex',
     taskTimeoutSeconds: 1800,
+    taskConcurrency: 10,
     shipnowAppPrefix: '/shipnow',
   };
 }

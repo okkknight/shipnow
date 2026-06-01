@@ -31,6 +31,7 @@ test('publishing records a user message in the conversation flow', async () => {
       claudeCodeModel: 'deepseek-v4-flash',
       defaultRunner: 'codex',
       taskTimeoutSeconds: 1800,
+      taskConcurrency: 10,
       shipnowAppPrefix: '/shipnow',
     };
     const manager = new ShipNowManager(store, env);
