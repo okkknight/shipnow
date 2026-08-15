@@ -1,6 +1,25 @@
 node_modules
 dist
-workspace
+# Keep ShipNow runtime state local, but version the checked-out source of
+# managed projects as part of this parent repository.
+workspace/
+!workspace/
+workspace/*
+!workspace/project/
+workspace/project/*
+!workspace/project/*/
+workspace/project/*/*
+!workspace/project/*/source/
+!workspace/project/*/source/**
+workspace/**/node_modules/
+workspace/**/dist/
+workspace/**/test-results/
+workspace/**/.git/
+workspace/**/.env
+workspace/**/.env.*
+workspace/**/*.sqlite
+workspace/**/*.sqlite-*
+workspace/**/*.log
 .playwright-cli
 output
 .DS_Store

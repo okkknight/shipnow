@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: 250 248 244;
+    --ink: 23 26 33;
+    --muted: 93 102 120;
+    --line: 224 217 208;
+    --teal: 19 132 111;
+    --amber: 191 116 25;
+    --card-bg: 255 253 250;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(19, 132, 111, 0.10), transparent 40%),
+      radial-gradient(ellipse at 80% 10%, rgba(191, 116, 25, 0.08), transparent 30%),
+      radial-gradient(ellipse at 50% 90%, rgba(19, 132, 111, 0.06), transparent 35%),
+      linear-gradient(180deg, rgb(var(--bg)) 0%, rgb(241 236 229) 100%);
+    color: rgb(var(--ink));
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  ::selection {
+    background: rgba(19, 132, 111, 0.18);
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto flex min-h-screen max-w-5xl flex-col px-5 py-8 md:px-8 md:py-10;
+  }
+
+  .card {
+    @apply rounded-[24px] border border-[rgb(var(--line))] bg-[rgb(var(--card-bg))]/80 shadow-[0_8px_32px_rgba(18,23,31,0.06)] backdrop-blur-sm;
+  }
+
+  .section-title {
+    @apply text-sm font-semibold uppercase tracking-[0.2em] text-[rgb(var(--teal))];
+  }
+
+  .nav-link {
+    @apply text-sm font-medium text-[rgb(var(--muted))] transition-colors hover:text-[rgb(var(--ink))];
+  }
+
+  .tag {
+    @apply inline-flex items-center rounded-full bg-[rgb(var(--teal))]/8 px-2.5 py-0.5 text-[11px] font-medium text-[rgb(var(--teal))];
+  }
+
+  .project-card {
+    @apply rounded-[24px] border border-[rgb(var(--line))] bg-[rgb(var(--card-bg))]/80 shadow-[0_8px_32px_rgba(18,23,31,0.06)] backdrop-blur-sm flex flex-col gap-3 p-5 transition-all duration-300 hover:shadow-[0_12px_40px_rgba(18,23,31,0.10)] hover:-translate-y-0.5;
+  }
+
+  .contact-link {
+    @apply inline-flex items-center gap-2 rounded-xl border border-[rgb(var(--line))] bg-white/60 px-4 py-3 text-sm font-medium text-[rgb(var(--ink))] transition-all hover:border-[rgb(var(--teal))] hover:bg-[rgb(var(--teal))]/5 hover:text-[rgb(var(--teal))];
+  }
+
+  .fade-in {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  .fade-in-d1 { animation-delay: 0.1s; }
+  .fade-in-d2 { animation-delay: 0.2s; }
+  .fade-in-d3 { animation-delay: 0.3s; }
+  .fade-in-d4 { animation-delay: 0.4s; }
+}
+
+.twinkle {
+  animation: twinkle ease-in-out infinite;
+  background-color: rgb(var(--teal));
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: var(--star-opacity, 0.15); transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

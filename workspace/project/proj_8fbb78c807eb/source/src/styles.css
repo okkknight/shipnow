@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --bg: 10 12 22;
+    --ink: 230 232 242;
+    --muted: 140 145 168;
+    --line: 38 42 62;
+    --gold: 212 175 55;
+    --glow: 212 175 55;
+    --surface: 16 19 34;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: rgb(var(--bg));
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(212, 175, 55, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(100, 120, 255, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(212, 175, 55, 0.03) 0%, transparent 70%);
+    color: rgb(var(--ink));
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  a {
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  /* ── Layout ── */
+  .page-shell {
+    @apply mx-auto flex min-h-screen max-w-5xl flex-col px-5 py-0;
+  }
+
+  /* ── Hero ── */
+  .hero-section {
+    @apply relative flex min-h-screen flex-col items-center justify-center overflow-hidden text-center;
+  }
+
+  /* ── Star Field Layers ── */
+  .star-field-layer {
+    @apply pointer-events-none fixed inset-0 overflow-hidden;
+  }
+
+  .star-field-deep { z-index: 0; }
+  .star-field-mid  { z-index: 1; }
+  .star-field-close { z-index: 2; }
+
+  .star {
+    @apply absolute rounded-full bg-white;
+  }
+
+  .star-tiny {
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    animation: twinkle-tiny ease-in-out infinite;
+  }
+
+  .star-medium {
+    width: 2px;
+    height: 2px;
+    opacity: 0;
+    box-shadow: 0 0 4px 1px rgba(212, 175, 55, 0.25);
+    animation: twinkle-med ease-in-out infinite;
+  }
+
+  .star-large {
+    width: 3px;
+    height: 3px;
+    opacity: 0;
+    box-shadow: 0 0 8px 3px rgba(212, 175, 55, 0.35);
+    animation: twinkle-med ease-in-out infinite;
+  }
+
+  @keyframes twinkle-tiny {
+    0%, 100% { opacity: 0; transform: scale(0.2); }
+    50% { opacity: 0.35; transform: scale(1); }
+  }
+
+  @keyframes twinkle-med {
+    0%, 100% { opacity: 0.1; transform: scale(0.4); }
+    50% { opacity: 0.9; transform: scale(1); }
+  }
+
+  /* ── Shooting Stars ── */
+  .shooting-star-field {
+    @apply pointer-events-none fixed inset-0 overflow-hidden;
+    z-index: 3;
+  }
+
+  .shooting-star {
+    @apply absolute h-px origin-left;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.7) 30%,
+      rgba(255, 255, 240, 0.9) 60%,
+      rgba(212, 175, 55, 0.4) 80%,
+      transparent 100%
+    );
+    border-radius: 1px;
+    animation: shoot ease-out forwards;
+  }
+
+  @keyframes shoot {
+    0%   { width: 0; opacity: 0; }
+    5%   { opacity: 1; }
+    20%  { width: 180px; opacity: 1; }
+    100% { width: 180px; opacity: 0; }
+  }
+
+  .hero-content {
+    @apply relative z-10 max-w-3xl;
+  }
+
+  .hero-badge {
+    @apply mx-auto mb-6 inline-flex items-center rounded-full border border-[rgb(var(--gold))/0.3] bg-[rgb(var(--gold))/0.08] px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.25em] text-[rgb(var(--gold))];
+  }
+
+  .hero-title {
+    @apply text-6xl font-bold tracking-tight md:text-8xl lg:text-9xl;
+    line-height: 0.9;
+  }
+
+  .hero-title span {
+    display: block;
+    background: linear-gradient(135deg, rgb(var(--gold)) 0%, rgb(250 220 100) 50%, rgb(var(--gold)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    @apply mx-auto mt-6 max-w-xl text-base leading-7 text-[rgb(var(--muted))] md:text-lg;
+  }
+
+  .hero-actions {
+    @apply mt-8 flex flex-wrap justify-center gap-4;
+  }
+
+  .scroll-hint {
+    @apply absolute bottom-10 left-1/2 z-10 -translate-x-1/2;
+  }
+
+  .scroll-dot {
+    @apply block h-8 w-[2px] rounded-full bg-gradient-to-b from-[rgb(var(--gold))] to-transparent;
+    animation: scrollPulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes scrollPulse {
+    0%, 100% { opacity: 0.4; transform: scaleY(0.6); }
+    50% { opacity: 1; transform: scaleY(1); }
+  }
+
+  /* ── Section ── */
+  .section {
+    @apply py-24 md:py-32;
+  }
+
+  .section-header {
+    @apply mb-14 text-center;
+  }
+
+  .section-pill {
+    @apply inline-flex items-center rounded-full border border-[rgb(var(--line))] bg-[rgb(var(--surface))] px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[rgb(var(--gold))];
+  }
+
+  .section-title {
+    @apply mt-5 text-3xl font-bold tracking-tight text-[rgb(var(--ink))] md:text-4xl;
+  }
+
+  .section-desc {
+    @apply mx-auto mt-3 max-w-lg text-sm leading-6 text-[rgb(var(--muted))];
+  }
+
+  /* ── Domain Cards ── */
+  .domain-grid {
+    @apply grid gap-5 md:grid-cols-3;
+  }
+
+  .domain-card {
+    @apply rounded-2xl border border-[rgb(var(--line))] bg-[rgb(var(--surface))]/60 p-7 text-center transition duration-300 hover:border-[rgb(var(--gold))/0.3] hover:shadow-[0_0_30px_rgba(212,175,55,0.06)];
+  }
+
+  .domain-icon {
+    @apply inline-flex h-14 w-14 items-center justify-center rounded-full bg-[rgb(var(--gold))/0.1] text-2xl;
+  }
+
+  .domain-title {
+    @apply mt-5 text-lg font-semibold text-[rgb(var(--ink))];
+  }
+
+  .domain-desc {
+    @apply mt-2 text-sm leading-6 text-[rgb(var(--muted))];
+  }
+
+  /* ── Manifesto ── */
+  .manifesto-section {
+    @apply py-20 md:py-28;
+  }
+
+  .manifesto-card {
+    @apply mx-auto max-w-2xl rounded-2xl border border-[rgb(var(--line))] bg-[rgb(var(--surface))]/40 px-8 py-10 text-center md:px-12 md:py-14;
+  }
+
+  .manifesto-quote {
+    @apply text-lg leading-8 text-[rgb(var(--ink))] md:text-xl md:leading-9;
+  }
+
+  .manifesto-caption {
+    @apply mt-6 text-sm text-[rgb(var(--muted))];
+  }
+
+  .manifesto-caption cite {
+    @apply font-medium text-[rgb(var(--gold))] not-italic;
+  }
+
+  /* ── Contact ── */
+  .contact-section {
+    @apply pb-20;
+  }
+
+  .contact-grid {
+    @apply mx-auto grid max-w-lg gap-3;
+  }
+
+  .contact-card {
+    @apply flex items-center justify-between rounded-xl border border-[rgb(var(--line))] bg-[rgb(var(--surface))]/40 px-5 py-4 text-sm transition duration-200 hover:border-[rgb(var(--gold))/0.25] hover:bg-[rgb(var(--surface))]/70;
+  }
+
+  .contact-card.dim {
+    @apply cursor-default opacity-70;
+  }
+
+  .contact-label {
+    @apply font-medium text-[rgb(var(--muted))];
+  }
+
+  .contact-value {
+    @apply flex items-center gap-2 font-semibold text-[rgb(var(--ink))];
+  }
+
+  .status-dot {
+    @apply inline-block h-2 w-2 rounded-full bg-[rgb(var(--gold))];
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes statusPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  .back-top {
+    @apply mt-10 text-center;
+  }
+
+  /* ── Buttons ── */
+  .primary-button {
+    @apply inline-flex items-center justify-center rounded-full bg-[rgb(var(--gold))] px-6 py-2.5 text-sm font-semibold text-[rgb(var(--bg))] transition hover:bg-[rgb(var(--gold))/0.9] hover:shadow-[0_0_20px_rgba(212,175,55,0.2)];
+  }
+
+  .ghost-button {
+    @apply inline-flex items-center justify-center rounded-full border border-[rgb(var(--line))] bg-transparent px-6 py-2.5 text-sm font-medium text-[rgb(var(--ink))] transition hover:border-[rgb(var(--gold))/0.4] hover:text-[rgb(var(--gold))];
+  }
+
+  /* ── Footer ── */
+  .footer {
+    @apply mt-auto border-t border-[rgb(var(--line))] py-8 text-center text-sm text-[rgb(var(--muted))];
+  }
+
+  .footer-brand {
+    @apply font-semibold text-[rgb(var(--gold))];
+  }
+
+  .footer-tagline {
+    @apply mt-1 text-xs;
+  }
+}
