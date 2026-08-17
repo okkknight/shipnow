@@ -60,18 +60,18 @@ rsync -az --delete \
   --exclude '.playwright-cli' \
   --exclude 'workspace' \
   -e 'ssh -o StrictHostKeyChecking=no' \
-  ./ root@89.208.242.44:/opt/boringmax/shipnow/
+  ./ ubuntu@43.172.79.177:/opt/boringmax/shipnow/
 
 # 3) sync the generated public client assets
 rsync -az --delete \
   -e 'ssh -o StrictHostKeyChecking=no' \
-  dist/client/ root@89.208.242.44:/opt/boringmax/site/shipnow/
+  dist/client/ ubuntu@43.172.79.177:/opt/boringmax/site/shipnow/
 
 # 4) make sure the VPS workspace stays writable by the shipnow user
-ssh root@89.208.242.44 'chown -R shipnow:shipnow /opt/boringmax/workspace'
+ssh ubuntu@43.172.79.177 'chown -R shipnow:shipnow /opt/boringmax/workspace'
 
 # 5) reload the service if the backend changed or if the workspace ownership changed
-ssh root@89.208.242.44 'systemctl daemon-reload && systemctl restart shipnow'
+ssh ubuntu@43.172.79.177 'systemctl daemon-reload && systemctl restart shipnow'
 ```
 
 Notes:

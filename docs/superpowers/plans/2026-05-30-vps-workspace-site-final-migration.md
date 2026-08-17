@@ -54,7 +54,7 @@
 - [ ] **Step 1: Capture the current VPS shape**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   systemctl is-active shipnow boringapi caddy
   printf "\nsite root:\n"
@@ -72,7 +72,7 @@ Expected:
 - [ ] **Step 2: Create a rollback archive**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   stamp=shipnow-vps-split-2026-05-30
   mkdir -p /opt/boringmax/backups/$stamp
@@ -111,7 +111,7 @@ Expected:
 - [ ] **Step 1: Create the new workspace root**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   install -d -o shipnow -g shipnow /opt/boringmax/workspace/project
   install -d -o shipnow -g shipnow /opt/boringmax/workspace
@@ -125,7 +125,7 @@ Expected:
 - [ ] **Step 2: Move every ShipNow-managed internal tree out of `/opt/boringmax/site`**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   shopt -s nullglob
   for dir in /opt/boringmax/site/proj_*; do
@@ -141,7 +141,7 @@ Expected:
 - [ ] **Step 3: Move sqlite into the new private workspace root**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   mv /opt/boringmax/shipnow/workspace/shipnow.sqlite* /opt/boringmax/workspace/
   chown -R shipnow:shipnow /opt/boringmax/workspace
@@ -200,7 +200,7 @@ Expected:
 rsync -az --delete \
   -e 'ssh -o StrictHostKeyChecking=no' \
   /Users/linpeiwen/knightspace/shipnow/dist/client/ \
-  root@89.208.242.44:/opt/boringmax/site/shipnow/
+  ubuntu@43.172.79.177:/opt/boringmax/site/shipnow/
 ```
 
 Expected:
@@ -209,7 +209,7 @@ Expected:
 - [ ] **Step 3: Restart the ShipNow service with the new environment**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   systemctl daemon-reload
   systemctl restart shipnow
@@ -250,7 +250,7 @@ Expected:
 - [ ] **Step 2: Verify the VPS public and internal paths separately**
 
 ```bash
-ssh root@89.208.242.44 '
+ssh ubuntu@43.172.79.177 '
   set -e
   curl -fsS http://127.0.0.1:8090/health
   curl -fsSI https://boringmax.com/shipnow

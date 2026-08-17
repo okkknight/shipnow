@@ -1076,7 +1076,7 @@ ShipNow 后端启动时必须校验：
 
 ```text
 Hostname: fine-bits-1.localdomain
-Public IP: 89.208.242.44
+Public IP: 43.172.79.177
 OS: AlmaLinux 9.7 x86_64
 Kernel: 5.14.0-611.30.1.el9_7.x86_64
 CPU: 2 vCPU
