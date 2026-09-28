@@ -27,3 +27,5 @@ output
 *.sqlite-journal
 .env
 .env.local
+.env.*
+!.env.example
