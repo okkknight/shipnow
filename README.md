@@ -2,6 +2,8 @@
 
 ShipNow 是一个自托管的小站创建与发布工作台。用户创建项目、用 Codex 修改页面，然后构建预览并发布静态站点。主应用使用 Vite/React 前端和 Fastify/SQLite 服务端。
 
+在线体验：[ShipNow](https://boringmax.com/shipnow/)。
+
 ## 本地开发
 
 需要 Node.js 和 pnpm。
