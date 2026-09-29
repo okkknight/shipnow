@@ -1,20 +1,37 @@
 # ShipNow
 
-ShipNow 是一个自托管的小站创建与发布工作台。用户创建项目、用 Codex 修改页面，然后构建预览并发布静态站点。主应用使用 Vite/React 前端和 Fastify/SQLite 服务端。
+有一个网页作品的想法，ShipNow 的目标是让你在十几分钟内把它做出来、发出去，并拿到一条可以直接分享的公网链接。
 
-在线体验：[ShipNow](https://boringmax.com/shipnow/)。
+输入项目名和一句想法，ShipNow 会创建一个完整的前端小站，让 Codex 在源码里把它做出来，自动构建出预览。满意后点一次 Publish，作品就会发布到 `boringmax.com/项目名`。下一次想改，也只需要继续说需求：生成新预览，确认后再把它推到正式链接。
+
+[查看线上工作台](https://boringmax.com/shipnow/)
+
+它服务的是可独立访问、可分享的纯前端小作品：活动页、小游戏、作品集、产品介绍页，或者任何你想迅速放到公网的想法。项目源码、构建产物、预览和发布记录都留在自己的服务器上。
+
+## 一次发布怎么走
+
+1. 输入项目名和想法，创建一座从默认模板起步的小站。
+2. Codex 生成或修改源码，ShipNow 自动构建预览。
+3. 打开预览，确认作品已经是你愿意发出去的样子。
+4. 点击发布，拿到 `boringmax.com/项目名` 的正式链接。
+
+项目列表和任务记录会显示生成、构建、预览和发布的状态；失败时也能从日志回到具体原因。
 
 ## 本地开发
 
-需要 Node.js 和 pnpm。
+需要 Node.js、pnpm，以及你准备使用的代码执行器。安装依赖并启动前后端：
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-构建命令为 `pnpm build`。运行产生的 SQLite 数据库、日志和站点发布目录属于本地状态。详细架构见 [项目上下文](PROJECT_CONTEXT.md)，部署说明见 [VPS 文档](docs/SHIPNOW_VPS_DEPLOYMENT.md)。
+生产构建使用 `pnpm build`。本地项目源码和内部工作区位于 `workspace/project/`，公开站点文件位于 `workspace/public/`；数据库、日志和发布产物属于运行数据，请不要当作应用源码提交。
+
+主应用由 Vite/React 前端和 Fastify/SQLite 服务端组成，仓库还提供一个默认静态站点模板。运行配置、目录和部署步骤见 [VPS 文档](docs/SHIPNOW_VPS_DEPLOYMENT.md)，项目现状见 [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md)。
+
+自己部署时，先给工作台和 API 配好访问控制，再开放创建、修改和发布能力。
 
 ## 许可
 
-ShipNow 主应用代码采用 [MIT 许可证](LICENSE)。`workspace/project/` 下的站点源码是由工作台管理的独立项目，不自动获得 ShipNow 主应用的 MIT 授权；使用这些站点前请确认各自的权利和许可。第三方依赖遵循各自的许可证。
+ShipNow 主应用代码采用 [MIT 许可证](LICENSE)。`workspace/project/` 下由工作台管理的站点是独立项目，不自动获得主应用的 MIT 授权；使用或分发这些站点前，请查看各自的许可。第三方依赖遵循各自的许可证。
